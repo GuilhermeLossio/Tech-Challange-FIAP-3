@@ -447,11 +447,11 @@ Currently, data is managed locally. In future versions, processed files and seri
 
 **Guilherme Lossio**
 
-Machine Learning Engineering — FIAP MLET 2025
+Machine Learning Engineering — FIAP MLET 2026
 
-[![GitHub](https://img.shields.io/badge/GitHub-matheuspavani-181717?style=flat-square&logo=github)](https://github.com/matheuspavani)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-matheuspavani-0A66C2?style=flat-square&logo=linkedin)](https://linkedin.com/in/matheuspavani)
-[![Hugging Face](https://img.shields.io/badge/HuggingFace-matheuspavani-FFD21E?style=flat-square&logo=huggingface&logoColor=black)](https://huggingface.co/matheuspavani)
+[![GitHub](https://img.shields.io/badge/GitHub-guilhermelossio-181717?style=flat-square&logo=github)](https://github.com/guilherme-lossio)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-guilhermelossio-0A66C2?style=flat-square&logo=linkedin)](https://linkedin.com/in/guilherme-lossio)
+[![Hugging Face](https://img.shields.io/badge/HuggingFace-guilhermelossio-FFD21E?style=flat-square&logo=huggingface&logoColor=black)](https://huggingface.co/GuilhermeL)
 
 </div>
 

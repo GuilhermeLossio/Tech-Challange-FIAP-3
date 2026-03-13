@@ -415,5 +415,6 @@ Text generated for each `ORIGIN_AIRPORT`, enriched with `airports.csv`:
 
 ---
 
-*Technical reference document — Tech Challenge Phase 03 | FIAP MLET 2025*
-*Author: Matheus Pavani*
+*Tech Challenge Phase 03 | FIAP MLET 2026*
+
+*Author: Guilherme Lossio*

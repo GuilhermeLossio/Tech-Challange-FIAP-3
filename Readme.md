@@ -431,7 +431,7 @@ flights.csv ── AIRLINE             ──► airlines.csv (IATA_CODE)
             ── DESTINATION_AIRPORT ──► airports.csv (IATA_CODE)
 ```
 
-For the complete schema of all columns, cleaning rules, and feature engineering, consult [PROTOTYPE.md](PROTOTYPE.md).
+For the complete schema of all columns, cleaning rules, and feature engineering, consult [PROTOTYPE.md](docs/PROTOTYPE.md).
 
 > ⚠️ The raw files are not versioned in the repository due to their size. Download from the link above and place them in `data/raw/`.
 

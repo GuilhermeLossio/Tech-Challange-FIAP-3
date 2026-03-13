@@ -1,0 +1,36 @@
+erDiagram
+    FLIGHTS_CSV {
+        int     YEAR
+        int     MONTH
+        int     DAY
+        int     DAY_OF_WEEK
+        string  AIRLINE           FK
+        int     FLIGHT_NUMBER
+        string  ORIGIN_AIRPORT    FK
+        string  DESTINATION_AIRPORT FK
+        int     SCHEDULED_DEPARTURE
+        float   ARRIVAL_DELAY
+        int     CANCELLED
+        float   WEATHER_DELAY
+        float   AIRLINE_DELAY
+        float   AIR_SYSTEM_DELAY
+        float   LATE_AIRCRAFT_DELAY
+    }
+
+    AIRPORTS_CSV {
+        string  IATA_CODE         PK
+        string  AIRPORT
+        string  CITY
+        string  STATE
+        float   LATITUDE
+        float   LONGITUDE
+    }
+
+    AIRLINES_CSV {
+        string  IATA_CODE         PK
+        string  AIRLINE
+    }
+
+    FLIGHTS_CSV }o--|| AIRLINES_CSV        : "AIRLINE → IATA_CODE"
+    FLIGHTS_CSV }o--|| AIRPORTS_CSV        : "ORIGIN_AIRPORT → IATA_CODE"
+    FLIGHTS_CSV }o--|| AIRPORTS_CSV        : "DESTINATION_AIRPORT → IATA_CODE"

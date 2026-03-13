@@ -1,0 +1,21 @@
+flowchart TD
+    A[(flights.csv\n~5.8M rows · 31 cols)] --> C
+    B[(airports.csv\n~330 rows · 7 cols)]  --> C
+    D[(airlines.csv\n~15 rows · 2 cols)]   --> C
+
+    C[Join ORIGIN_AIRPORT + DESTINATION_AIRPORT\n+ AIRLINE via IATA_CODE]
+
+    C --> E[Limpeza\nRemove cancelados · trata nulos\nremove outliers ARRIVAL_DELAY > 500]
+
+    E --> F[Engenharia de features\nPERIODO_DIA · ESTACAO · IS_FERIADO\nROTA = ORIGIN_AIRPORT + DEST_AIRPORT]
+
+    F --> G[Target encoding histórico\nORIGIN_DELAY_RATE · DEST_DELAY_RATE\nCARRIER_DELAY_RATE · ROTA_DELAY_RATE\nCARRIER_DELAY_RATE_DOW\ncalculado apenas no treino — sem data leakage]
+
+    G --> H[Criação do target\nIS_DELAYED = ARRIVAL_DELAY > 15]
+
+    H --> I[(flights_processed\n~27 colunas)]
+    H --> J[(airport_profiles\n~18 colunas por aeroporto)]
+
+    I --> K[Train / Test split\nstratify=IS_DELAYED]
+    J --> L[RAG indexer\nFAISS vector store]
+    J --> M[Clustering\nK-Means + PCA]

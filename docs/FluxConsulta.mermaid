@@ -1,0 +1,33 @@
+sequenceDiagram
+    actor U as Usuário
+    participant D as Dash\ndashboard
+    participant A as FastAPI\n/advise
+    participant P as Preprocessing\nsrc/preprocessing.py
+    participant ML as ML Model\nXGBoost .pkl
+    participant SH as SHAP Explainer\nsrc/explainer.py
+    participant RV as RAG Retriever\nsrc/rag/retriever.py
+    participant FS as FAISS\nvector store
+    participant Q as Qwen 3\nHF Spaces
+
+    U->>D: Preenche form\n(rota, airline, horário, pergunta)
+    D->>A: POST /advise\n{origin_airport, destination_airport,\nairline, scheduled_departure,\nmonth, day_of_week, question}
+
+    A->>P: Aplica feature engineering\n(PERIODO_DIA, ESTACAO, IS_FERIADO,\ntaxas históricas de atraso)
+    P-->>A: feature_vector (13 features)
+
+    A->>ML: predict_proba(feature_vector)
+    ML-->>A: delay_probability = 0.71
+
+    A->>SH: explain(feature_vector)
+    SH-->>A: shap_values → top_factors\n[{jfk_peak_hour: +24%}, ...]
+
+    A->>RV: retrieve(question + rota + airline)
+    RV->>FS: busca exata por metadados\n(origin, dest, carrier) k=2\n+ busca semântica k=4
+    FS-->>RV: docs relevantes
+    RV-->>A: context (~800 tokens)
+
+    A->>Q: prompt = system + flight_data\n+ ml_prediction + shap_factors\n+ rag_context + instructions
+    Q-->>A: advice (linguagem natural)
+
+    A-->>D: {delay_probability, risk_level,\ntop_factors, advice}
+    D-->>U: Risk badge + SHAP chart\n+ resposta do Advisor

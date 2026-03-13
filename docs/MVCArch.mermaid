@@ -1,0 +1,56 @@
+flowchart TB
+    subgraph VIEW ["VIEW — Dash · dashboard/app.py"]
+        V1[Overview\nKPIs · bar · line]
+        V2[Explorer\nheatmap · boxplot]
+        V3[Mapas geo\nscatter · route map]
+        V4[Clusters\nPCA · anomalias]
+        V5[Flight Advisor\nform · badge · LLM]
+    end
+
+    subgraph CONTROLLER ["CONTROLLER — src/"]
+        C1[Dashboard ctrl\nfiltros · agg · charts]
+        C2[Map ctrl\nlat·lon · plotly fig]
+        C3[Cluster ctrl\nK-Means · PCA · IsoForest]
+        C4[Advisor ctrl\nFastAPI POST /advise]
+        CP[Preprocessing pipeline\nsrc/preprocessing.py]
+        CS[SHAP explainer\nsrc/explainer.py]
+        CR[RAG orchestrator\nsrc/rag/advisor.py]
+    end
+
+    subgraph MODEL ["MODEL — data/ · models/ · src/rag/"]
+        M1[(flights.csv)]
+        M2[(airports.csv)]
+        M3[(airlines.csv)]
+        M4[(flights_processed)]
+        M5[(airport_profiles)]
+        M6[(ML models\nRF · XGBoost · LogReg)]
+        M7[(FAISS\nvector store)]
+        M8([Qwen 3\nHF Spaces])
+        M9[(AWS S3\nroadmap)]
+    end
+
+    V1 & V2 --> C1
+    V3 --> C2
+    V4 --> C3
+    V5 --> C4
+
+    C1 & C2 --> CP
+    C3 --> CS
+    C4 --> CS
+    C4 --> CR
+
+    CP --> M4
+    M1 & M2 & M3 --> CP
+
+    M4 --> M6
+    M4 --> M7
+    M5 --> M7
+    M7 --> M8
+
+    C1 --> M4
+    C2 --> M5
+    C3 --> M6
+    CR --> M7
+    CR --> M8
+
+    M6 & M7 & M4 -.->|roadmap| M9

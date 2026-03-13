@@ -6,10 +6,185 @@
 
 ## Table of Contents
 
+- [0. Diagramas de Arquitetura](#0-diagramas-de-arquitetura)
+  - [0.1 Fluxo de dados entre os 3 CSVs](#01-fluxo-de-dados-entre-os-3-csvs)
+  - [0.2 Pipeline de processamento](#02-pipeline-de-processamento)
+  - [0.3 Arquitetura MVC completa](#03-arquitetura-mvc-completa)
+  - [0.4 Fluxo de uma consulta ao Advisor](#04-fluxo-de-uma-consulta-ao-advisor)
 - [1. Data Schema](#1-data-schema)
 - [2. ML Model Feature Mapping](#2-ml-model-feature-mapping)
 - [3. Dashboard Screen Flow](#3-dashboard-screen-flow)
 - [4. RAG Document Structure](#4-rag-document-structure)
+
+---
+
+## 0. Diagramas de Arquitetura
+
+### 0.1 Fluxo de dados entre os 3 CSVs
+
+```mermaid
+erDiagram
+    FLIGHTS_CSV {
+        int     YEAR
+        int     MONTH
+        int     DAY
+        int     DAY_OF_WEEK
+        string  AIRLINE           FK
+        int     FLIGHT_NUMBER
+        string  ORIGIN_AIRPORT    FK
+        string  DESTINATION_AIRPORT FK
+        int     SCHEDULED_DEPARTURE
+        float   ARRIVAL_DELAY
+        int     CANCELLED
+        float   WEATHER_DELAY
+        float   AIRLINE_DELAY
+        float   AIR_SYSTEM_DELAY
+        float   LATE_AIRCRAFT_DELAY
+    }
+
+    AIRPORTS_CSV {
+        string  IATA_CODE         PK
+        string  AIRPORT
+        string  CITY
+        string  STATE
+        float   LATITUDE
+        float   LONGITUDE
+    }
+
+    AIRLINES_CSV {
+        string  IATA_CODE         PK
+        string  AIRLINE
+    }
+
+    FLIGHTS_CSV }o--|| AIRLINES_CSV        : "AIRLINE → IATA_CODE"
+    FLIGHTS_CSV }o--|| AIRPORTS_CSV        : "ORIGIN_AIRPORT → IATA_CODE"
+    FLIGHTS_CSV }o--|| AIRPORTS_CSV        : "DESTINATION_AIRPORT → IATA_CODE"
+```
+
+### 0.2 Pipeline de processamento
+
+```mermaid
+flowchart TD
+    A[(flights.csv\n~5.8M rows · 31 cols)] --> C
+    B[(airports.csv\n~330 rows · 7 cols)]  --> C
+    D[(airlines.csv\n~15 rows · 2 cols)]   --> C
+
+    C[Join ORIGIN_AIRPORT + DESTINATION_AIRPORT\n+ AIRLINE via IATA_CODE]
+
+    C --> E[Limpeza\nRemove cancelados · trata nulos\nremove outliers ARRIVAL_DELAY > 500]
+
+    E --> F[Engenharia de features\nPERIODO_DIA · ESTACAO · IS_FERIADO\nROTA = ORIGIN_AIRPORT + DEST_AIRPORT]
+
+    F --> G[Target encoding histórico\nORIGIN_DELAY_RATE · DEST_DELAY_RATE\nCARRIER_DELAY_RATE · ROTA_DELAY_RATE\nCARRIER_DELAY_RATE_DOW\ncalculado apenas no treino — sem data leakage]
+
+    G --> H[Criação do target\nIS_DELAYED = ARRIVAL_DELAY > 15]
+
+    H --> I[(flights_processed\n~27 colunas)]
+    H --> J[(airport_profiles\n~18 colunas por aeroporto)]
+
+    I --> K[Train / Test split\nstratify=IS_DELAYED]
+    J --> L[RAG indexer\nFAISS vector store]
+    J --> M[Clustering\nK-Means + PCA]
+```
+
+### 0.3 Arquitetura MVC completa
+
+```mermaid
+flowchart TB
+    subgraph VIEW ["VIEW — Dash · dashboard/app.py"]
+        V1[Overview\nKPIs · bar · line]
+        V2[Explorer\nheatmap · boxplot]
+        V3[Mapas geo\nscatter · route map]
+        V4[Clusters\nPCA · anomalias]
+        V5[Flight Advisor\nform · badge · LLM]
+    end
+
+    subgraph CONTROLLER ["CONTROLLER — src/"]
+        C1[Dashboard ctrl\nfiltros · agg · charts]
+        C2[Map ctrl\nlat·lon · plotly fig]
+        C3[Cluster ctrl\nK-Means · PCA · IsoForest]
+        C4[Advisor ctrl\nFastAPI POST /advise]
+        CP[Preprocessing pipeline\nsrc/preprocessing.py]
+        CS[SHAP explainer\nsrc/explainer.py]
+        CR[RAG orchestrator\nsrc/rag/advisor.py]
+    end
+
+    subgraph MODEL ["MODEL — data/ · models/ · src/rag/"]
+        M1[(flights.csv)]
+        M2[(airports.csv)]
+        M3[(airlines.csv)]
+        M4[(flights_processed)]
+        M5[(airport_profiles)]
+        M6[(ML models\nRF · XGBoost · LogReg)]
+        M7[(FAISS\nvector store)]
+        M8([Qwen 3\nHF Spaces])
+        M9[(AWS S3\nroadmap)]
+    end
+
+    V1 & V2 --> C1
+    V3 --> C2
+    V4 --> C3
+    V5 --> C4
+
+    C1 & C2 --> CP
+    C3 --> CS
+    C4 --> CS
+    C4 --> CR
+
+    CP --> M4
+    M1 & M2 & M3 --> CP
+
+    M4 --> M6
+    M4 --> M7
+    M5 --> M7
+    M7 --> M8
+
+    C1 --> M4
+    C2 --> M5
+    C3 --> M6
+    CR --> M7
+    CR --> M8
+
+    M6 & M7 & M4 -.->|roadmap| M9
+```
+
+### 0.4 Fluxo de uma consulta ao Advisor
+
+```mermaid
+sequenceDiagram
+    actor U as Usuário
+    participant D as Dash\ndashboard
+    participant A as FastAPI\n/advise
+    participant P as Preprocessing\nsrc/preprocessing.py
+    participant ML as ML Model\nXGBoost .pkl
+    participant SH as SHAP Explainer\nsrc/explainer.py
+    participant RV as RAG Retriever\nsrc/rag/retriever.py
+    participant FS as FAISS\nvector store
+    participant Q as Qwen 3\nHF Spaces
+
+    U->>D: Preenche form\n(rota, airline, horário, pergunta)
+    D->>A: POST /advise\n{origin_airport, destination_airport,\nairline, scheduled_departure,\nmonth, day_of_week, question}
+
+    A->>P: Aplica feature engineering\n(PERIODO_DIA, ESTACAO, IS_FERIADO,\ntaxas históricas de atraso)
+    P-->>A: feature_vector (13 features)
+
+    A->>ML: predict_proba(feature_vector)
+    ML-->>A: delay_probability = 0.71
+
+    A->>SH: explain(feature_vector)
+    SH-->>A: shap_values → top_factors\n[{jfk_peak_hour: +24%}, ...]
+
+    A->>RV: retrieve(question + rota + airline)
+    RV->>FS: busca exata por metadados\n(origin, dest, carrier) k=2\n+ busca semântica k=4
+    FS-->>RV: docs relevantes
+    RV-->>A: context (~800 tokens)
+
+    A->>Q: prompt = system + flight_data\n+ ml_prediction + shap_factors\n+ rag_context + instructions
+    Q-->>A: advice (linguagem natural)
+
+    A-->>D: {delay_probability, risk_level,\ntop_factors, advice}
+    D-->>U: Risk badge + SHAP chart\n+ resposta do Advisor
+```
 
 ---
 
@@ -407,7 +582,7 @@ Text generated for each `ORIGIN_AIRPORT`, enriched with `airports.csv`:
 |---|---|---|---|
 | **System** | Persona: expert consultant on US flights | — | ~80 |
 | **Flight data** | Route with city name, airline, `SCHEDULED_DEPARTURE`, `DAY_OF_WEEK`, `MONTH` | `airports.csv` `CITY`, `airlines.csv` `AIRLINE` | ~80 |
-| **ML Prediction** | Probability of delay, risk level, top SHAP factors with readable names | `IS_DELAYED` prob, SHAP values | ~100 |
+| **ML Prediction**| Probability of delay, risk level, top SHAP factors with readable names | `IS_DELAYED` prob, SHAP values | ~100 |
 | **RAG Context** | Documents retrieved from the vector store (route and airport profiles) | `airport_profiles`, route docs | ~800 |
 | **Instructions** | Direct tone, max 4 paragraphs, end with "My recommendation:" | — | ~80 |
 | **Total input** | — | — | ~1,140 |

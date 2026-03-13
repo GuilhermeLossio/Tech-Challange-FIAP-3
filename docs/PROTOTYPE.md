@@ -11,6 +11,8 @@
   - [0.2 Pipeline de processamento](#02-pipeline-de-processamento)
   - [0.3 Arquitetura MVC completa](#03-arquitetura-mvc-completa)
   - [0.4 Fluxo de uma consulta ao Advisor](#04-fluxo-de-uma-consulta-ao-advisor)
+  - [0.5 Pipeline de Treinamento (SVG)](#05-pipeline-de-treinamento-svg)
+  - [0.6 Pipeline do RAG (SVG)](#06-pipeline-do-rag-svg)
 - [1. Data Schema](#1-data-schema)
 - [2. ML Model Feature Mapping](#2-ml-model-feature-mapping)
 - [3. Dashboard Screen Flow](#3-dashboard-screen-flow)
@@ -185,6 +187,338 @@ sequenceDiagram
     A-->>D: {delay_probability, risk_level,\ntop_factors, advice}
     D-->>U: Risk badge + SHAP chart\n+ resposta do Advisor
 ```
+
+### 0.5 Pipeline de Treinamento (SVG)
+
+<svg width="100%" viewBox="0 0 680 780">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- ── PHASE LABELS (left) ── -->
+  <text class="ts" x="14" y="122" text-anchor="middle" transform="rotate(-90,14,122)" style="font-weight:500;fill:var(--color-text-secondary)">local</text>
+  <text class="ts" x="14" y="362" text-anchor="middle" transform="rotate(-90,14,362)" style="font-weight:500;fill:var(--color-text-secondary)">aws</text>
+  <text class="ts" x="14" y="622" text-anchor="middle" transform="rotate(-90,14,622)" style="font-weight:500;fill:var(--color-text-secondary)">predict</text>
+
+  <!-- ── PHASE BANDS ── -->
+  <rect x="28" y="44"  width="636" height="196" rx="10" fill="none" stroke="var(--color-border-tertiary)" stroke-width="0.5" stroke-dasharray="4 3"/>
+  <rect x="28" y="260" width="636" height="220" rx="10" fill="none" stroke="var(--color-border-tertiary)" stroke-width="0.5" stroke-dasharray="4 3"/>
+  <rect x="28" y="500" width="636" height="240" rx="10" fill="none" stroke="var(--color-border-tertiary)" stroke-width="0.5" stroke-dasharray="4 3"/>
+
+  <!-- ══════════════════════
+       FASE LOCAL
+  ══════════════════════ -->
+
+  <!-- flights.csv / airports.csv / airlines.csv -->
+  <g class="node c-gray" onclick="sendPrompt('Quais são os 3 CSVs de entrada do projeto?')">
+    <rect x="44" y="66" width="130" height="50" rx="6" stroke-width="0.5"/>
+    <text class="th" x="109" y="84" text-anchor="middle" dominant-baseline="central">Dados brutos</text>
+    <text class="ts" x="109" y="102" text-anchor="middle" dominant-baseline="central">flights · airports · airlines</text>
+  </g>
+
+  <!-- Preprocessing -->
+  <g class="node c-purple" onclick="sendPrompt('O que o pipeline de preprocessing faz?')">
+    <rect x="228" y="66" width="150" height="50" rx="6" stroke-width="0.5"/>
+    <text class="th" x="303" y="84" text-anchor="middle" dominant-baseline="central">Preprocessing</text>
+    <text class="ts" x="303" y="102" text-anchor="middle" dominant-baseline="central">join · limpeza · features</text>
+  </g>
+
+  <!-- Treinamento local -->
+  <g class="node c-purple" onclick="sendPrompt('Quais modelos são treinados localmente?')">
+    <rect x="440" y="66" width="150" height="50" rx="6" stroke-width="0.5"/>
+    <text class="th" x="515" y="84" text-anchor="middle" dominant-baseline="central">Treinamento local</text>
+    <text class="ts" x="515" y="102" text-anchor="middle" dominant-baseline="central">RF · XGBoost · LogReg</text>
+  </g>
+
+  <!-- SHAP -->
+  <g class="node c-amber" onclick="sendPrompt('Como o SHAP é usado no treinamento?')">
+    <rect x="440" y="170" width="150" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="515" y="189" text-anchor="middle" dominant-baseline="central">SHAP explainer</text>
+    <text class="ts" x="515" y="205" text-anchor="middle" dominant-baseline="central">src/explainer.py</text>
+  </g>
+
+  <!-- airport_profiles -->
+  <g class="node c-gray" onclick="sendPrompt('Como airport_profiles é gerado?')">
+    <rect x="228" y="170" width="150" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="303" y="189" text-anchor="middle" dominant-baseline="central">airport_profiles</text>
+    <text class="ts" x="303" y="205" text-anchor="middle" dominant-baseline="central">18 cols · clustering</text>
+  </g>
+
+  <!-- arrows fase local -->
+  <line x1="174" y1="91" x2="226" y2="91" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+  <line x1="378" y1="91" x2="438" y2="91" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+  <line x1="515" y1="116" x2="515" y2="168" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+  <line x1="303" y1="116" x2="303" y2="168" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+
+  <!-- ══════════════════════
+       FASE AWS
+  ══════════════════════ -->
+
+  <!-- S3 raw -->
+  <g class="node c-teal" onclick="sendPrompt('O que é enviado para o S3 após o treinamento local?')">
+    <rect x="44" y="282" width="140" height="50" rx="6" stroke-width="0.5"/>
+    <text class="th" x="114" y="300" text-anchor="middle" dominant-baseline="central">AWS S3</text>
+    <text class="ts" x="114" y="318" text-anchor="middle" dominant-baseline="central">modelos · dados raw</text>
+  </g>
+
+  <!-- Refinamento -->
+  <g class="node c-teal" onclick="sendPrompt('Como funciona o refinamento do modelo na nuvem?')">
+    <rect x="252" y="282" width="150" height="50" rx="6" stroke-width="0.5"/>
+    <text class="th" x="327" y="300" text-anchor="middle" dominant-baseline="central">Refinamento</text>
+    <text class="ts" x="327" y="318" text-anchor="middle" dominant-baseline="central">fine-tune · validação</text>
+  </g>
+
+  <!-- Athena -->
+  <g class="node c-teal" onclick="sendPrompt('Qual é o papel do Athena no projeto?')">
+    <rect x="468" y="282" width="168" height="50" rx="6" stroke-width="0.5"/>
+    <text class="th" x="552" y="300" text-anchor="middle" dominant-baseline="central">AWS Athena</text>
+    <text class="ts" x="552" y="318" text-anchor="middle" dominant-baseline="central">database de resultados</text>
+  </g>
+
+  <!-- modelo refinado pkl -->
+  <g class="node c-teal" onclick="sendPrompt('O modelo refinado fica serializado no S3 ou no Athena?')">
+    <rect x="252" y="394" width="150" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="327" y="413" text-anchor="middle" dominant-baseline="central">Modelo refinado</text>
+    <text class="ts" x="327" y="429" text-anchor="middle" dominant-baseline="central">.pkl salvo no S3</text>
+  </g>
+
+  <!-- arrows fase aws -->
+  <!-- treinamento local → S3 (cruzando fase) -->
+  <path d="M515 240 L515 252 L114 252 L114 280" fill="none" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+  <line x1="184" y1="307" x2="250" y2="307" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+  <line x1="402" y1="307" x2="466" y2="307" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+  <line x1="327" y1="332" x2="327" y2="392" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+  <!-- athena → modelo refinado (resultado do refinamento vai pro athena) -->
+  <path d="M552 332 L552 416 L404 416" fill="none" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+
+  <!-- ══════════════════════
+       FASE PREDICT
+  ══════════════════════ -->
+
+  <!-- Job de predição -->
+  <g class="node c-blue" onclick="sendPrompt('Como funciona o job de predição semanal?')">
+    <rect x="44" y="526" width="168" height="50" rx="6" stroke-width="0.5"/>
+    <text class="th" x="128" y="544" text-anchor="middle" dominant-baseline="central">Job de predição</text>
+    <text class="ts" x="128" y="562" text-anchor="middle" dominant-baseline="central">lê Athena · roda modelo</text>
+  </g>
+
+  <!-- Previsão semana seguinte -->
+  <g class="node c-blue" onclick="sendPrompt('O que a previsão da semana seguinte retorna?')">
+    <rect x="272" y="526" width="168" height="50" rx="6" stroke-width="0.5"/>
+    <text class="th" x="356" y="544" text-anchor="middle" dominant-baseline="central">Previsão semanal</text>
+    <text class="ts" x="356" y="562" text-anchor="middle" dominant-baseline="central">próximos 7 dias de voos</text>
+  </g>
+
+  <!-- S3 Predict -->
+  <g class="node c-blue" onclick="sendPrompt('O que vai para o S3 como Predict?')">
+    <rect x="500" y="526" width="148" height="50" rx="6" stroke-width="0.5"/>
+    <text class="th" x="574" y="544" text-anchor="middle" dominant-baseline="central">AWS S3</text>
+    <text class="ts" x="574" y="562" text-anchor="middle" dominant-baseline="central">resultados como "Predict"</text>
+  </g>
+
+  <!-- Dash / API consome -->
+  <g class="node c-gray" onclick="sendPrompt('Como o Dash e a API consomem as previsões do S3?')">
+    <rect x="272" y="648" width="168" height="50" rx="6" stroke-width="0.5"/>
+    <text class="th" x="356" y="666" text-anchor="middle" dominant-baseline="central">Dash + FastAPI</text>
+    <text class="ts" x="356" y="684" text-anchor="middle" dominant-baseline="central">exibe previsões ao usuário</text>
+  </g>
+
+  <!-- arrows fase predict -->
+  <!-- modelo refinado → job -->
+  <path d="M327 440 L327 490 L128 490 L128 524" fill="none" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+  <!-- athena → job -->
+  <path d="M552 446 L552 490 L128 490" fill="none" stroke="var(--color-border-secondary)" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#arrow)"/>
+  <line x1="212" y1="551" x2="270" y2="551" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+  <line x1="440" y1="551" x2="498" y2="551" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+  <line x1="356" y1="576" x2="356" y2="646" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+  <!-- S3 predict → dash -->
+  <path d="M574 576 L574 672 L442 672" fill="none" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+
+  <!-- label linha tracejada Athena → job -->
+  <text class="ts" x="340" y="485" text-anchor="middle" style="fill:var(--color-text-secondary)">dados históricos</text>
+
+  <!-- ── LEGEND ── -->
+  <rect x="44"  y="748" width="12" height="12" rx="2" fill="#D3D1C7"/>
+  <text class="ts" x="62"  y="759">Dados / storage local</text>
+  <rect x="180" y="748" width="12" height="12" rx="2" fill="#CECBF6"/>
+  <text class="ts" x="198" y="759">Pipeline ML local</text>
+  <rect x="316" y="748" width="12" height="12" rx="2" fill="#9FE1CB"/>
+  <text class="ts" x="334" y="759">AWS (S3 · Athena)</text>
+  <rect x="452" y="748" width="12" height="12" rx="2" fill="#B5D4F4"/>
+  <text class="ts" x="470" y="759">Predict pipeline</text>
+</svg>
+
+### 0.6 Pipeline do RAG (SVG)
+
+<svg width="100%" viewBox="0 0 680 820">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- ── PHASE LABELS ── -->
+  <text class="ts" x="14" y="118" text-anchor="middle" transform="rotate(-90,14,118)" style="font-weight:500;fill:var(--color-text-secondary)">cliente</text>
+  <text class="ts" x="14" y="320" text-anchor="middle" transform="rotate(-90,14,320)" style="font-weight:500;fill:var(--color-text-secondary)">rag</text>
+  <text class="ts" x="14" y="548" text-anchor="middle" transform="rotate(-90,14,548)" style="font-weight:500;fill:var(--color-text-secondary)">llm</text>
+  <text class="ts" x="14" y="714" text-anchor="middle" transform="rotate(-90,14,714)" style="font-weight:500;fill:var(--color-text-secondary)">dados</text>
+
+  <!-- ── PHASE BANDS ── -->
+  <rect x="28" y="44"  width="636" height="168" rx="10" fill="none" stroke="var(--color-border-tertiary)" stroke-width="0.5" stroke-dasharray="4 3"/>
+  <rect x="28" y="232" width="636" height="196" rx="10" fill="none" stroke="var(--color-border-tertiary)" stroke-width="0.5" stroke-dasharray="4 3"/>
+  <rect x="28" y="448" width="636" height="196" rx="10" fill="none" stroke="var(--color-border-tertiary)" stroke-width="0.5" stroke-dasharray="4 3"/>
+  <rect x="28" y="664" width="636" height="120" rx="10" fill="none" stroke="var(--color-border-tertiary)" stroke-width="0.5" stroke-dasharray="4 3"/>
+
+  <!-- ══════════════════════
+       FASE CLIENTE
+  ══════════════════════ -->
+
+  <!-- Dash — formulário -->
+  <g class="node c-blue" onclick="sendPrompt('Como funciona o formulário de voo no Dash para o RAG?')">
+    <rect x="44" y="66" width="168" height="56" rx="6" stroke-width="0.5"/>
+    <text class="th" x="128" y="87" text-anchor="middle" dominant-baseline="central">Dash — formulário</text>
+    <text class="ts" x="128" y="107" text-anchor="middle" dominant-baseline="central">origem · destino · data</text>
+  </g>
+
+  <!-- Dash — chat -->
+  <g class="node c-blue" onclick="sendPrompt('Como funciona o chat livre no Dash para o RAG?')">
+    <rect x="256" y="66" width="168" height="56" rx="6" stroke-width="0.5"/>
+    <text class="th" x="340" y="87" text-anchor="middle" dominant-baseline="central">Dash — chat</text>
+    <text class="ts" x="340" y="107" text-anchor="middle" dominant-baseline="central">linguagem natural livre</text>
+  </g>
+
+  <!-- FastAPI /rag-advise -->
+  <g class="node c-blue" onclick="sendPrompt('O que o endpoint /rag-advise recebe e retorna?')">
+    <rect x="468" y="66" width="168" height="56" rx="6" stroke-width="0.5"/>
+    <text class="th" x="552" y="87" text-anchor="middle" dominant-baseline="central">FastAPI</text>
+    <text class="ts" x="552" y="107" text-anchor="middle" dominant-baseline="central">POST /rag-advise</text>
+  </g>
+
+  <!-- seta formulário → FastAPI -->
+  <path d="M212 94 L256 94" fill="none" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+  <!-- seta chat → FastAPI -->
+  <path d="M424 94 L466 94" fill="none" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+
+  <!-- label abaixo dos inputs -->
+  <text class="ts" x="340" y="158" text-anchor="middle" style="fill:var(--color-text-secondary)">query estruturada + pergunta livre</text>
+  <line x1="552" y1="122" x2="552" y2="170" fill="none" stroke="var(--color-border-secondary)" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M340 122 L340 158 L552 158 L552 170" fill="none" stroke="var(--color-border-secondary)" stroke-width="1" stroke-dasharray="4 3"/>
+
+  <!-- ══════════════════════
+       FASE RAG
+  ══════════════════════ -->
+
+  <!-- RAG Retriever -->
+  <g class="node c-purple" onclick="sendPrompt('Como o RAG retriever funciona com o Athena?')">
+    <rect x="44" y="254" width="168" height="56" rx="6" stroke-width="0.5"/>
+    <text class="th" x="128" y="275" text-anchor="middle" dominant-baseline="central">RAG retriever</text>
+    <text class="ts" x="128" y="295" text-anchor="middle" dominant-baseline="central">src/rag/retriever.py</text>
+  </g>
+
+  <!-- FAISS vector store -->
+  <g class="node c-purple" onclick="sendPrompt('Como o FAISS é indexado a partir do Athena?')">
+    <rect x="256" y="254" width="168" height="56" rx="6" stroke-width="0.5"/>
+    <text class="th" x="340" y="275" text-anchor="middle" dominant-baseline="central">FAISS vector store</text>
+    <text class="ts" x="340" y="295" text-anchor="middle" dominant-baseline="central">indexado do Athena</text>
+  </g>
+
+  <!-- Contexto montado -->
+  <g class="node c-purple" onclick="sendPrompt('O que entra no contexto final enviado ao Qwen 3?')">
+    <rect x="468" y="254" width="168" height="56" rx="6" stroke-width="0.5"/>
+    <text class="th" x="552" y="275" text-anchor="middle" dominant-baseline="central">Contexto montado</text>
+    <text class="ts" x="552" y="295" text-anchor="middle" dominant-baseline="central">previsões · rotas · padrões</text>
+  </g>
+
+  <!-- RAG indexer (abaixo) -->
+  <g class="node c-purple" onclick="sendPrompt('Como funciona o indexer que popula o FAISS?')">
+    <rect x="256" y="358" width="168" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="340" y="377" text-anchor="middle" dominant-baseline="central">RAG indexer</text>
+    <text class="ts" x="340" y="393" text-anchor="middle" dominant-baseline="central">src/rag/indexer.py</text>
+  </g>
+
+  <!-- setas fase RAG -->
+  <path d="M552 170 L552 232 L128 232 L128 252" fill="none" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+  <line x1="212" y1="282" x2="254" y2="282" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+  <line x1="424" y1="282" x2="466" y2="282" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+  <line x1="340" y1="310" x2="340" y2="356" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+
+  <!-- ══════════════════════
+       FASE LLM
+  ══════════════════════ -->
+
+  <!-- Prompt builder -->
+  <g class="node c-teal" onclick="sendPrompt('O que o prompt builder monta antes de chamar o Qwen 3?')">
+    <rect x="44" y="470" width="168" height="56" rx="6" stroke-width="0.5"/>
+    <text class="th" x="128" y="491" text-anchor="middle" dominant-baseline="central">Prompt builder</text>
+    <text class="ts" x="128" y="511" text-anchor="middle" dominant-baseline="central">system · query · contexto</text>
+  </g>
+
+  <!-- Qwen 3 HF API -->
+  <g class="node c-teal" onclick="sendPrompt('Como o Qwen 3 é chamado via API no Hugging Face?')">
+    <rect x="256" y="470" width="168" height="56" rx="6" stroke-width="0.5"/>
+    <text class="th" x="340" y="491" text-anchor="middle" dominant-baseline="central">Qwen 3</text>
+    <text class="ts" x="340" y="511" text-anchor="middle" dominant-baseline="central">HF Spaces API</text>
+  </g>
+
+  <!-- Resposta -->
+  <g class="node c-teal" onclick="sendPrompt('O que o Qwen 3 retorna para o usuário?')">
+    <rect x="468" y="470" width="168" height="56" rx="6" stroke-width="0.5"/>
+    <text class="th" x="552" y="491" text-anchor="middle" dominant-baseline="central">Resposta gerada</text>
+    <text class="ts" x="552" y="511" text-anchor="middle" dominant-baseline="central">sugestão · risco · motivo</text>
+  </g>
+
+  <!-- Dash resultado -->
+  <g class="node c-blue" onclick="sendPrompt('Como o Dash exibe a sugestão do Qwen 3 ao cliente?')">
+    <rect x="468" y="578" width="168" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="552" y="597" text-anchor="middle" dominant-baseline="central">Dash — resultado</text>
+    <text class="ts" x="552" y="613" text-anchor="middle" dominant-baseline="central">badge · card · resposta LLM</text>
+  </g>
+
+  <!-- setas fase LLM -->
+  <path d="M552 310 L552 438 L128 438 L128 468" fill="none" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+  <line x1="212" y1="498" x2="254" y2="498" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+  <line x1="424" y1="498" x2="466" y2="498" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+  <line x1="552" y1="526" x2="552" y2="576" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+
+  <!-- ══════════════════════
+       FASE DADOS
+  ══════════════════════ -->
+
+  <!-- Athena -->
+  <g class="node c-amber" onclick="sendPrompt('Quais dados o Athena disponibiliza para o RAG?')">
+    <rect x="44" y="686" width="168" height="56" rx="6" stroke-width="0.5"/>
+    <text class="th" x="128" y="707" text-anchor="middle" dominant-baseline="central">AWS Athena</text>
+    <text class="ts" x="128" y="727" text-anchor="middle" dominant-baseline="central">previsões processadas</text>
+  </g>
+
+  <!-- S3 Predict -->
+  <g class="node c-amber" onclick="sendPrompt('Como o S3 Predict alimenta o Athena?')">
+    <rect x="256" y="686" width="168" height="56" rx="6" stroke-width="0.5"/>
+    <text class="th" x="340" y="707" text-anchor="middle" dominant-baseline="central">S3 Predict</text>
+    <text class="ts" x="340" y="727" text-anchor="middle" dominant-baseline="central">job semanal de previsão</text>
+  </g>
+
+  <!-- setas fase dados -->
+  <!-- Athena → RAG indexer -->
+  <path d="M128 684 L128 620 L340 620 L340 404" fill="none" class="arr" marker-end="url(#arrow)" stroke="#BA7517" stroke-width="1.5" stroke-dasharray="5 3"/>
+  <!-- S3 Predict → Athena -->
+  <line x1="256" y1="714" x2="214" y2="714" class="arr" marker-end="url(#arrow)" stroke="var(--color-border-secondary)"/>
+
+  <!-- label linha tracejada -->
+  <text class="ts" x="234" y="615" text-anchor="middle" style="fill:var(--color-text-secondary)">indexa docs para FAISS</text>
+
+  <!-- ── LEGEND ── -->
+  <rect x="44"  y="768" width="12" height="12" rx="2" fill="#B5D4F4"/>
+  <text class="ts" x="62"  y="779">Dash · FastAPI (cliente)</text>
+  <rect x="220" y="768" width="12" height="12" rx="2" fill="#CECBF6"/>
+  <text class="ts" x="238" y="779">RAG pipeline</text>
+  <rect x="340" y="768" width="12" height="12" rx="2" fill="#9FE1CB"/>
+  <text class="ts" x="358" y="779">Qwen 3 · LLM</text>
+  <rect x="448" y="768" width="12" height="12" rx="2" fill="#FAC775"/>
+  <text class="ts" x="466" y="779">Dados AWS</text>
+</svg>
 
 ---
 

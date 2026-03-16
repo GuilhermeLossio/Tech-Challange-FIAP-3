@@ -233,7 +233,7 @@ flight-advisor/
 │   └── 05_anomaly_detection.ipynb      # Isolation Forest
 │
 ├── 📂 src/
-│   ├── preprocessing.py        # Cleaning and transformation pipeline
+│   ├── preprocessing.py        # Cleaning and transformation pipeline (scripts/preprocessing.py)
 │   ├── model.py                # Model inference and serialization
 │   ├── trainer.py              # Training loop and model export
 │   ├── explainer.py            # SHAP values and visualizations
@@ -308,7 +308,7 @@ cp .env.example .env
 #   data/raw/airports.csv
 #   data/raw/airlines.csv
 
-python src/preprocessing.py
+python scripts/preprocessing.py
 ```
 
 ### 5. Train the models

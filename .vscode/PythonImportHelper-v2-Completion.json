@@ -60,12 +60,29 @@
         "documentation": {}
     },
     {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
         "label": "os",
         "kind": 6,
         "isExtraImport": true,
         "importPath": "os",
         "description": "os",
         "detail": "os",
+        "documentation": {}
+    },
+    {
+        "label": "shutil",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "shutil",
+        "description": "shutil",
+        "detail": "shutil",
         "documentation": {}
     },
     {
@@ -77,12 +94,102 @@
         "documentation": {}
     },
     {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Iterable",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Tuple",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
         "label": "boto3",
         "kind": 6,
         "isExtraImport": true,
         "importPath": "boto3",
         "description": "boto3",
         "detail": "boto3",
+        "documentation": {}
+    },
+    {
+        "label": "numpy",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "numpy",
+        "description": "numpy",
+        "detail": "numpy",
+        "documentation": {}
+    },
+    {
+        "label": "pandas",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "pandas",
+        "description": "pandas",
+        "detail": "pandas",
+        "documentation": {}
+    },
+    {
+        "label": "ClientError",
+        "importPath": "botocore.exceptions",
+        "description": "botocore.exceptions",
+        "isExtraImport": true,
+        "detail": "botocore.exceptions",
+        "documentation": {}
+    },
+    {
+        "label": "NoCredentialsError",
+        "importPath": "botocore.exceptions",
+        "description": "botocore.exceptions",
+        "isExtraImport": true,
+        "detail": "botocore.exceptions",
+        "documentation": {}
+    },
+    {
+        "label": "PartialCredentialsError",
+        "importPath": "botocore.exceptions",
+        "description": "botocore.exceptions",
+        "isExtraImport": true,
+        "detail": "botocore.exceptions",
+        "documentation": {}
+    },
+    {
+        "label": "ProfileNotFound",
+        "importPath": "botocore.exceptions",
+        "description": "botocore.exceptions",
+        "isExtraImport": true,
+        "detail": "botocore.exceptions",
+        "documentation": {}
+    },
+    {
+        "label": "TokenRetrievalError",
+        "importPath": "botocore.exceptions",
+        "description": "botocore.exceptions",
+        "isExtraImport": true,
+        "detail": "botocore.exceptions",
         "documentation": {}
     },
     {
@@ -134,12 +241,146 @@
         "documentation": {}
     },
     {
+        "label": "USFederalHolidayCalendar",
+        "importPath": "pandas.tseries.holiday",
+        "description": "pandas.tseries.holiday",
+        "isExtraImport": true,
+        "detail": "pandas.tseries.holiday",
+        "documentation": {}
+    },
+    {
         "label": "main",
         "kind": 2,
         "importPath": ".venv.Scripts.jp",
         "description": ".venv.Scripts.jp",
         "peekOfCode": "def main():\n    parser = argparse.ArgumentParser()\n    parser.add_argument('expression')\n    parser.add_argument('-f', '--filename',\n                        help=('The filename containing the input data.  '\n                              'If a filename is not given then data is '\n                              'read from stdin.'))\n    parser.add_argument('--ast', action='store_true',\n                        help=('Pretty print the AST, do not search the data.'))\n    args = parser.parse_args()",
         "detail": ".venv.Scripts.jp",
+        "documentation": {}
+    },
+    {
+        "label": "load_env_file",
+        "kind": 2,
+        "importPath": "scripts.preprocessing",
+        "description": "scripts.preprocessing",
+        "peekOfCode": "def load_env_file(path: Path = Path(\".env\")) -> None:\n    \"\"\"Load key=value pairs from *path* into os.environ (no overwrite).\"\"\"\n    if not path.exists():\n        return\n    for line in path.read_text(encoding=\"utf-8\").splitlines():\n        stripped = line.strip()\n        if not stripped or stripped.startswith(\"#\") or \"=\" not in stripped:\n            continue\n        key, value = stripped.split(\"=\", 1)\n        key = key.strip()",
+        "detail": "scripts.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "parse_args",
+        "kind": 2,
+        "importPath": "scripts.preprocessing",
+        "description": "scripts.preprocessing",
+        "peekOfCode": "def parse_args() -> argparse.Namespace:\n    parser = argparse.ArgumentParser(\n        description=\"Preprocess flight data from S3 and write processed outputs to S3.\"\n    )\n    parser.add_argument(\n        \"--bucket\",\n        default=os.getenv(\"S3_BUCKET\") or os.getenv(\"S3_Bucket\"),\n        help=\"S3 bucket name (default: env S3_BUCKET)\",\n    )\n    parser.add_argument(",
+        "detail": "scripts.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "build_session",
+        "kind": 2,
+        "importPath": "scripts.preprocessing",
+        "description": "scripts.preprocessing",
+        "peekOfCode": "def build_session(profile: str | None, region: str) -> boto3.Session:\n    \"\"\"Create a boto3 Session with a clear error when the profile is missing.\"\"\"\n    try:\n        return boto3.Session(profile_name=profile, region_name=region)\n    except ProfileNotFound:\n        available = boto3.Session().available_profiles\n        hint = f\"Available profiles: {available}\" if available else \"No profiles found in ~/.aws/credentials.\"\n        print(f\"AWS profile '{profile}' not found. {hint}\", file=sys.stderr)\n        raise\ndef check_credentials(session: boto3.Session) -> None:",
+        "detail": "scripts.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "check_credentials",
+        "kind": 2,
+        "importPath": "scripts.preprocessing",
+        "description": "scripts.preprocessing",
+        "peekOfCode": "def check_credentials(session: boto3.Session) -> None:\n    \"\"\"Fail fast when no valid AWS credentials are available.\"\"\"\n    creds = session.get_credentials()\n    if creds is None:\n        raise NoCredentialsError()\n    resolved = creds.get_frozen_credentials()\n    if not resolved.access_key:\n        raise NoCredentialsError()\ndef s3_download(s3_client, bucket: str, key: str, dest: Path) -> None:\n    dest.parent.mkdir(parents=True, exist_ok=True)",
+        "detail": "scripts.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "s3_download",
+        "kind": 2,
+        "importPath": "scripts.preprocessing",
+        "description": "scripts.preprocessing",
+        "peekOfCode": "def s3_download(s3_client, bucket: str, key: str, dest: Path) -> None:\n    dest.parent.mkdir(parents=True, exist_ok=True)\n    print(f\"  Downloading s3://{bucket}/{key} -> {dest}\")\n    try:\n        s3_client.download_file(bucket, key, str(dest))\n    except ClientError as exc:\n        code = exc.response[\"Error\"][\"Code\"]\n        if code in {\"NoSuchKey\", \"404\"}:\n            print(\n                f\"Missing object in S3: s3://{bucket}/{key}\\n\"",
+        "detail": "scripts.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "s3_upload",
+        "kind": 2,
+        "importPath": "scripts.preprocessing",
+        "description": "scripts.preprocessing",
+        "peekOfCode": "def s3_upload(s3_client, path: Path, bucket: str, key: str) -> None:\n    print(f\"  Uploading {path} -> s3://{bucket}/{key}\")\n    try:\n        s3_client.upload_file(str(path), bucket, key)\n    except ClientError as exc:\n        code = exc.response[\"Error\"][\"Code\"]\n        match code:\n            case \"NoSuchBucket\":\n                print(f\"Bucket does not exist: {bucket}\", file=sys.stderr)\n            case \"AccessDenied\":",
+        "detail": "scripts.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "time_of_day",
+        "kind": 2,
+        "importPath": "scripts.preprocessing",
+        "description": "scripts.preprocessing",
+        "peekOfCode": "def time_of_day(hour: int) -> str:\n    if 5 <= hour <= 11:\n        return \"morning\"\n    if 12 <= hour <= 16:\n        return \"afternoon\"\n    if 17 <= hour <= 21:\n        return \"evening\"\n    return \"night\"\ndef season_from_month(month: int) -> str:\n    if month in (12, 1, 2):",
+        "detail": "scripts.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "season_from_month",
+        "kind": 2,
+        "importPath": "scripts.preprocessing",
+        "description": "scripts.preprocessing",
+        "peekOfCode": "def season_from_month(month: int) -> str:\n    if month in (12, 1, 2):\n        return \"winter\"\n    if month in (3, 4, 5):\n        return \"spring\"\n    if month in (6, 7, 8):\n        return \"summer\"\n    return \"fall\"\ndef build_holiday_set(dates: Iterable[pd.Timestamp]) -> set[pd.Timestamp]:\n    dates = list(dates)",
+        "detail": "scripts.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "build_holiday_set",
+        "kind": 2,
+        "importPath": "scripts.preprocessing",
+        "description": "scripts.preprocessing",
+        "peekOfCode": "def build_holiday_set(dates: Iterable[pd.Timestamp]) -> set[pd.Timestamp]:\n    dates = list(dates)\n    if not dates:\n        return set()\n    start = min(dates).normalize()\n    end = max(dates).normalize()\n    cal = USFederalHolidayCalendar()\n    holidays = cal.holidays(start=start, end=end)\n    return set(pd.to_datetime(holidays).normalize())\n# ---------------------------------------------------------------------------",
+        "detail": "scripts.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "stratified_split",
+        "kind": 2,
+        "importPath": "scripts.preprocessing",
+        "description": "scripts.preprocessing",
+        "peekOfCode": "def stratified_split(\n    df: pd.DataFrame,\n    target_col: str,\n    test_size: float,\n    seed: int,\n) -> Tuple[pd.DataFrame, pd.DataFrame]:\n    \"\"\"Reproducible stratified split by *target_col*.\"\"\"\n    # Sort for stable ordering across pandas versions\n    df = df.sort_values(target_col).reset_index(drop=True)\n    rng = np.random.default_rng(seed)",
+        "detail": "scripts.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "add_target_encodings",
+        "kind": 2,
+        "importPath": "scripts.preprocessing",
+        "description": "scripts.preprocessing",
+        "peekOfCode": "def add_target_encodings(\n    train_df: pd.DataFrame,\n    df_to_apply: pd.DataFrame,\n    target_col: str,\n) -> Dict[str, pd.Series]:\n    \"\"\"Compute target-encoding rates on *train_df* and map onto *df_to_apply*.\n    Computing rates exclusively on train_df prevents target leakage when\n    df_to_apply is the test set.\n    \"\"\"\n    global_rate = train_df[target_col].mean()",
+        "detail": "scripts.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "build_airport_profiles",
+        "kind": 2,
+        "importPath": "scripts.preprocessing",
+        "description": "scripts.preprocessing",
+        "peekOfCode": "def build_airport_profiles(df: pd.DataFrame, airports: pd.DataFrame) -> pd.DataFrame:\n    \"\"\"Aggregate per-airport statistics for downstream analytics and RAG.\"\"\"\n    # Build origin aggregation dynamically — only include delay cols present in df\n    extra_origin_aggs = {\n        f\"origin_avg_{col.lower()}\": (col, \"mean\")\n        for col in _DELAY_COLS\n        if col in df.columns\n    }\n    origin_aggs = {\n        \"origin_flights\": (\"ROUTE\", \"count\"),",
+        "detail": "scripts.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "scripts.preprocessing",
+        "description": "scripts.preprocessing",
+        "peekOfCode": "def main() -> int:\n    load_env_file()\n    args = parse_args()\n    # ── Validate config ────────────────────────────────────────────────────\n    if not args.bucket:\n        print(\"Missing S3 bucket. Provide --bucket or set S3_BUCKET.\", file=sys.stderr)\n        return 2\n    raw_prefix = args.raw_prefix.strip(\"/\")\n    processed_prefix = args.processed_prefix.strip(\"/\")\n    refined_prefix = args.refined_prefix.strip(\"/\")",
+        "detail": "scripts.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "_DELAY_COLS",
+        "kind": 5,
+        "importPath": "scripts.preprocessing",
+        "description": "scripts.preprocessing",
+        "peekOfCode": "_DELAY_COLS = [\n    \"WEATHER_DELAY\",\n    \"LATE_AIRCRAFT_DELAY\",\n    \"NAS_DELAY\",\n    \"SECURITY_DELAY\",\n    \"CARRIER_DELAY\",\n]\ndef build_airport_profiles(df: pd.DataFrame, airports: pd.DataFrame) -> pd.DataFrame:\n    \"\"\"Aggregate per-airport statistics for downstream analytics and RAG.\"\"\"\n    # Build origin aggregation dynamically — only include delay cols present in df",
+        "detail": "scripts.preprocessing",
         "documentation": {}
     },
     {

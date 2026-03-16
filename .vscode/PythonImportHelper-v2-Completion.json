@@ -68,6 +68,14 @@
         "documentation": {}
     },
     {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
         "label": "os",
         "kind": 6,
         "isExtraImport": true,
@@ -83,6 +91,14 @@
         "importPath": "shutil",
         "description": "shutil",
         "detail": "shutil",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
         "documentation": {}
     },
     {
@@ -201,6 +217,46 @@
         "documentation": {}
     },
     {
+        "label": "NoCredentialsError",
+        "importPath": "botocore.exceptions",
+        "description": "botocore.exceptions",
+        "isExtraImport": true,
+        "detail": "botocore.exceptions",
+        "documentation": {}
+    },
+    {
+        "label": "PartialCredentialsError",
+        "importPath": "botocore.exceptions",
+        "description": "botocore.exceptions",
+        "isExtraImport": true,
+        "detail": "botocore.exceptions",
+        "documentation": {}
+    },
+    {
+        "label": "ProfileNotFound",
+        "importPath": "botocore.exceptions",
+        "description": "botocore.exceptions",
+        "isExtraImport": true,
+        "detail": "botocore.exceptions",
+        "documentation": {}
+    },
+    {
+        "label": "TokenRetrievalError",
+        "importPath": "botocore.exceptions",
+        "description": "botocore.exceptions",
+        "isExtraImport": true,
+        "detail": "botocore.exceptions",
+        "documentation": {}
+    },
+    {
+        "label": "ClientError",
+        "importPath": "botocore.exceptions",
+        "description": "botocore.exceptions",
+        "isExtraImport": true,
+        "detail": "botocore.exceptions",
+        "documentation": {}
+    },
+    {
         "label": "EndpointResolutionError",
         "importPath": "botocore.exceptions",
         "description": "botocore.exceptions",
@@ -246,6 +302,15 @@
         "description": "pandas.tseries.holiday",
         "isExtraImport": true,
         "detail": "pandas.tseries.holiday",
+        "documentation": {}
+    },
+    {
+        "label": "time",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "time",
+        "description": "time",
+        "detail": "time",
         "documentation": {}
     },
     {
@@ -381,6 +446,105 @@
         "description": "scripts.preprocessing",
         "peekOfCode": "_DELAY_COLS = [\n    \"WEATHER_DELAY\",\n    \"LATE_AIRCRAFT_DELAY\",\n    \"NAS_DELAY\",\n    \"SECURITY_DELAY\",\n    \"CARRIER_DELAY\",\n]\ndef build_airport_profiles(df: pd.DataFrame, airports: pd.DataFrame) -> pd.DataFrame:\n    \"\"\"Aggregate per-airport statistics for downstream analytics and RAG.\"\"\"\n    # Build origin aggregation dynamically — only include delay cols present in df",
         "detail": "scripts.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "load_env_file",
+        "kind": 2,
+        "importPath": "scripts.Setup_Athena",
+        "description": "scripts.Setup_Athena",
+        "peekOfCode": "def load_env_file(path: Path = Path(\".env\")) -> None:\n    \"\"\"Load key=value pairs from *path* into os.environ (no overwrite).\"\"\"\n    if not path.exists():\n        return\n    for line in path.read_text(encoding=\"utf-8\").splitlines():\n        stripped = line.strip()\n        if not stripped or stripped.startswith(\"#\") or \"=\" not in stripped:\n            continue\n        key, value = stripped.split(\"=\", 1)\n        key = key.strip()",
+        "detail": "scripts.Setup_Athena",
+        "documentation": {}
+    },
+    {
+        "label": "parse_args",
+        "kind": 2,
+        "importPath": "scripts.Setup_Athena",
+        "description": "scripts.Setup_Athena",
+        "peekOfCode": "def parse_args() -> argparse.Namespace:\n    parser = argparse.ArgumentParser(\n        description=\"Register S3 flight data as Athena external tables.\"\n    )\n    parser.add_argument(\n        \"--bucket\",\n        default=os.getenv(\"S3_BUCKET\") or os.getenv(\"S3_Bucket\"),\n        help=\"S3 bucket name (default: env S3_BUCKET)\",\n    )\n    parser.add_argument(",
+        "detail": "scripts.Setup_Athena",
+        "documentation": {}
+    },
+    {
+        "label": "build_session",
+        "kind": 2,
+        "importPath": "scripts.Setup_Athena",
+        "description": "scripts.Setup_Athena",
+        "peekOfCode": "def build_session(profile: str | None, region: str) -> boto3.Session:\n    \"\"\"Create a boto3 Session with a clear error when the profile is missing.\"\"\"\n    try:\n        return boto3.Session(profile_name=profile, region_name=region)\n    except ProfileNotFound:\n        available = boto3.Session().available_profiles\n        hint = f\"Available profiles: {available}\" if available else \"No profiles found in ~/.aws/credentials.\"\n        print(f\"AWS profile '{profile}' not found. {hint}\", file=sys.stderr)\n        raise\ndef check_credentials(session: boto3.Session) -> None:",
+        "detail": "scripts.Setup_Athena",
+        "documentation": {}
+    },
+    {
+        "label": "check_credentials",
+        "kind": 2,
+        "importPath": "scripts.Setup_Athena",
+        "description": "scripts.Setup_Athena",
+        "peekOfCode": "def check_credentials(session: boto3.Session) -> None:\n    \"\"\"Fail fast when no valid AWS credentials are available.\"\"\"\n    creds = session.get_credentials()\n    if creds is None:\n        raise NoCredentialsError()\n    resolved = creds.get_frozen_credentials()\n    if not resolved.access_key:\n        raise NoCredentialsError()\n# ---------------------------------------------------------------------------\n# DDL builders",
+        "detail": "scripts.Setup_Athena",
+        "documentation": {}
+    },
+    {
+        "label": "build_create_database_ddl",
+        "kind": 2,
+        "importPath": "scripts.Setup_Athena",
+        "description": "scripts.Setup_Athena",
+        "peekOfCode": "def build_create_database_ddl(database: str) -> str:\n    return f\"CREATE DATABASE IF NOT EXISTS {database};\"\ndef build_drop_table_ddl(database: str, table: str) -> str:\n    return f\"DROP TABLE IF EXISTS {database}.{table};\"\ndef build_create_table_ddl(\n    database: str,\n    table: str,\n    columns: list[tuple[str, str]],\n    s3_location: str,\n    file_format: str,",
+        "detail": "scripts.Setup_Athena",
+        "documentation": {}
+    },
+    {
+        "label": "build_drop_table_ddl",
+        "kind": 2,
+        "importPath": "scripts.Setup_Athena",
+        "description": "scripts.Setup_Athena",
+        "peekOfCode": "def build_drop_table_ddl(database: str, table: str) -> str:\n    return f\"DROP TABLE IF EXISTS {database}.{table};\"\ndef build_create_table_ddl(\n    database: str,\n    table: str,\n    columns: list[tuple[str, str]],\n    s3_location: str,\n    file_format: str,\n) -> str:\n    col_defs = \",\\n    \".join(f\"`{name}` {dtype}\" for name, dtype in columns)",
+        "detail": "scripts.Setup_Athena",
+        "documentation": {}
+    },
+    {
+        "label": "build_create_table_ddl",
+        "kind": 2,
+        "importPath": "scripts.Setup_Athena",
+        "description": "scripts.Setup_Athena",
+        "peekOfCode": "def build_create_table_ddl(\n    database: str,\n    table: str,\n    columns: list[tuple[str, str]],\n    s3_location: str,\n    file_format: str,\n) -> str:\n    col_defs = \",\\n    \".join(f\"`{name}` {dtype}\" for name, dtype in columns)\n    if file_format == \"parquet\":\n        storage_clause = \"STORED AS PARQUET\"",
+        "detail": "scripts.Setup_Athena",
+        "documentation": {}
+    },
+    {
+        "label": "run_query",
+        "kind": 2,
+        "importPath": "scripts.Setup_Athena",
+        "description": "scripts.Setup_Athena",
+        "peekOfCode": "def run_query(\n    athena_client,\n    sql: str,\n    results_location: str,\n    database: str | None = None,\n    poll_interval: float = 1.0,\n    timeout: int = 120,\n) -> str:\n    \"\"\"Submit *sql* to Athena and block until it completes. Returns QueryExecutionId.\"\"\"\n    kwargs: dict = {",
+        "detail": "scripts.Setup_Athena",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "scripts.Setup_Athena",
+        "description": "scripts.Setup_Athena",
+        "peekOfCode": "def main() -> int:\n    load_env_file()\n    args = parse_args()\n    # ── Validate config ────────────────────────────────────────────────────\n    if not args.bucket:\n        print(\"Missing S3 bucket. Provide --bucket or set S3_BUCKET.\", file=sys.stderr)\n        return 2\n    results_location = f\"s3://{args.bucket}/{args.athena_results_prefix.strip('/')}/\"\n    if args.dry_run:\n        print(f\"-- Database\\n{build_create_database_ddl(args.database)}\\n\")",
+        "detail": "scripts.Setup_Athena",
+        "documentation": {}
+    },
+    {
+        "label": "DATABASE",
+        "kind": 5,
+        "importPath": "scripts.Setup_Athena",
+        "description": "scripts.Setup_Athena",
+        "peekOfCode": "DATABASE = \"flight_advisor\"\n# Schema definitions for each table.\n# Each entry: (table_name, s3_prefix, [(col_name, col_type), ...])\nTABLE_DEFINITIONS = [\n    (\n        \"flights_processed\",\n        \"processed\",\n        [\n            (\"YEAR\", \"INT\"),\n            (\"MONTH\", \"INT\"),",
+        "detail": "scripts.Setup_Athena",
+        "documentation": {}
+    },
+    {
+        "label": "TABLE_DEFINITIONS",
+        "kind": 5,
+        "importPath": "scripts.Setup_Athena",
+        "description": "scripts.Setup_Athena",
+        "peekOfCode": "TABLE_DEFINITIONS = [\n    (\n        \"flights_processed\",\n        \"processed\",\n        [\n            (\"YEAR\", \"INT\"),\n            (\"MONTH\", \"INT\"),\n            (\"DAY\", \"INT\"),\n            (\"DAY_OF_WEEK\", \"INT\"),\n            (\"AIRLINE\", \"STRING\"),",
+        "detail": "scripts.Setup_Athena",
         "documentation": {}
     },
     {

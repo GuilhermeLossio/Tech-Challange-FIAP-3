@@ -218,9 +218,6 @@ User ──► FastAPI ──► ML Model (prob: 71%, risk: HIGH)
 
 ---
 
-## 📁 Repository Structure
-
-```
 flight-advisor/
 │
 ├── 📂 data/
@@ -237,12 +234,20 @@ flight-advisor/
 │
 ├── 📂 src/
 │   ├── preprocessing.py        # Cleaning and transformation pipeline
-│   ├── model.py                # Model training and serialization
+│   ├── model.py                # Model inference and serialization
+│   ├── trainer.py              # Training loop and model export
 │   ├── explainer.py            # SHAP values and visualizations
 │   ├── 📂 rag/
 │   │   ├── indexer.py          # Document and vector store generation
 │   │   ├── retriever.py        # Semantic search in FAISS
 │   │   └── advisor.py          # ML + RAG + Qwen 3 orchestrator
+│   ├── 📂 aws/
+│   │   ├── uploader.py         # Upload models and data to S3
+│   │   ├── refiner.py          # Cloud refinement orchestration
+│   │   └── athena_client.py    # Athena query abstraction
+│   ├── 📂 jobs/
+│   │   ├── weekly_predict.py   # Weekly prediction job (Athena → S3 Predict)
+│   │   └── scheduler.py        # Job scheduling (cron / trigger)
 │   └── 📂 api/
 │       └── main.py             # FastAPI endpoints
 │
@@ -251,12 +256,15 @@ flight-advisor/
 │
 ├── 📂 models/                  # Serialized models (.pkl)
 │
+├── 📂 infra/
+│   ├── s3_config.py            # Bucket names, prefixes and credentials
+│   └── athena_schema.sql       # Athena table schema documentation
+│
 ├── requirements.txt
 ├── .env.example
 ├── .gitignore
-├── PROTOTYPE.md            # Data schema, features, screens, and RAG
+├── PROTOTYPE.md                # Data schema, features, screens, and RAG
 └── README.md
-```
 
 ---
 

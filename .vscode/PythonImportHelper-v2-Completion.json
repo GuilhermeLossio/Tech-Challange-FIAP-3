@@ -1,0 +1,199 @@
+[
+    {
+        "label": "sys",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "sys",
+        "description": "sys",
+        "detail": "sys",
+        "documentation": {}
+    },
+    {
+        "label": "json",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "json",
+        "description": "json",
+        "detail": "json",
+        "documentation": {}
+    },
+    {
+        "label": "argparse",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "argparse",
+        "description": "argparse",
+        "detail": "argparse",
+        "documentation": {}
+    },
+    {
+        "label": "pformat",
+        "importPath": "pprint",
+        "description": "pprint",
+        "isExtraImport": true,
+        "detail": "pprint",
+        "documentation": {}
+    },
+    {
+        "label": "jmespath",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "jmespath",
+        "description": "jmespath",
+        "detail": "jmespath",
+        "documentation": {}
+    },
+    {
+        "label": "exceptions",
+        "importPath": "jmespath",
+        "description": "jmespath",
+        "isExtraImport": true,
+        "detail": "jmespath",
+        "documentation": {}
+    },
+    {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
+        "label": "os",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "os",
+        "description": "os",
+        "detail": "os",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "boto3",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "boto3",
+        "description": "boto3",
+        "detail": "boto3",
+        "documentation": {}
+    },
+    {
+        "label": "ClientError",
+        "importPath": "botocore.exceptions",
+        "description": "botocore.exceptions",
+        "isExtraImport": true,
+        "detail": "botocore.exceptions",
+        "documentation": {}
+    },
+    {
+        "label": "EndpointResolutionError",
+        "importPath": "botocore.exceptions",
+        "description": "botocore.exceptions",
+        "isExtraImport": true,
+        "detail": "botocore.exceptions",
+        "documentation": {}
+    },
+    {
+        "label": "NoCredentialsError",
+        "importPath": "botocore.exceptions",
+        "description": "botocore.exceptions",
+        "isExtraImport": true,
+        "detail": "botocore.exceptions",
+        "documentation": {}
+    },
+    {
+        "label": "PartialCredentialsError",
+        "importPath": "botocore.exceptions",
+        "description": "botocore.exceptions",
+        "isExtraImport": true,
+        "detail": "botocore.exceptions",
+        "documentation": {}
+    },
+    {
+        "label": "ProfileNotFound",
+        "importPath": "botocore.exceptions",
+        "description": "botocore.exceptions",
+        "isExtraImport": true,
+        "detail": "botocore.exceptions",
+        "documentation": {}
+    },
+    {
+        "label": "TokenRetrievalError",
+        "importPath": "botocore.exceptions",
+        "description": "botocore.exceptions",
+        "isExtraImport": true,
+        "detail": "botocore.exceptions",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": ".venv.Scripts.jp",
+        "description": ".venv.Scripts.jp",
+        "peekOfCode": "def main():\n    parser = argparse.ArgumentParser()\n    parser.add_argument('expression')\n    parser.add_argument('-f', '--filename',\n                        help=('The filename containing the input data.  '\n                              'If a filename is not given then data is '\n                              'read from stdin.'))\n    parser.add_argument('--ast', action='store_true',\n                        help=('Pretty print the AST, do not search the data.'))\n    args = parser.parse_args()",
+        "detail": ".venv.Scripts.jp",
+        "documentation": {}
+    },
+    {
+        "label": "load_env_file",
+        "kind": 2,
+        "importPath": "scripts.upload_flights_to_s3",
+        "description": "scripts.upload_flights_to_s3",
+        "peekOfCode": "def load_env_file(path: Path = Path(\".env\")) -> None:\n    if not path.exists():\n        return\n    for line in path.read_text(encoding=\"utf-8\").splitlines():\n        stripped = line.strip()\n        if not stripped or stripped.startswith(\"#\") or \"=\" not in stripped:\n            continue\n        key, value = stripped.split(\"=\", 1)\n        key = key.strip()\n        value = value.strip().strip('\"').strip(\"'\")",
+        "detail": "scripts.upload_flights_to_s3",
+        "documentation": {}
+    },
+    {
+        "label": "parse_args",
+        "kind": 2,
+        "importPath": "scripts.upload_flights_to_s3",
+        "description": "scripts.upload_flights_to_s3",
+        "peekOfCode": "def parse_args() -> argparse.Namespace:\n    parser = argparse.ArgumentParser(\n        description=\"Upload flight data (CSV) to the S3 raw zone.\"\n    )\n    parser.add_argument(\n        \"--input\",\n        default=\"data/flights.csv\",\n        help=\"Path to flights CSV (default: data/flights.csv)\",\n    )\n    parser.add_argument(",
+        "detail": "scripts.upload_flights_to_s3",
+        "documentation": {}
+    },
+    {
+        "label": "build_session",
+        "kind": 2,
+        "importPath": "scripts.upload_flights_to_s3",
+        "description": "scripts.upload_flights_to_s3",
+        "peekOfCode": "def build_session(profile: str | None, region: str) -> boto3.Session:\n    \"\"\"Create a boto3 Session, with a clear error if the profile doesn't exist.\"\"\"\n    try:\n        return boto3.Session(profile_name=profile, region_name=region)\n    except ProfileNotFound:\n        profiles = boto3.Session().available_profiles\n        hint = f\"Available profiles: {profiles}\" if profiles else \"No profiles found in ~/.aws/credentials.\"\n        print(f\"AWS profile '{profile}' not found. {hint}\", file=sys.stderr)\n        raise\ndef check_credentials(session: boto3.Session) -> None:",
+        "detail": "scripts.upload_flights_to_s3",
+        "documentation": {}
+    },
+    {
+        "label": "check_credentials",
+        "kind": 2,
+        "importPath": "scripts.upload_flights_to_s3",
+        "description": "scripts.upload_flights_to_s3",
+        "peekOfCode": "def check_credentials(session: boto3.Session) -> None:\n    \"\"\"Fail fast if no valid credentials are available.\"\"\"\n    creds = session.get_credentials()\n    if creds is None:\n        raise NoCredentialsError()\n    # Force resolution of lazy credentials (e.g. SSO, assume-role)\n    resolved = creds.get_frozen_credentials()\n    if not resolved.access_key:\n        raise NoCredentialsError()\ndef upload(s3_client, input_path: Path, bucket: str, key: str) -> None:",
+        "detail": "scripts.upload_flights_to_s3",
+        "documentation": {}
+    },
+    {
+        "label": "upload",
+        "kind": 2,
+        "importPath": "scripts.upload_flights_to_s3",
+        "description": "scripts.upload_flights_to_s3",
+        "peekOfCode": "def upload(s3_client, input_path: Path, bucket: str, key: str) -> None:\n    \"\"\"Upload a file to S3 with structured error handling.\"\"\"\n    s3_client.upload_file(str(input_path), bucket, key)\ndef main() -> int:\n    load_env_file()\n    args = parse_args()\n    # ── Validate inputs ────────────────────────────────────────────────────────\n    if not args.bucket:\n        print(\"Missing S3 bucket. Provide --bucket or set S3_BUCKET.\", file=sys.stderr)\n        return 2",
+        "detail": "scripts.upload_flights_to_s3",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "scripts.upload_flights_to_s3",
+        "description": "scripts.upload_flights_to_s3",
+        "peekOfCode": "def main() -> int:\n    load_env_file()\n    args = parse_args()\n    # ── Validate inputs ────────────────────────────────────────────────────────\n    if not args.bucket:\n        print(\"Missing S3 bucket. Provide --bucket or set S3_BUCKET.\", file=sys.stderr)\n        return 2\n    input_path = Path(args.input)\n    if not input_path.exists():\n        print(f\"Input file not found: {input_path}\", file=sys.stderr)",
+        "detail": "scripts.upload_flights_to_s3",
+        "documentation": {}
+    }
+]

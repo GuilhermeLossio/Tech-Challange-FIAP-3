@@ -13,8 +13,16 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Train and export the flight delay model."
     )
-    parser.add_argument("--train", default="data/processed/train.csv", help="Path to train CSV.")
-    parser.add_argument("--test", default="data/processed/test.csv", help="Path to test CSV.")
+    parser.add_argument(
+        "--train",
+        default=None,
+        help="Path or s3:// URI to train CSV (default: S3 when S3_BUCKET is set).",
+    )
+    parser.add_argument(
+        "--test",
+        default=None,
+        help="Path or s3:// URI to test CSV (default: S3 when S3_BUCKET is set).",
+    )
     parser.add_argument("--model-dir", default="models", help="Directory to save model artifacts.")
     parser.add_argument("--model-name", default="delay_model.pkl", help="Model filename.")
     parser.add_argument("--meta-name", default="delay_model_meta.json", help="Metadata filename.")
@@ -34,6 +42,11 @@ def parse_args() -> argparse.Namespace:
         default=os.getenv("S3_PROCESSED_PREFIX", "processed"),
         help="S3 processed prefix (default: env S3_PROCESSED_PREFIX or 'processed').",
     )
+    parser.add_argument(
+        "--model-prefix",
+        default=os.getenv("S3_MODEL_PREFIX", "models"),
+        help="S3 prefix for model artifacts (default: env S3_MODEL_PREFIX or 'models').",
+    )
     parser.add_argument("--train-key", default="train.csv", help="S3 object for train CSV.")
     parser.add_argument("--test-key", default="test.csv", help="S3 object for test CSV.")
     parser.add_argument(
@@ -51,6 +64,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--allow-missing", action="store_true", help="Allow missing features.")
     parser.add_argument("--class-weight", choices=["balanced", "none"], default="balanced")
     parser.add_argument("--threshold", type=float, default=0.5, help="Threshold for metrics.")
+    parser.add_argument(
+        "--no-upload",
+        action="store_true",
+        help="Do not upload model artifacts to S3 after training.",
+    )
 
     parser.add_argument("--n-estimators", type=int, default=300, help="RF/XGB estimators.")
     parser.add_argument("--max-depth", type=int, default=8, help="RF/XGB max depth.")

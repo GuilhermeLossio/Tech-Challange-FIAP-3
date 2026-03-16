@@ -89,8 +89,16 @@ def parse_args() -> argparse.Namespace:
     sub = parser.add_subparsers(dest="command")
 
     train = sub.add_parser("train", help="Train and serialize a model.")
-    train.add_argument("--train", default="data/processed/train.csv", help="Path to train CSV.")
-    train.add_argument("--test", default="data/processed/test.csv", help="Path to test CSV.")
+    train.add_argument(
+        "--train",
+        default=None,
+        help="Path or s3:// URI to train CSV (default: S3 when S3_BUCKET is set).",
+    )
+    train.add_argument(
+        "--test",
+        default=None,
+        help="Path or s3:// URI to test CSV (default: S3 when S3_BUCKET is set).",
+    )
     train.add_argument("--model-dir", default="models", help="Directory to save model artifacts.")
     train.add_argument("--model-name", default="delay_model.pkl", help="Model filename.")
     train.add_argument("--meta-name", default="delay_model_meta.json", help="Metadata filename.")
@@ -104,6 +112,11 @@ def parse_args() -> argparse.Namespace:
         "--bucket",
         default=os.getenv("S3_BUCKET") or os.getenv("S3_Bucket"),
         help="S3 bucket name (default: env S3_BUCKET).",
+    )
+    train.add_argument(
+        "--model-prefix",
+        default=os.getenv("S3_MODEL_PREFIX", "models"),
+        help="S3 prefix for model artifacts (default: env S3_MODEL_PREFIX or 'models').",
     )
     train.add_argument(
         "--processed-prefix",
@@ -127,6 +140,11 @@ def parse_args() -> argparse.Namespace:
     train.add_argument("--allow-missing", action="store_true", help="Allow missing features.")
     train.add_argument("--class-weight", choices=["balanced", "none"], default="balanced")
     train.add_argument("--threshold", type=float, default=0.5, help="Threshold for metrics.")
+    train.add_argument(
+        "--no-upload",
+        action="store_true",
+        help="Do not upload model artifacts to S3 after training.",
+    )
 
     train.add_argument("--n-estimators", type=int, default=300, help="RF/XGB estimators.")
     train.add_argument("--max-depth", type=int, default=8, help="RF/XGB max depth.")
@@ -137,7 +155,11 @@ def parse_args() -> argparse.Namespace:
     pred = sub.add_parser("predict", help="Run inference with a serialized model.")
     pred.add_argument("--model", default="models/delay_model.pkl", help="Path to model .pkl.")
     pred.add_argument("--meta", default=None, help="Optional metadata JSON for validation.")
-    pred.add_argument("--input", default=None, help="CSV input with feature columns.")
+    pred.add_argument(
+        "--input",
+        default=None,
+        help="CSV input with feature columns (default: S3 when S3_BUCKET is set).",
+    )
     pred.add_argument("--json", dest="json_path", default=None, help="JSON file input.")
     pred.add_argument("--row", default=None, help="Inline JSON row.")
     pred.add_argument("--output", default=None, help="Output CSV (default: stdout).")
@@ -161,6 +183,14 @@ def parse_args() -> argparse.Namespace:
 
 def is_s3_uri(value: str) -> bool:
     return value.lower().startswith("s3://")
+
+
+def default_s3_uri(bucket: str | None, prefix: str | None, filename: str) -> str | None:
+    if not bucket:
+        return None
+    prefix = (prefix or "").strip("/")
+    key = f"{prefix}/{filename}" if prefix else filename
+    return f"s3://{bucket}/{key}"
 
 
 def parse_s3_uri(uri: str) -> Tuple[str, str]:
@@ -255,6 +285,35 @@ def download_s3_object(
         raise SystemExit(2)
 
 
+def upload_s3_object(s3, path: Path, bucket: str, key: str) -> None:
+    from botocore.exceptions import ClientError
+
+    try:
+        s3.upload_file(str(path), bucket, key)
+    except ClientError as exc:
+        code = exc.response["Error"]["Code"]
+        match code:
+            case "NoSuchBucket":
+                print(f"Bucket does not exist: {bucket}", file=sys.stderr)
+            case "AccessDenied":
+                print(
+                    f"Access denied to s3://{bucket}/{key}.\n"
+                    "Ensure your IAM user/role has s3:PutObject on this bucket.",
+                    file=sys.stderr,
+                )
+            case "InvalidAccessKeyId":
+                print("Invalid AWS Access Key ID. Verify your credentials.", file=sys.stderr)
+            case "ExpiredToken" | "ExpiredTokenException":
+                print(
+                    "AWS credentials have expired.\n"
+                    "Refresh with: aws sso login  (SSO) or aws configure  (static keys).",
+                    file=sys.stderr,
+                )
+            case _:
+                print(f"S3 error [{code}]: {exc}", file=sys.stderr)
+        raise SystemExit(1)
+
+
 def load_csv(path: Path) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"File not found: {path}")
@@ -284,7 +343,18 @@ def resolve_s3_sources(args: argparse.Namespace) -> Tuple[str, str | None]:
         train_key = f"{prefix}/{args.train_key}" if prefix else args.train_key
         test_key = f"{prefix}/{args.test_key}" if prefix else args.test_key
         return f"s3://{args.bucket}/{train_key}", f"s3://{args.bucket}/{test_key}"
-    return args.train, args.test
+    train_source = args.train or default_s3_uri(
+        args.bucket, args.processed_prefix, args.train_key
+    )
+    if args.test is not None:
+        test_source = args.test
+    elif args.train is None:
+        test_source = default_s3_uri(args.bucket, args.processed_prefix, args.test_key)
+    else:
+        test_source = None
+    if not train_source:
+        raise ValueError("Missing --train and S3_BUCKET. Provide a CSV path or set S3_BUCKET.")
+    return train_source, test_source
 
 
 def load_csv_any(
@@ -591,6 +661,28 @@ def train_command_from_frames(
 
     print(f"\nSaved model: {model_path}")
     print(f"Saved metadata: {meta_path}")
+    if args.no_upload:
+        return 0
+
+    bucket = args.bucket
+    if not bucket:
+        print(
+            "Missing S3 bucket for model upload. Set S3_BUCKET or pass --bucket, "
+            "or use --no-upload to skip.",
+            file=sys.stderr,
+        )
+        return 2
+
+    prefix = (args.model_prefix or "").strip("/")
+    model_key = f"{prefix}/{args.model_name}" if prefix else args.model_name
+    meta_key = f"{prefix}/{args.meta_name}" if prefix else args.meta_name
+
+    s3 = build_s3_client(args.region, args.profile)
+    print(f"\nUploading model to s3://{bucket}/{model_key}")
+    upload_s3_object(s3, model_path, bucket, model_key)
+    print(f"Uploading metadata to s3://{bucket}/{meta_key}")
+    upload_s3_object(s3, meta_path, bucket, meta_key)
+    print(f"Uploaded model artifacts to s3://{bucket}/{prefix}/" if prefix else f"Uploaded model artifacts to s3://{bucket}/")
     return 0
 
 
@@ -617,7 +709,25 @@ def load_predict_input(args: argparse.Namespace) -> pd.DataFrame:
     return load_json_input(Path(args.json_path) if args.json_path else None, args.row)
 
 
+def resolve_predict_sources(args: argparse.Namespace) -> argparse.Namespace:
+    sources = [args.input, args.json_path, args.row]
+    if sum(1 for s in sources if s) == 0:
+        bucket = os.getenv("S3_BUCKET") or os.getenv("S3_Bucket")
+        prefix = os.getenv("S3_PROCESSED_PREFIX", "processed")
+        default_input = default_s3_uri(bucket, prefix, "test.csv")
+        if not default_input:
+            raise ValueError("Provide --input/--json/--row or set S3_BUCKET.")
+        args.input = default_input
+    return args
+
+
 def predict_command(args: argparse.Namespace) -> int:
+    try:
+        args = resolve_predict_sources(args)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
     needs_s3 = any(
         is_s3_uri(value)
         for value in (args.model, args.meta, args.input, args.json_path)

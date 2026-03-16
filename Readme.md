@@ -299,9 +299,18 @@ cp .env.example .env
 # Edit the .env file with your configurations (HuggingFace token, etc.)
 ```
 
+Optional but recommended for AWS/S3:
+
+- `S3_BUCKET` — default bucket for CSV reads/writes and artifact uploads
+- `S3_PROCESSED_PREFIX` — processed CSV prefix (default: `processed`)
+- `S3_MODEL_PREFIX` — model artifacts prefix (default: `models`)
+- `S3_EXPLAIN_PREFIX` — SHAP outputs prefix (default: `explain`)
+- `AWS_REGION` and `AWS_PROFILE` — AWS credentials resolution
+
 ### Optional: S3 + Athena pipeline
 
 If you are running the pipeline on AWS (S3 + Athena), use the steps below.
+All CSV interactions default to S3 when `S3_BUCKET` is set (upload is explicit).
 
 #### Step 1 — Upload raw CSVs to S3
 
@@ -361,23 +370,39 @@ python src/preprocessing.py
 ### 5. Train the models
 
 ```bash
-python src/model.py
+python src/trainer.py
+# Default: reads s3://$S3_BUCKET/$S3_PROCESSED_PREFIX/train.csv and test.csv
+# and uploads artifacts to s3://$S3_BUCKET/$S3_MODEL_PREFIX/
 ```
 
-### 6. Create the vector store (RAG)
+Local fallback (explicit CSV paths + no upload):
+
+```bash
+python src/trainer.py --train data/processed/train.csv --test data/processed/test.csv --no-upload
+```
+
+### 6. Generate SHAP explanations
+
+```bash
+python src/explainer.py --input s3://$S3_BUCKET/$S3_PROCESSED_PREFIX/test.csv --plot
+# Outputs: models/explain/shap_top_featured.csv and shap_summary.png
+# Uploads: s3://$S3_BUCKET/$S3_EXPLAIN_PREFIX/
+```
+
+### 7. Create the vector store (RAG)
 
 ```bash
 python src/rag/indexer.py
 ```
 
-### 7. Start the API
+### 8. Start the API
 
 ```bash
 uvicorn src.api.main:app --reload
 # Access: http://localhost:8000/docs
 ```
 
-### 8. Start the dashboard
+### 9. Start the dashboard
 
 ```bash
 python dashboard/app.py
@@ -490,9 +515,9 @@ For the complete schema of all columns, cleaning rules, and feature engineering,
 
 > ⚠️ The raw files are not versioned in the repository due to their size. Download from the link above and place them in `data/raw/`.
 
-### ☁️ Storage (Roadmap)
+### ☁️ Storage
 
-Currently, data is managed locally. In future versions, processed files and serialized models will be stored in **AWS S3**, allowing centralized access between development, staging, and production environments.
+CSV reads and writes default to **AWS S3** when `S3_BUCKET` is set. Model artifacts and SHAP outputs are automatically uploaded to S3 after training and explanation runs, keeping environments in sync.
 
 ---
 

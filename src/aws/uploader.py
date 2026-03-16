@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Upload flight data to S3 raw zone.
 
-Defaults to data/flights.csv and uploads to s3://$S3_BUCKET/$S3_PREFIX/flights.csv.
+Defaults to data/raw/flights.csv and uploads to s3://$S3_BUCKET/$S3_PREFIX/flights.csv.
 """
 
 from __future__ import annotations
@@ -43,8 +43,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--input",
-        default="data/flights.csv",
-        help="Path to flights CSV (default: data/flights.csv)",
+        default="data/raw/flights.csv",
+        help="Path to flights CSV (default: data/raw/flights.csv)",
     )
     parser.add_argument(
         "--bucket",

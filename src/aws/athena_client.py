@@ -8,9 +8,9 @@ Creates the flight_advisor database and the following external tables:
   - airport_profiles    (refined/airport_profiles.csv)
 
 Usage:
-    python setup_athena.py
-    python setup_athena.py --bucket my-bucket --format parquet
-    python setup_athena.py --dry-run
+    python src/aws/athena_client.py
+    python src/aws/athena_client.py --bucket my-bucket --format parquet
+    python src/aws/athena_client.py --dry-run
 """
 
 from __future__ import annotations

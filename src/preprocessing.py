@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Preprocess flight data from S3 and write processed artifacts back to S3.
 
-Pipeline (from docs/PROTOTYPE.md):
+Pipeline (from PROTOTYPE.md):
 - Join flights with airports and airlines
 - Data cleaning (remove cancelled, handle nulls, remove outliers ARRIVAL_DELAY > 500)
 - Feature engineering (TIME_OF_DAY, SEASON, IS_HOLIDAY, ROUTE)

@@ -217,55 +217,55 @@ User ──► FastAPI ──► ML Model (prob: 71%, risk: HIGH)
 | **Versioning** | Git + DVC | Code and models |
 
 ---
-
+```
 flight-advisor/
 │
-├── 📂 data/
+├── data/
 │   ├── raw/                    # Raw data (not versioned)
 │   ├── processed/              # Processed data
 │   └── vector_store/           # FAISS index for RAG
 │
-├── 📂 notebooks/
+├── notebooks/
 │   ├── 01_eda.ipynb                    # Exploration and visualizations
 │   ├── 02_feature_engineering.ipynb    # Feature creation
 │   ├── 03_supervised_models.ipynb      # Supervised ML + SHAP
 │   ├── 04_unsupervised_models.ipynb    # Clustering + PCA
-│   └── 05_anomaly_detection.ipynb      # Isolation Forest
+│   └── 05_anomaly_detection.ipynb      # Anomaly Detection
 │
-├── 📂 src/
-│   ├── preprocessing.py        # Cleaning and transformation pipeline (scripts/preprocessing.py)
+├── src/
+│   ├── preprocessing.py        # Cleaning and transformation pipeline
 │   ├── model.py                # Model inference and serialization
 │   ├── trainer.py              # Training loop and model export
 │   ├── explainer.py            # SHAP values and visualizations
-│   ├── 📂 rag/
+│   ├── rag/
 │   │   ├── indexer.py          # Document and vector store generation
 │   │   ├── retriever.py        # Semantic search in FAISS
 │   │   └── advisor.py          # ML + RAG + Qwen 3 orchestrator
-│   ├── 📂 aws/
+│   ├── aws/
 │   │   ├── uploader.py         # Upload models and data to S3
 │   │   ├── refiner.py          # Cloud refinement orchestration
 │   │   └── athena_client.py    # Athena query abstraction
-│   ├── 📂 jobs/
-│   │   ├── weekly_predict.py   # Weekly prediction job (Athena → S3 Predict)
+│   ├── jobs/
+│   │   ├── weekly_predict.py   # Weekly prediction job
 │   │   └── scheduler.py        # Job scheduling (cron / trigger)
-│   └── 📂 api/
+│   └── api/
 │       └── main.py             # FastAPI endpoints
 │
-├── 📂 dashboard/
+├── dashboard/
 │   └── app.py                  # Dash dashboard
 │
-├── 📂 models/                  # Serialized models (.pkl)
+├── models/                     # Serialized models (.pkl)
 │
-├── 📂 infra/
+├── infra/
 │   ├── s3_config.py            # Bucket names, prefixes and credentials
 │   └── athena_schema.sql       # Athena table schema documentation
 │
 ├── requirements.txt
 ├── .env.example
 ├── .gitignore
-├── PROTOTYPE.md                # Data schema, features, screens, and RAG
+├── PROTOTYPE.md
 └── README.md
-
+```
 ---
 
 ## ⚙️ Installation and Usage
@@ -299,6 +299,53 @@ cp .env.example .env
 # Edit the .env file with your configurations (HuggingFace token, etc.)
 ```
 
+### Optional: S3 + Athena pipeline
+
+If you are running the pipeline on AWS (S3 + Athena), use the steps below.
+
+#### Step 1 — Upload raw CSVs to S3
+
+```bash
+python src/aws/uploader.py --bucket flight-advisor-fiap3 --input data/raw/flights.csv  --name flights.csv
+python src/aws/uploader.py --bucket flight-advisor-fiap3 --input data/raw/airports.csv --name airports.csv
+python src/aws/uploader.py --bucket flight-advisor-fiap3 --input data/raw/airlines.csv --name airlines.csv
+```
+
+#### Step 2 — Preprocessing (reads from `raw/`, writes to `processed/` and `refined/`)
+
+```bash
+python src/preprocessing.py --bucket flight-advisor-fiap3
+```
+
+#### Step 3 — Athena setup
+
+```bash
+# Normal execution
+python src/aws/athena_client.py --bucket flight-advisor-fiap3
+
+# See the DDL without executing
+python src/aws/athena_client.py --bucket flight-advisor-fiap3 --dry-run
+
+# Recreate tables from scratch
+python src/aws/athena_client.py --bucket flight-advisor-fiap3 --drop-existing
+```
+
+#### AWS credentials diagnostics
+
+```bash
+# Verify which identity is being used
+aws sts get-caller-identity
+
+# Test Athena access
+aws athena list-work-groups
+
+# Test Glue access
+aws glue get-database --name flight_advisor
+
+# Configure new credentials
+aws configure
+```
+
 ### 4. Download and prepare the data
 
 ```bash
@@ -308,7 +355,7 @@ cp .env.example .env
 #   data/raw/airports.csv
 #   data/raw/airlines.csv
 
-python scripts/preprocessing.py
+python src/preprocessing.py
 ```
 
 ### 5. Train the models
@@ -439,7 +486,7 @@ flights.csv ── AIRLINE             ──► airlines.csv (IATA_CODE)
             ── DESTINATION_AIRPORT ──► airports.csv (IATA_CODE)
 ```
 
-For the complete schema of all columns, cleaning rules, and feature engineering, consult [PROTOTYPE.md](docs/PROTOTYPE.md).
+For the complete schema of all columns, cleaning rules, and feature engineering, consult [PROTOTYPE.md](PROTOTYPE.md).
 
 > ⚠️ The raw files are not versioned in the repository due to their size. Download from the link above and place them in `data/raw/`.
 

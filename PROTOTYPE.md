@@ -105,7 +105,7 @@ flowchart TB
         C2[Map ctrl\nlat·lon · plotly fig]
         C3[Cluster ctrl\nK-Means · PCA · IsoForest]
         C4[Advisor ctrl\nFastAPI POST /advise]
-        CP[Preprocessing pipeline\nscripts/preprocessing.py]
+        CP[Preprocessing pipeline\nsrc/preprocessing.py]
         CS[SHAP explainer\nsrc/explainer.py]
         CR[RAG orchestrator\nsrc/rag/advisor.py]
     end
@@ -156,7 +156,7 @@ sequenceDiagram
     actor U as User
     participant D as Dash\ndashboard
     participant A as FastAPI\n/advise
-    participant P as Preprocessing\nscripts/preprocessing.py
+    participant P as Preprocessing\nsrc/preprocessing.py
     participant ML as ML Model\nXGBoost .pkl
     participant SH as SHAP Explainer\nsrc/explainer.py
     participant RV as RAG Retriever\nsrc/rag/retriever.py

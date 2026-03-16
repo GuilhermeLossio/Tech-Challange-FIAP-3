@@ -76,6 +76,14 @@
         "documentation": {}
     },
     {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
         "label": "os",
         "kind": 6,
         "isExtraImport": true,
@@ -103,6 +111,22 @@
     },
     {
         "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "PurePosixPath",
         "importPath": "pathlib",
         "description": "pathlib",
         "isExtraImport": true,
@@ -255,12 +279,59 @@
         "documentation": {}
     },
     {
-        "label": "shutil",
-        "kind": 6,
+        "label": "dataclass",
+        "importPath": "dataclasses",
+        "description": "dataclasses",
         "isExtraImport": true,
-        "importPath": "shutil",
-        "description": "shutil",
-        "detail": "shutil",
+        "detail": "dataclasses",
+        "documentation": {}
+    },
+    {
+        "label": "datetime",
+        "importPath": "datetime",
+        "description": "datetime",
+        "isExtraImport": true,
+        "detail": "datetime",
+        "documentation": {}
+    },
+    {
+        "label": "timezone",
+        "importPath": "datetime",
+        "description": "datetime",
+        "isExtraImport": true,
+        "detail": "datetime",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Iterable",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Tuple",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
         "documentation": {}
     },
     {
@@ -303,6 +374,15 @@
         "importPath": "pandas",
         "description": "pandas",
         "detail": "pandas",
+        "documentation": {}
+    },
+    {
+        "label": "shutil",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "shutil",
+        "description": "shutil",
+        "detail": "shutil",
         "documentation": {}
     },
     {
@@ -473,6 +553,240 @@
         "description": "src.aws.uploader",
         "peekOfCode": "def main() -> int:\n    load_env_file()\n    args = parse_args()\n    # ── Validate inputs ────────────────────────────────────────────────────────\n    if not args.bucket:\n        print(\"Missing S3 bucket. Provide --bucket or set S3_BUCKET.\", file=sys.stderr)\n        return 2\n    input_path = Path(args.input)\n    if not input_path.exists():\n        print(f\"Input file not found: {input_path}\", file=sys.stderr)",
         "detail": "src.aws.uploader",
+        "documentation": {}
+    },
+    {
+        "label": "FeatureSpec",
+        "kind": 6,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "class FeatureSpec:\n    canonical: str\n    alternatives: Tuple[str, ...]\n    kind: str  # \"numeric\" or \"categorical\"\nFEATURE_SPECS: List[FeatureSpec] = [\n    FeatureSpec(\"MONTH\", tuple(), \"numeric\"),\n    FeatureSpec(\"DAY_OF_WEEK\", tuple(), \"numeric\"),\n    FeatureSpec(\"SCHEDULED_DEPARTURE\", tuple(), \"numeric\"),\n    FeatureSpec(\"DISTANCE\", tuple(), \"numeric\"),\n    FeatureSpec(\"TIME_OF_DAY\", (\"PERIODO_DIA\",), \"categorical\"),",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "load_env_file",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def load_env_file(path: Path = Path(\".env\")) -> None:\n    \"\"\"Load key=value pairs from *path* into os.environ (no overwrite).\"\"\"\n    if not path.exists():\n        return\n    for line in path.read_text(encoding=\"utf-8\").splitlines():\n        stripped = line.strip()\n        if not stripped or stripped.startswith(\"#\") or \"=\" not in stripped:\n            continue\n        key, value = stripped.split(\"=\", 1)\n        key = key.strip()",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "parse_args",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def parse_args() -> argparse.Namespace:\n    parser = argparse.ArgumentParser(\n        description=\"Train, serialize, and run inference for the flight delay model.\"\n    )\n    sub = parser.add_subparsers(dest=\"command\")\n    train = sub.add_parser(\"train\", help=\"Train and serialize a model.\")\n    train.add_argument(\"--train\", default=\"data/processed/train.csv\", help=\"Path to train CSV.\")\n    train.add_argument(\"--test\", default=\"data/processed/test.csv\", help=\"Path to test CSV.\")\n    train.add_argument(\"--model-dir\", default=\"models\", help=\"Directory to save model artifacts.\")\n    train.add_argument(\"--model-name\", default=\"delay_model.pkl\", help=\"Model filename.\")",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "is_s3_uri",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def is_s3_uri(value: str) -> bool:\n    return value.lower().startswith(\"s3://\")\ndef parse_s3_uri(uri: str) -> Tuple[str, str]:\n    if not is_s3_uri(uri):\n        raise ValueError(f\"Invalid S3 URI: {uri}\")\n    bucket_key = uri[5:]\n    bucket, _, key = bucket_key.partition(\"/\")\n    if not bucket or not key:\n        raise ValueError(f\"S3 URI must include bucket and key: {uri}\")\n    return bucket, key",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "parse_s3_uri",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def parse_s3_uri(uri: str) -> Tuple[str, str]:\n    if not is_s3_uri(uri):\n        raise ValueError(f\"Invalid S3 URI: {uri}\")\n    bucket_key = uri[5:]\n    bucket, _, key = bucket_key.partition(\"/\")\n    if not bucket or not key:\n        raise ValueError(f\"S3 URI must include bucket and key: {uri}\")\n    return bucket, key\ndef build_s3_client(region: str, profile: str | None):\n    try:",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "build_s3_client",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def build_s3_client(region: str, profile: str | None):\n    try:\n        import boto3\n        from botocore.exceptions import (\n            ClientError,\n            NoCredentialsError,\n            PartialCredentialsError,\n            ProfileNotFound,\n            TokenRetrievalError,\n        )",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "download_s3_object",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def download_s3_object(\n    s3,\n    bucket: str,\n    key: str,\n    dest: Path,\n    allow_missing: bool = False,\n) -> bool:\n    from botocore.exceptions import ClientError\n    dest.parent.mkdir(parents=True, exist_ok=True)\n    try:",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "load_csv",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def load_csv(path: Path) -> pd.DataFrame:\n    if not path.exists():\n        raise FileNotFoundError(f\"File not found: {path}\")\n    return pd.read_csv(path)\ndef stratified_split(\n    df: pd.DataFrame, target_col: str, test_size: float, seed: int\n) -> Tuple[pd.DataFrame, pd.DataFrame]:\n    df = df.sort_values(target_col).reset_index(drop=True)\n    rng = np.random.default_rng(seed)\n    train_idx, test_idx = [], []",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "stratified_split",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def stratified_split(\n    df: pd.DataFrame, target_col: str, test_size: float, seed: int\n) -> Tuple[pd.DataFrame, pd.DataFrame]:\n    df = df.sort_values(target_col).reset_index(drop=True)\n    rng = np.random.default_rng(seed)\n    train_idx, test_idx = [], []\n    for _, group in df.groupby(target_col):\n        indices = group.index.to_numpy().copy()\n        rng.shuffle(indices)\n        split = int(len(indices) * (1 - test_size))",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "resolve_s3_sources",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def resolve_s3_sources(args: argparse.Namespace) -> Tuple[str, str | None]:\n    if args.from_s3:\n        if not args.bucket:\n            raise ValueError(\"Missing --bucket for --from-s3.\")\n        prefix = args.processed_prefix.strip(\"/\") if args.processed_prefix else \"\"\n        train_key = f\"{prefix}/{args.train_key}\" if prefix else args.train_key\n        test_key = f\"{prefix}/{args.test_key}\" if prefix else args.test_key\n        return f\"s3://{args.bucket}/{train_key}\", f\"s3://{args.bucket}/{test_key}\"\n    return args.train, args.test\ndef load_csv_any(",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "load_csv_any",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def load_csv_any(\n    source: str,\n    s3,\n    tmp_dir: Path,\n    allow_missing: bool = False,\n) -> pd.DataFrame | None:\n    if is_s3_uri(source):\n        bucket, key = parse_s3_uri(source)\n        dest = tmp_dir / key\n        downloaded = download_s3_object(s3, bucket, key, dest, allow_missing=allow_missing)",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "load_model_any",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def load_model_any(source: str, s3, tmp_dir: Path) -> Path:\n    if is_s3_uri(source):\n        bucket, key = parse_s3_uri(source)\n        dest = tmp_dir / key\n        download_s3_object(s3, bucket, key, dest)\n        return dest\n    return Path(source)\ndef resolve_feature_columns(\n    df: pd.DataFrame, allow_missing: bool = False\n) -> Tuple[List[str], List[str], List[str], Dict[str, str]]:",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "resolve_feature_columns",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def resolve_feature_columns(\n    df: pd.DataFrame, allow_missing: bool = False\n) -> Tuple[List[str], List[str], List[str], Dict[str, str]]:\n    selected: List[str] = []\n    numeric_cols: List[str] = []\n    categorical_cols: List[str] = []\n    mapping: Dict[str, str] = {}\n    missing: List[str] = []\n    for spec in FEATURE_SPECS:\n        candidates = (spec.canonical,) + spec.alternatives",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "coerce_feature_types",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def coerce_feature_types(\n    df: pd.DataFrame, numeric_cols: Iterable[str], categorical_cols: Iterable[str]\n) -> pd.DataFrame:\n    df = df.copy()\n    for col in numeric_cols:\n        df[col] = pd.to_numeric(df[col], errors=\"coerce\")\n    for col in categorical_cols:\n        df[col] = df[col].astype(str)\n    return df\ndef build_pipeline(",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "build_pipeline",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def build_pipeline(\n    model_type: str,\n    numeric_cols: List[str],\n    categorical_cols: List[str],\n    class_weight: str | None,\n    args: argparse.Namespace,\n    y_train: pd.Series,\n) -> Pipeline:\n    num_pipe = Pipeline(\n        [",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "evaluate_model",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def evaluate_model(\n    pipeline: Pipeline,\n    X_test: pd.DataFrame,\n    y_test: pd.Series,\n    threshold: float,\n) -> Dict[str, float]:\n    probas = pipeline.predict_proba(X_test)[:, 1]\n    preds = (probas >= threshold).astype(int)\n    metrics: Dict[str, float] = {\n        \"accuracy\": accuracy_score(y_test, preds),",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "print_metrics",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def print_metrics(metrics: Dict[str, float]) -> None:\n    order = [\"roc_auc\", \"f1\", \"precision\", \"recall\", \"accuracy\"]\n    for key in order:\n        if key in metrics:\n            value = metrics[key]\n            formatted = \"nan\" if np.isnan(value) else f\"{value:.4f}\"\n            print(f\"{key:>10}: {formatted}\")\ndef save_metadata(\n    path: Path,\n    model_type: str,",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "save_metadata",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def save_metadata(\n    path: Path,\n    model_type: str,\n    feature_columns: List[str],\n    numeric_cols: List[str],\n    categorical_cols: List[str],\n    mapping: Dict[str, str],\n    metrics: Dict[str, float],\n    train_rows: int,\n    test_rows: int,",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "train_command",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def train_command(args: argparse.Namespace) -> int:\n    try:\n        train_source, test_source = resolve_s3_sources(args)\n    except ValueError as exc:\n        print(str(exc), file=sys.stderr)\n        return 2\n    needs_s3 = is_s3_uri(train_source) or (test_source and is_s3_uri(test_source))\n    s3 = build_s3_client(args.region, args.profile) if needs_s3 else None\n    if s3:\n        import tempfile",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "train_command_from_frames",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def train_command_from_frames(\n    args: argparse.Namespace,\n    train_df: pd.DataFrame,\n    test_df: pd.DataFrame | None,\n) -> int:\n    if TARGET_COL not in train_df.columns:\n        print(f\"Missing target column: {TARGET_COL}\", file=sys.stderr)\n        return 2\n    if test_df is None:\n        print(\"Test CSV not found. Splitting training data automatically.\")",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "load_json_input",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def load_json_input(path: Path | None, row: str | None) -> pd.DataFrame:\n    if path:\n        payload = json.loads(path.read_text(encoding=\"utf-8\"))\n    else:\n        payload = json.loads(row or \"{}\")\n    if isinstance(payload, list):\n        return pd.DataFrame(payload)\n    if isinstance(payload, dict):\n        return pd.DataFrame([payload])\n    raise ValueError(\"JSON input must be a dict or a list of dicts.\")",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "load_predict_input",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def load_predict_input(args: argparse.Namespace) -> pd.DataFrame:\n    sources = [args.input, args.json_path, args.row]\n    if sum(1 for s in sources if s) != 1:\n        raise ValueError(\"Provide exactly one of --input, --json, or --row.\")\n    if args.input:\n        return load_csv(Path(args.input))\n    return load_json_input(Path(args.json_path) if args.json_path else None, args.row)\ndef predict_command(args: argparse.Namespace) -> int:\n    needs_s3 = any(\n        is_s3_uri(value)",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "predict_command",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def predict_command(args: argparse.Namespace) -> int:\n    needs_s3 = any(\n        is_s3_uri(value)\n        for value in (args.model, args.meta, args.input, args.json_path)\n        if value\n    )\n    s3 = build_s3_client(args.region, args.profile) if needs_s3 else None\n    import tempfile\n    with tempfile.TemporaryDirectory() as tmp:\n        tmp_dir = Path(tmp)",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "predict_command_with_data",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def predict_command_with_data(\n    args: argparse.Namespace,\n    df: pd.DataFrame,\n    pipeline: Pipeline,\n    model_path: Path,\n    s3,\n    tmp_dir: Path,\n) -> int:\n    meta = None\n    meta_candidates: List[Path] = []",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def main() -> int:\n    load_env_file()\n    args = parse_args()\n    if args.command == \"train\":\n        return train_command(args)\n    if args.command == \"predict\":\n        return predict_command(args)\n    print(f\"Unknown command: {args.command}\", file=sys.stderr)\n    return 2\nif __name__ == \"__main__\":",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "TARGET_COL",
+        "kind": 5,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "TARGET_COL = \"IS_DELAYED\"\n@dataclass(frozen=True)\nclass FeatureSpec:\n    canonical: str\n    alternatives: Tuple[str, ...]\n    kind: str  # \"numeric\" or \"categorical\"\nFEATURE_SPECS: List[FeatureSpec] = [\n    FeatureSpec(\"MONTH\", tuple(), \"numeric\"),\n    FeatureSpec(\"DAY_OF_WEEK\", tuple(), \"numeric\"),\n    FeatureSpec(\"SCHEDULED_DEPARTURE\", tuple(), \"numeric\"),",
+        "detail": "src.model",
         "documentation": {}
     },
     {

@@ -156,6 +156,14 @@
         "documentation": {}
     },
     {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
         "label": "os",
         "kind": 6,
         "isExtraImport": true,
@@ -180,6 +188,14 @@
         "importPath": "threading",
         "description": "threading",
         "detail": "threading",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
         "documentation": {}
     },
     {
@@ -312,6 +328,22 @@
     },
     {
         "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Iterable",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Tuple",
         "importPath": "typing",
         "description": "typing",
         "isExtraImport": true,
@@ -985,6 +1017,33 @@
         "documentation": {}
     },
     {
+        "label": "pyarrow",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "pyarrow",
+        "description": "pyarrow",
+        "detail": "pyarrow",
+        "documentation": {}
+    },
+    {
+        "label": "pyarrow.dataset",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "pyarrow.dataset",
+        "description": "pyarrow.dataset",
+        "detail": "pyarrow.dataset",
+        "documentation": {}
+    },
+    {
+        "label": "pyarrow.fs",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "pyarrow.fs",
+        "description": "pyarrow.fs",
+        "detail": "pyarrow.fs",
+        "documentation": {}
+    },
+    {
         "label": "tempfile",
         "kind": 6,
         "isExtraImport": true,
@@ -1000,15 +1059,6 @@
         "importPath": "boto3",
         "description": "boto3",
         "detail": "boto3",
-        "documentation": {}
-    },
-    {
-        "label": "pyarrow",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "pyarrow",
-        "description": "pyarrow",
-        "detail": "pyarrow",
         "documentation": {}
     },
     {
@@ -1400,7 +1450,7 @@
         "kind": 2,
         "importPath": "dashboard.app",
         "description": "dashboard.app",
-        "peekOfCode": "def resolve_data_source() -> Optional[str]:\n    source = os.getenv(\"DASH_SOURCE\")\n    if source:\n        return source\n    bucket = os.getenv(\"S3_BUCKET\") or os.getenv(\"S3_Bucket\")\n    refined_prefix = os.getenv(\"S3_REFINED_PREFIX\", \"refined\")\n    filename = os.getenv(\"DASH_FILENAME\", \"flights_processed.parquet\")  # FIX: era .csv\n    if bucket:\n        return default_s3_uri(bucket, refined_prefix, filename)\n    return None",
+        "peekOfCode": "def resolve_data_source() -> Optional[str]:\n    source = os.getenv(\"DASH_SOURCE\")\n    if source:\n        return source\n    bucket = os.getenv(\"S3_BUCKET\") or os.getenv(\"S3_Bucket\")\n    processed_prefix = os.getenv(\"S3_PROCESSED_PREFIX\")\n    refined_prefix = os.getenv(\"S3_REFINED_PREFIX\")\n    data_prefix = processed_prefix or refined_prefix or \"processed\"\n    filename = os.getenv(\"DASH_FILENAME\", \"flights_processed.parquet\")  # FIX: era .csv\n    if bucket:",
         "detail": "dashboard.app",
         "documentation": {}
     },
@@ -1454,7 +1504,16 @@
         "kind": 2,
         "importPath": "dashboard.app",
         "description": "dashboard.app",
-        "peekOfCode": "def limit_items(values: List, limit: int) -> List:\n    if limit <= 0:\n        return values\n    return values[-limit:] if len(values) > limit else values\ndef log_athena_error(context: str, exc: Exception) -> None:\n    print(f\"[Athena] {context} failed: {exc}\", file=sys.stderr)\ndef build_where(\n    years: List[int],\n    months: List[int],\n    airlines: List[str],",
+        "peekOfCode": "def limit_items(values: List, limit: int) -> List:\n    if limit <= 0:\n        return values\n    return values[-limit:] if len(values) > limit else values\ndef clear_athena_error() -> None:\n    _ATHENA_ERROR[\"message\"] = None\ndef log_athena_error(context: str, exc: Exception) -> None:\n    msg = f\"{context} failed: {exc}\"\n    _ATHENA_ERROR[\"message\"] = msg\n    print(f\"[Athena] {msg}\", file=sys.stderr)",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "clear_athena_error",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def clear_athena_error() -> None:\n    _ATHENA_ERROR[\"message\"] = None\ndef log_athena_error(context: str, exc: Exception) -> None:\n    msg = f\"{context} failed: {exc}\"\n    _ATHENA_ERROR[\"message\"] = msg\n    print(f\"[Athena] {msg}\", file=sys.stderr)\ndef build_where(\n    years: List[int],\n    months: List[int],\n    airlines: List[str],",
         "detail": "dashboard.app",
         "documentation": {}
     },
@@ -1463,7 +1522,7 @@
         "kind": 2,
         "importPath": "dashboard.app",
         "description": "dashboard.app",
-        "peekOfCode": "def log_athena_error(context: str, exc: Exception) -> None:\n    print(f\"[Athena] {context} failed: {exc}\", file=sys.stderr)\ndef build_where(\n    years: List[int],\n    months: List[int],\n    airlines: List[str],\n    states: List[str],\n) -> str:\n    clauses: List[str] = []\n    if years:",
+        "peekOfCode": "def log_athena_error(context: str, exc: Exception) -> None:\n    msg = f\"{context} failed: {exc}\"\n    _ATHENA_ERROR[\"message\"] = msg\n    print(f\"[Athena] {msg}\", file=sys.stderr)\ndef build_where(\n    years: List[int],\n    months: List[int],\n    airlines: List[str],\n    states: List[str],\n) -> str:",
         "detail": "dashboard.app",
         "documentation": {}
     },
@@ -1571,7 +1630,7 @@
         "kind": 2,
         "importPath": "dashboard.app",
         "description": "dashboard.app",
-        "peekOfCode": "def build_airline_bar(df: pd.DataFrame):\n    if df.empty or \"arrival_delay\" not in df.columns:\n        return _empty_bar(\"Average delay by airline\")\n    col = get_airline_column(df)\n    grouped = (\n        df.groupby(col)[\"arrival_delay\"].mean()\n        .sort_values(ascending=False)\n        .head(15)\n        .reset_index()\n    )",
+        "peekOfCode": "def build_airline_bar(df: pd.DataFrame):\n    if df.empty or \"arrival_delay\" not in df.columns:\n        return _empty_bar(\"Average delay by airline\")\n    col = get_airline_column(df)\n    grouped = (\n        df.groupby(col)[\"arrival_delay\"].mean()\n        .sort_values(ascending=False)\n        .head(20)\n        .reset_index()\n    )",
         "detail": "dashboard.app",
         "documentation": {}
     },
@@ -1607,7 +1666,7 @@
         "kind": 2,
         "importPath": "dashboard.app",
         "description": "dashboard.app",
-        "peekOfCode": "def query_airline_bar_athena(years, months, airlines, states):\n    cfg = athena_config()\n    where = build_where(years, months, airlines, states)\n    top_n = int(os.getenv(\"DASH_TOP_N\", \"15\"))\n    sql = f\"\"\"\n        SELECT COALESCE(airline_name, airline) AS airline,\n               AVG(arrival_delay) AS avg_delay\n        FROM \"{cfg['database']}\".\"{cfg['table']}\"\n        {where}\n        GROUP BY 1",
+        "peekOfCode": "def query_airline_bar_athena(years, months, airlines, states):\n    cfg = athena_config()\n    where = build_where(years, months, airlines, states)\n    top_n = int(os.getenv(\"DASH_TOP_N\", \"20\"))\n    sql = f\"\"\"\n        SELECT COALESCE(airline_name, airline) AS airline,\n               AVG(arrival_delay) AS avg_delay\n        FROM \"{cfg['database']}\".\"{cfg['table']}\"\n        {where}\n        GROUP BY 1",
         "detail": "dashboard.app",
         "documentation": {}
     },
@@ -1639,11 +1698,20 @@
         "documentation": {}
     },
     {
+        "label": "refresh_athena_error",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def refresh_athena_error(_n):\n    msg = _ATHENA_ERROR.get(\"message\")\n    if not msg:\n        return \"\", {**_ERROR_BANNER, \"display\": \"none\"}\n    return f\"Athena error: {msg}\", {**_ERROR_BANNER, \"display\": \"block\"}\n# ---------------------------------------------------------------------------\n# Callback 1 – populate filter dropdowns AND store in a single round-trip\n# ---------------------------------------------------------------------------\n@app.callback(\n    Output(\"store-filter-options\", \"data\"),",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
         "label": "load_and_populate_filters",
         "kind": 2,
         "importPath": "dashboard.app",
         "description": "dashboard.app",
-        "peekOfCode": "def load_and_populate_filters(_init):\n    \"\"\"Fetch filter options and populate dropdowns in a single callback.\"\"\"\n    options = fetch_filter_options_cached()\n    years    = options.get(\"years\",    [])\n    months   = options.get(\"months\",   [])\n    airlines = options.get(\"airlines\", [])\n    states   = options.get(\"states\",   [])\n    year_opts    = [{\"label\": str(y), \"value\": y} for y in years]\n    airline_opts = [{\"label\": a, \"value\": a} for a in airlines]\n    month_opts   = [{\"label\": str(m), \"value\": m} for m in months]",
+        "peekOfCode": "def load_and_populate_filters(_init):\n    \"\"\"Fetch filter options and populate dropdowns in a single callback.\"\"\"\n    options = fetch_filter_options_cached()\n    years    = options.get(\"years\",    [])\n    months   = options.get(\"months\",   [])\n    airlines = options.get(\"airlines\", [])\n    states   = options.get(\"states\",   [])\n    if USE_ATHENA and any([years, months, airlines, states]):\n        clear_athena_error()\n    year_opts    = [{\"label\": str(y), \"value\": y} for y in years]",
         "detail": "dashboard.app",
         "documentation": {}
     },
@@ -1652,7 +1720,7 @@
         "kind": 2,
         "importPath": "dashboard.app",
         "description": "dashboard.app",
-        "peekOfCode": "def update_kpis(years_sel, airlines_sel, months_sel, states_sel, options_data):\n    if not options_data:\n        return \"—\", \"—\", \"—\", \"—\"\n    years_sel    = years_sel    or []\n    airlines_sel = airlines_sel or []\n    months_sel   = months_sel   or []\n    states_sel   = states_sel   or []\n    max_years    = int(os.getenv(\"DASH_MAX_YEARS\",    \"3\"))\n    max_airlines = int(os.getenv(\"DASH_MAX_AIRLINES\", \"25\"))\n    max_states   = int(os.getenv(\"DASH_MAX_STATES\",   \"25\"))",
+        "peekOfCode": "def update_kpis(years_sel, airlines_sel, months_sel, states_sel, options_data):\n    if not options_data:\n        return \"—\", \"—\", \"—\", \"—\"\n    if USE_ATHENA:\n        clear_athena_error()\n    years_sel    = years_sel    or []\n    airlines_sel = airlines_sel or []\n    months_sel   = months_sel   or []\n    states_sel   = states_sel   or []\n    max_years    = int(os.getenv(\"DASH_MAX_YEARS\",    \"3\"))",
         "detail": "dashboard.app",
         "documentation": {}
     },
@@ -1661,7 +1729,7 @@
         "kind": 2,
         "importPath": "dashboard.app",
         "description": "dashboard.app",
-        "peekOfCode": "def update_charts(years_sel, airlines_sel, months_sel, states_sel, options_data):\n    if not options_data:\n        return _empty_bar(\"Average delay by airline\"), _empty_line(\"Monthly delay trend\")\n    ctx = callback_context\n    triggered_ids: set[str] = {t[\"prop_id\"] for t in ctx.triggered} if ctx.triggered else set()\n    years_sel    = years_sel    or []\n    airlines_sel = airlines_sel or []\n    months_sel   = months_sel   or []\n    states_sel   = states_sel   or []\n    max_years    = int(os.getenv(\"DASH_MAX_YEARS\",    \"3\"))",
+        "peekOfCode": "def update_charts(years_sel, airlines_sel, months_sel, states_sel, options_data):\n    if not options_data:\n        return _empty_bar(\"Average delay by airline\"), _empty_line(\"Monthly delay trend\")\n    if USE_ATHENA:\n        clear_athena_error()\n    ctx = callback_context\n    triggered_ids: set[str] = {t[\"prop_id\"] for t in ctx.triggered} if ctx.triggered else set()\n    years_sel    = years_sel    or []\n    airlines_sel = airlines_sel or []\n    months_sel   = months_sel   or []",
         "detail": "dashboard.app",
         "documentation": {}
     },
@@ -1688,7 +1756,7 @@
         "kind": 5,
         "importPath": "dashboard.app",
         "description": "dashboard.app",
-        "peekOfCode": "SAFE_TEXT = re.compile(r\"^[A-Za-z0-9 .&/_-]+$\")\ndef sanitize_text(values: List[str]) -> List[str]:\n    cleaned: List[str] = []\n    for value in values:\n        if not isinstance(value, str):\n            continue\n        value = value.strip()\n        if not value or len(value) > 60:\n            continue\n        if not SAFE_TEXT.match(value):",
+        "peekOfCode": "SAFE_TEXT = re.compile(r\"^[A-Za-z0-9 .&/_-]+$\")\n# ---------------------------------------------------------------------------\n# Athena error state (in-process, best-effort)\n# ---------------------------------------------------------------------------\n_ATHENA_ERROR: dict[str, Optional[str]] = {\"message\": None}\ndef sanitize_text(values: List[str]) -> List[str]:\n    cleaned: List[str] = []\n    for value in values:\n        if not isinstance(value, str):\n            continue",
         "detail": "dashboard.app",
         "documentation": {}
     },
@@ -1778,7 +1846,7 @@
         "kind": 5,
         "importPath": "dashboard.app",
         "description": "dashboard.app",
-        "peekOfCode": "_KPI_LABEL = {\n    \"fontSize\": \"11px\", \"color\": \"#888\", \"textTransform\": \"uppercase\",\n    \"letterSpacing\": \"0.06em\", \"marginBottom\": \"6px\",\n}\n_KPI_VALUE = {\n    \"fontSize\": \"26px\", \"fontWeight\": \"600\", \"color\": \"#2b2b2b\",\n    \"fontFamily\": \"'DM Mono', monospace\",\n}\ndata_source_label = (\n    f\"Athena {athena_config()['database']}.{athena_config()['table']}\"",
+        "peekOfCode": "_KPI_LABEL = {\n    \"fontSize\": \"11px\", \"color\": \"#888\", \"textTransform\": \"uppercase\",\n    \"letterSpacing\": \"0.06em\", \"marginBottom\": \"6px\",\n}\n_KPI_VALUE = {\n    \"fontSize\": \"26px\", \"fontWeight\": \"600\", \"color\": \"#2b2b2b\",\n    \"fontFamily\": \"'DM Mono', monospace\",\n}\n_ERROR_BANNER = {\n    \"background\": \"#fff1f0\",",
         "detail": "dashboard.app",
         "documentation": {}
     },
@@ -1787,7 +1855,16 @@
         "kind": 5,
         "importPath": "dashboard.app",
         "description": "dashboard.app",
-        "peekOfCode": "_KPI_VALUE = {\n    \"fontSize\": \"26px\", \"fontWeight\": \"600\", \"color\": \"#2b2b2b\",\n    \"fontFamily\": \"'DM Mono', monospace\",\n}\ndata_source_label = (\n    f\"Athena {athena_config()['database']}.{athena_config()['table']}\"\n    if USE_ATHENA\n    else (resolve_data_source() or \"not configured\")\n)\napp.layout = html.Div(",
+        "peekOfCode": "_KPI_VALUE = {\n    \"fontSize\": \"26px\", \"fontWeight\": \"600\", \"color\": \"#2b2b2b\",\n    \"fontFamily\": \"'DM Mono', monospace\",\n}\n_ERROR_BANNER = {\n    \"background\": \"#fff1f0\",\n    \"border\": \"1px solid #ffccc7\",\n    \"color\": \"#a8071a\",\n    \"padding\": \"10px 12px\",\n    \"borderRadius\": \"8px\",",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "_ERROR_BANNER",
+        "kind": 5,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "_ERROR_BANNER = {\n    \"background\": \"#fff1f0\",\n    \"border\": \"1px solid #ffccc7\",\n    \"color\": \"#a8071a\",\n    \"padding\": \"10px 12px\",\n    \"borderRadius\": \"8px\",\n    \"fontFamily\": \"'DM Mono', monospace\",\n    \"fontSize\": \"11px\",\n    \"marginBottom\": \"16px\",\n    \"display\": \"none\",",
         "detail": "dashboard.app",
         "documentation": {}
     },
@@ -1828,11 +1905,74 @@
         "documentation": {}
     },
     {
-        "label": "load_csv",
+        "label": "parse_columns",
+        "kind": 2,
+        "importPath": "dashboard.build_dashboard_dataset",
+        "description": "dashboard.build_dashboard_dataset",
+        "peekOfCode": "def parse_columns(value: str | None) -> list[str]:\n    if not value:\n        return DEFAULT_COLUMNS.copy()\n    cols = [c.strip().lower() for c in value.split(\",\")]\n    return [c for c in cols if c]\ndef resolve_input_dataset(source: str, region: str) -> Tuple[ds.Dataset, pafs.FileSystem | None]:\n    if source.lower().startswith(\"s3://\"):\n        s3 = pafs.S3FileSystem(region=region)\n        return ds.dataset(source.removeprefix(\"s3://\"), filesystem=s3, format=\"parquet\"), s3\n    return ds.dataset(source, format=\"parquet\"), None",
+        "detail": "dashboard.build_dashboard_dataset",
+        "documentation": {}
+    },
+    {
+        "label": "resolve_input_dataset",
+        "kind": 2,
+        "importPath": "dashboard.build_dashboard_dataset",
+        "description": "dashboard.build_dashboard_dataset",
+        "peekOfCode": "def resolve_input_dataset(source: str, region: str) -> Tuple[ds.Dataset, pafs.FileSystem | None]:\n    if source.lower().startswith(\"s3://\"):\n        s3 = pafs.S3FileSystem(region=region)\n        return ds.dataset(source.removeprefix(\"s3://\"), filesystem=s3, format=\"parquet\"), s3\n    return ds.dataset(source, format=\"parquet\"), None\ndef resolve_output(\n    output: str | None,\n    bucket: str | None,\n    prefix: str,\n    region: str,",
+        "detail": "dashboard.build_dashboard_dataset",
+        "documentation": {}
+    },
+    {
+        "label": "resolve_output",
+        "kind": 2,
+        "importPath": "dashboard.build_dashboard_dataset",
+        "description": "dashboard.build_dashboard_dataset",
+        "peekOfCode": "def resolve_output(\n    output: str | None,\n    bucket: str | None,\n    prefix: str,\n    region: str,\n) -> Tuple[str, pafs.FileSystem | None]:\n    if output:\n        return output, None\n    if not bucket:\n        raise ValueError(\"Provide --output or --bucket.\")",
+        "detail": "dashboard.build_dashboard_dataset",
+        "documentation": {}
+    },
+    {
+        "label": "resolve_columns",
+        "kind": 2,
+        "importPath": "dashboard.build_dashboard_dataset",
+        "description": "dashboard.build_dashboard_dataset",
+        "peekOfCode": "def resolve_columns(\n    dataset: ds.Dataset,\n    desired_lower: Iterable[str],\n) -> Tuple[list[str], list[str]]:\n    available = dataset.schema.names\n    lookup = {name.lower(): name for name in available}\n    actual: list[str] = []\n    lower: list[str] = []\n    missing: list[str] = []\n    for col in desired_lower:",
+        "detail": "dashboard.build_dashboard_dataset",
+        "documentation": {}
+    },
+    {
+        "label": "build_reader",
+        "kind": 2,
+        "importPath": "dashboard.build_dashboard_dataset",
+        "description": "dashboard.build_dashboard_dataset",
+        "peekOfCode": "def build_reader(scanner: ds.Scanner, target_names: list[str]) -> pa.RecordBatchReader:\n    schema_fields = []\n    for idx, name in enumerate(target_names):\n        field = scanner.schema.field(idx)\n        schema_fields.append(pa.field(name, field.type, field.nullable, field.metadata))\n    target_schema = pa.schema(schema_fields)\n    def batch_iter():\n        for batch in scanner.to_batches():\n            yield batch.rename_columns(target_names)\n    return pa.RecordBatchReader.from_batches(target_schema, batch_iter())",
+        "detail": "dashboard.build_dashboard_dataset",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "dashboard.build_dashboard_dataset",
+        "description": "dashboard.build_dashboard_dataset",
+        "peekOfCode": "def main() -> int:\n    parser = argparse.ArgumentParser(\n        description=\"Create a slim, partitioned Parquet dataset for the dashboard.\"\n    )\n    parser.add_argument(\n        \"--input\",\n        required=True,\n        help=\"Source Parquet file or dataset (local path or s3://).\",\n    )\n    parser.add_argument(",
+        "detail": "dashboard.build_dashboard_dataset",
+        "documentation": {}
+    },
+    {
+        "label": "DEFAULT_COLUMNS",
+        "kind": 5,
+        "importPath": "dashboard.build_dashboard_dataset",
+        "description": "dashboard.build_dashboard_dataset",
+        "peekOfCode": "DEFAULT_COLUMNS = [\n    \"year\",\n    \"month\",\n    \"day\",\n    \"arrival_delay\",\n    \"is_delayed\",\n    \"airline_name\",\n    \"airline\",\n    \"origin_state\",\n]",
+        "detail": "dashboard.build_dashboard_dataset",
+        "documentation": {}
+    },
+    {
+        "label": "load_table",
         "kind": 2,
         "importPath": "dashboard.parquet_writer",
         "description": "dashboard.parquet_writer",
-        "peekOfCode": "def load_csv(path: str | Path) -> pd.DataFrame:\n    \"\"\"Load CSV with explicit dtypes to avoid DtypeWarning.\"\"\"\n    # Build dtype dict with only columns present in the file\n    raw = pd.read_csv(path, nrows=0)\n    available = {c.lower(): c for c in raw.columns}\n    dtype_arg = {\n        available[col]: dtype\n        for col, dtype in DTYPE_MAP.items()\n        if col in available\n    }",
+        "peekOfCode": "def load_table(path: str | Path) -> pd.DataFrame:\n    \"\"\"Load CSV or Parquet; normalize columns to lowercase.\"\"\"\n    path = Path(path)\n    if path.suffix.lower() == \".parquet\":\n        df = pd.read_parquet(path)\n    else:\n        # Build dtype dict with only columns present in the file\n        raw = pd.read_csv(path, nrows=0)\n        available = {c.lower(): c for c in raw.columns}\n        dtype_arg = {",
         "detail": "dashboard.parquet_writer",
         "documentation": {}
     },
@@ -1850,7 +1990,7 @@
         "kind": 2,
         "importPath": "dashboard.parquet_writer",
         "description": "dashboard.parquet_writer",
-        "peekOfCode": "def repair_athena_table(\n    database: str,\n    table: str,\n    bucket: str,\n    prefix: str,\n    results_prefix: str = \"athena-results\",\n    region: str = \"us-east-1\",\n    profile: Optional[str] = None,\n) -> None:\n    \"\"\"Run MSCK REPAIR TABLE so Athena discovers new partitions.\"\"\"",
+        "peekOfCode": "def repair_athena_table(\n    database: str,\n    table: str,\n    bucket: str,\n    prefix: str,\n    results_prefix: str = \"athena-results\",\n    region: str = \"us-east-1\",\n    profile: Optional[str] = None,\n) -> None:\n    \"\"\"Sync Athena partitions (engine v3 compatible).\"\"\"",
         "detail": "dashboard.parquet_writer",
         "documentation": {}
     },
@@ -1859,7 +1999,7 @@
         "kind": 2,
         "importPath": "dashboard.parquet_writer",
         "description": "dashboard.parquet_writer",
-        "peekOfCode": "def build_parser() -> argparse.ArgumentParser:\n    p = argparse.ArgumentParser(description=\"Write partitioned Parquet to S3 or local disk\")\n    p.add_argument(\"--input\",  required=False, help=\"Path to source CSV file\")\n    p.add_argument(\"--bucket\", required=False, help=\"S3 bucket name\")\n    p.add_argument(\"--prefix\", required=False, default=\"refined/flights_processed\",\n                   help=\"S3 key prefix (default: refined/flights_processed)\")\n    p.add_argument(\"--output\", required=False,\n                   help=\"Local output directory (skips S3 upload, useful for testing)\")\n    p.add_argument(\"--region\", default=os.getenv(\"AWS_REGION\", \"us-east-1\"))\n    p.add_argument(\"--profile\", default=os.getenv(\"AWS_PROFILE\"))",
+        "peekOfCode": "def build_parser() -> argparse.ArgumentParser:\n    p = argparse.ArgumentParser(description=\"Write partitioned Parquet to S3 or local disk\")\n    p.add_argument(\"--input\",  required=False, help=\"Path to source CSV file\")\n    p.add_argument(\"--bucket\", required=False, help=\"S3 bucket name\")\n    p.add_argument(\"--prefix\", required=False, default=\"processed/flights_processed\",\n                   help=\"S3 key prefix (default: processed/flights_processed)\")\n    p.add_argument(\"--output\", required=False,\n                   help=\"Local output directory (skips S3 upload, useful for testing)\")\n    p.add_argument(\"--region\", default=os.getenv(\"AWS_REGION\", \"us-east-1\"))\n    p.add_argument(\"--profile\", default=os.getenv(\"AWS_PROFILE\"))",
         "detail": "dashboard.parquet_writer",
         "documentation": {}
     },
@@ -1877,7 +2017,7 @@
         "kind": 5,
         "importPath": "dashboard.parquet_writer",
         "description": "dashboard.parquet_writer",
-        "peekOfCode": "PARTITION_COLS = [\"year\", \"month\"]\n# Compression: snappy is fast and well-supported by Athena\nPARQUET_COMPRESSION = \"snappy\"\n# ---------------------------------------------------------------------------\n# Helpers\n# ---------------------------------------------------------------------------\ndef load_csv(path: str | Path) -> pd.DataFrame:\n    \"\"\"Load CSV with explicit dtypes to avoid DtypeWarning.\"\"\"\n    # Build dtype dict with only columns present in the file\n    raw = pd.read_csv(path, nrows=0)",
+        "peekOfCode": "PARTITION_COLS = [\"year\", \"month\"]\n# Compression: snappy is fast and well-supported by Athena\nPARQUET_COMPRESSION = \"snappy\"\n# ---------------------------------------------------------------------------\n# Helpers\n# ---------------------------------------------------------------------------\ndef load_table(path: str | Path) -> pd.DataFrame:\n    \"\"\"Load CSV or Parquet; normalize columns to lowercase.\"\"\"\n    path = Path(path)\n    if path.suffix.lower() == \".parquet\":",
         "detail": "dashboard.parquet_writer",
         "documentation": {}
     },
@@ -1886,7 +2026,7 @@
         "kind": 5,
         "importPath": "dashboard.parquet_writer",
         "description": "dashboard.parquet_writer",
-        "peekOfCode": "PARQUET_COMPRESSION = \"snappy\"\n# ---------------------------------------------------------------------------\n# Helpers\n# ---------------------------------------------------------------------------\ndef load_csv(path: str | Path) -> pd.DataFrame:\n    \"\"\"Load CSV with explicit dtypes to avoid DtypeWarning.\"\"\"\n    # Build dtype dict with only columns present in the file\n    raw = pd.read_csv(path, nrows=0)\n    available = {c.lower(): c for c in raw.columns}\n    dtype_arg = {",
+        "peekOfCode": "PARQUET_COMPRESSION = \"snappy\"\n# ---------------------------------------------------------------------------\n# Helpers\n# ---------------------------------------------------------------------------\ndef load_table(path: str | Path) -> pd.DataFrame:\n    \"\"\"Load CSV or Parquet; normalize columns to lowercase.\"\"\"\n    path = Path(path)\n    if path.suffix.lower() == \".parquet\":\n        df = pd.read_parquet(path)\n    else:",
         "detail": "dashboard.parquet_writer",
         "documentation": {}
     },
@@ -2125,6 +2265,24 @@
         "documentation": {}
     },
     {
+        "label": "looks_like_placeholder_bucket",
+        "kind": 2,
+        "importPath": "src.aws.athena_client",
+        "description": "src.aws.athena_client",
+        "peekOfCode": "def looks_like_placeholder_bucket(value: str) -> bool:\n    lowered = value.strip().lower()\n    if \"<\" in value or \">\" in value:\n        return True\n    if lowered.startswith(\"s3://\"):\n        return True\n    placeholders = {\n        \"your-bucket\",\n        \"my-bucket\",\n        \"bucket\",",
+        "detail": "src.aws.athena_client",
+        "documentation": {}
+    },
+    {
+        "label": "validate_bucket_name",
+        "kind": 2,
+        "importPath": "src.aws.athena_client",
+        "description": "src.aws.athena_client",
+        "peekOfCode": "def validate_bucket_name(bucket: str) -> bool:\n    if looks_like_placeholder_bucket(bucket):\n        return False\n    if not _BUCKET_RE.match(bucket):\n        return False\n    # reject IP-like bucket names\n    parts = bucket.split(\".\")\n    if len(parts) == 4 and all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):\n        return False\n    return True",
+        "detail": "src.aws.athena_client",
+        "documentation": {}
+    },
+    {
         "label": "build_session",
         "kind": 2,
         "importPath": "src.aws.athena_client",
@@ -2156,7 +2314,7 @@
         "kind": 2,
         "importPath": "src.aws.athena_client",
         "description": "src.aws.athena_client",
-        "peekOfCode": "def build_drop_table_ddl(database: str, table: str) -> str:\n    return f\"DROP TABLE IF EXISTS {database}.{table};\"\ndef build_create_table_ddl(\n    database: str,\n    table: str,\n    columns: list[tuple[str, str]],\n    s3_location: str,\n    file_format: str,\n) -> str:\n    col_defs = \",\\n    \".join(f\"`{name}` {dtype}\" for name, dtype in columns)",
+        "peekOfCode": "def build_drop_table_ddl(database: str, table: str) -> str:\n    return f\"DROP TABLE IF EXISTS {database}.{table};\"\ndef build_create_table_ddl(\n    database: str,\n    table: str,\n    columns: list[tuple[str, str]],\n    s3_location: str,\n    file_format: str,\n    partition_cols: list[tuple[str, str]] | None = None,\n) -> str:",
         "detail": "src.aws.athena_client",
         "documentation": {}
     },
@@ -2165,7 +2323,7 @@
         "kind": 2,
         "importPath": "src.aws.athena_client",
         "description": "src.aws.athena_client",
-        "peekOfCode": "def build_create_table_ddl(\n    database: str,\n    table: str,\n    columns: list[tuple[str, str]],\n    s3_location: str,\n    file_format: str,\n) -> str:\n    col_defs = \",\\n    \".join(f\"`{name}` {dtype}\" for name, dtype in columns)\n    if file_format == \"parquet\":\n        storage_clause = \"STORED AS PARQUET\"",
+        "peekOfCode": "def build_create_table_ddl(\n    database: str,\n    table: str,\n    columns: list[tuple[str, str]],\n    s3_location: str,\n    file_format: str,\n    partition_cols: list[tuple[str, str]] | None = None,\n) -> str:\n    partition_cols = partition_cols or []\n    partition_names = {name for name, _ in partition_cols}",
         "detail": "src.aws.athena_client",
         "documentation": {}
     },
@@ -2174,7 +2332,25 @@
         "kind": 2,
         "importPath": "src.aws.athena_client",
         "description": "src.aws.athena_client",
-        "peekOfCode": "def build_table_location(\n    bucket: str,\n    prefix: str,\n    table: str,\n    file_format: str,\n    layout: str,\n) -> str:\n    base = f\"s3://{bucket}/{prefix.strip('/')}\"\n    if layout == \"folder\":\n        return f\"{base}/{table}/\"",
+        "peekOfCode": "def build_table_location(\n    bucket: str,\n    prefix: str,\n    table: str,\n    file_format: str,\n    layout: str,\n) -> str:\n    base = f\"s3://{bucket}/{prefix.strip('/')}\"\n    if layout == \"folder\":\n        location = f\"{base}/{table}\"",
+        "detail": "src.aws.athena_client",
+        "documentation": {}
+    },
+    {
+        "label": "resolve_table_layout",
+        "kind": 2,
+        "importPath": "src.aws.athena_client",
+        "description": "src.aws.athena_client",
+        "peekOfCode": "def resolve_table_layout(table: str, default_layout: str) -> str:\n    return \"folder\" if table in PARTITIONED_TABLES else default_layout\ndef resolve_partition_cols(\n    table: str,\n    columns: list[tuple[str, str]],\n) -> list[tuple[str, str]]:\n    names = PARTITION_COLUMNS.get(table, ())\n    if not names:\n        return []\n    return [(name, dtype) for name, dtype in columns if name in names]",
+        "detail": "src.aws.athena_client",
+        "documentation": {}
+    },
+    {
+        "label": "resolve_partition_cols",
+        "kind": 2,
+        "importPath": "src.aws.athena_client",
+        "description": "src.aws.athena_client",
+        "peekOfCode": "def resolve_partition_cols(\n    table: str,\n    columns: list[tuple[str, str]],\n) -> list[tuple[str, str]]:\n    names = PARTITION_COLUMNS.get(table, ())\n    if not names:\n        return []\n    return [(name, dtype) for name, dtype in columns if name in names]\n# ---------------------------------------------------------------------------\n# Athena execution helpers",
         "detail": "src.aws.athena_client",
         "documentation": {}
     },
@@ -2192,7 +2368,7 @@
         "kind": 2,
         "importPath": "src.aws.athena_client",
         "description": "src.aws.athena_client",
-        "peekOfCode": "def main() -> int:\n    load_env_file()\n    args = parse_args()\n    # ── Validate config ────────────────────────────────────────────────────\n    if not args.bucket:\n        print(\"Missing S3 bucket. Provide --bucket or set S3_BUCKET.\", file=sys.stderr)\n        return 2\n    results_location = f\"s3://{args.bucket}/{args.athena_results_prefix.strip('/')}/\"\n    if args.dry_run:\n        print(f\"-- Database\\n{build_create_database_ddl(args.database)}\\n\")",
+        "peekOfCode": "def main() -> int:\n    load_env_file()\n    args = parse_args()\n    # ── Validate config ────────────────────────────────────────────────────\n    if not args.bucket:\n        print(\"Missing S3 bucket. Provide --bucket or set S3_BUCKET.\", file=sys.stderr)\n        return 2\n    if not validate_bucket_name(args.bucket):\n        print(\n            f\"Invalid S3 bucket name '{args.bucket}'.\\n\"",
         "detail": "src.aws.athena_client",
         "documentation": {}
     },
@@ -2201,7 +2377,16 @@
         "kind": 5,
         "importPath": "src.aws.athena_client",
         "description": "src.aws.athena_client",
-        "peekOfCode": "DATABASE = \"flight_advisor\"\n# Schema definitions for each table.\n# Each entry: (table_name, s3_prefix, [(col_name, col_type), ...])\nTABLE_DEFINITIONS = [\n    (\n        \"flights_processed\",\n        \"processed\",\n        [\n            (\"YEAR\", \"INT\"),\n            (\"MONTH\", \"INT\"),",
+        "peekOfCode": "DATABASE = \"flight_advisor\"\n_BUCKET_RE = re.compile(r\"^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$\")\n# Schema definitions for each table.\n# Each entry: (table_name, s3_prefix, [(col_name, col_type), ...])\nTABLE_DEFINITIONS = [\n    (\n        \"flights_processed\",\n        \"processed\",\n        [\n            (\"YEAR\", \"INT\"),",
+        "detail": "src.aws.athena_client",
+        "documentation": {}
+    },
+    {
+        "label": "_BUCKET_RE",
+        "kind": 5,
+        "importPath": "src.aws.athena_client",
+        "description": "src.aws.athena_client",
+        "peekOfCode": "_BUCKET_RE = re.compile(r\"^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$\")\n# Schema definitions for each table.\n# Each entry: (table_name, s3_prefix, [(col_name, col_type), ...])\nTABLE_DEFINITIONS = [\n    (\n        \"flights_processed\",\n        \"processed\",\n        [\n            (\"YEAR\", \"INT\"),\n            (\"MONTH\", \"INT\"),",
         "detail": "src.aws.athena_client",
         "documentation": {}
     },
@@ -2211,6 +2396,24 @@
         "importPath": "src.aws.athena_client",
         "description": "src.aws.athena_client",
         "peekOfCode": "TABLE_DEFINITIONS = [\n    (\n        \"flights_processed\",\n        \"processed\",\n        [\n            (\"YEAR\", \"INT\"),\n            (\"MONTH\", \"INT\"),\n            (\"DAY\", \"INT\"),\n            (\"DAY_OF_WEEK\", \"INT\"),\n            (\"AIRLINE\", \"STRING\"),",
+        "detail": "src.aws.athena_client",
+        "documentation": {}
+    },
+    {
+        "label": "PARTITIONED_TABLES",
+        "kind": 5,
+        "importPath": "src.aws.athena_client",
+        "description": "src.aws.athena_client",
+        "peekOfCode": "PARTITIONED_TABLES = {\"flights_processed\"}\nPARTITION_COLUMNS = {\n    \"flights_processed\": (\"YEAR\", \"MONTH\"),\n}\n# ---------------------------------------------------------------------------\n# Environment helpers\n# ---------------------------------------------------------------------------\ndef load_env_file(path: Path = Path(\".env\")) -> None:\n    \"\"\"Load key=value pairs from *path* into os.environ (no overwrite).\"\"\"\n    if not path.exists():",
+        "detail": "src.aws.athena_client",
+        "documentation": {}
+    },
+    {
+        "label": "PARTITION_COLUMNS",
+        "kind": 5,
+        "importPath": "src.aws.athena_client",
+        "description": "src.aws.athena_client",
+        "peekOfCode": "PARTITION_COLUMNS = {\n    \"flights_processed\": (\"YEAR\", \"MONTH\"),\n}\n# ---------------------------------------------------------------------------\n# Environment helpers\n# ---------------------------------------------------------------------------\ndef load_env_file(path: Path = Path(\".env\")) -> None:\n    \"\"\"Load key=value pairs from *path* into os.environ (no overwrite).\"\"\"\n    if not path.exists():\n        return",
         "detail": "src.aws.athena_client",
         "documentation": {}
     },
@@ -3079,11 +3282,74 @@
         "documentation": {}
     },
     {
+        "label": "s3_delete_prefix",
+        "kind": 2,
+        "importPath": "src.preprocessing",
+        "description": "src.preprocessing",
+        "peekOfCode": "def s3_delete_prefix(s3_client, bucket: str, prefix: str) -> None:\n    paginator = s3_client.get_paginator(\"list_objects_v2\")\n    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):\n        items = page.get(\"Contents\", [])\n        if not items:\n            continue\n        objects = [{\"Key\": obj[\"Key\"]} for obj in items]\n        s3_client.delete_objects(Bucket=bucket, Delete={\"Objects\": objects})\ndef upload_parquet_folder(\n    s3_client,",
+        "detail": "src.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "upload_parquet_folder",
+        "kind": 2,
+        "importPath": "src.preprocessing",
+        "description": "src.preprocessing",
+        "peekOfCode": "def upload_parquet_folder(\n    s3_client,\n    local_path: Path,\n    bucket: str,\n    prefix: str,\n) -> None:\n    key_prefix = prefix.strip(\"/\") + \"/\"\n    try:\n        s3_delete_prefix(s3_client, bucket, key_prefix)\n    except ClientError as exc:",
+        "detail": "src.preprocessing",
+        "documentation": {}
+    },
+    {
         "label": "read_tabular",
         "kind": 2,
         "importPath": "src.preprocessing",
         "description": "src.preprocessing",
-        "peekOfCode": "def read_tabular(path: Path) -> pd.DataFrame:\n    suffix = path.suffix.lower()\n    if suffix == \".parquet\":\n        return pd.read_parquet(path)\n    return pd.read_csv(path)\n# ---------------------------------------------------------------------------\n# Feature engineering helpers\n# ---------------------------------------------------------------------------\ndef time_of_day(hour: int) -> str:\n    if 5 <= hour <= 11:",
+        "peekOfCode": "def read_tabular(path: Path) -> pd.DataFrame:\n    suffix = path.suffix.lower()\n    if suffix == \".parquet\":\n        return pd.read_parquet(path)\n    return pd.read_csv(path)\ndef coerce_df_to_athena_schema(df: pd.DataFrame, table_name: str) -> pd.DataFrame:\n    \"\"\"Coerce dataframe column types to match Athena table definitions.\"\"\"\n    try:\n        from aws import athena_client as athena\n    except ModuleNotFoundError:",
+        "detail": "src.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "coerce_df_to_athena_schema",
+        "kind": 2,
+        "importPath": "src.preprocessing",
+        "description": "src.preprocessing",
+        "peekOfCode": "def coerce_df_to_athena_schema(df: pd.DataFrame, table_name: str) -> pd.DataFrame:\n    \"\"\"Coerce dataframe column types to match Athena table definitions.\"\"\"\n    try:\n        from aws import athena_client as athena\n    except ModuleNotFoundError:\n        return df\n    schema = next((cols for (tbl, _prefix, cols) in athena.TABLE_DEFINITIONS if tbl == table_name), None)\n    if not schema:\n        return df\n    df = df.copy()",
+        "detail": "src.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "build_dashboard_frame",
+        "kind": 2,
+        "importPath": "src.preprocessing",
+        "description": "src.preprocessing",
+        "peekOfCode": "def build_dashboard_frame(flights: pd.DataFrame) -> pd.DataFrame:\n    missing = [col for col in DASHBOARD_COLS if col not in flights.columns]\n    if missing:\n        raise ValueError(f\"Missing columns for dashboard dataset: {', '.join(missing)}\")\n    return flights[list(DASHBOARD_COLS)].rename(columns=DASHBOARD_COLS).copy()\ndef write_partitioned_dataset_to_s3(\n    df: pd.DataFrame,\n    bucket: str,\n    prefix: str,\n    region: str,",
+        "detail": "src.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "write_partitioned_dataset_to_s3",
+        "kind": 2,
+        "importPath": "src.preprocessing",
+        "description": "src.preprocessing",
+        "peekOfCode": "def write_partitioned_dataset_to_s3(\n    df: pd.DataFrame,\n    bucket: str,\n    prefix: str,\n    region: str,\n    session: boto3.Session,\n    partition_cols: list[str],\n    lowercase: bool = False,\n) -> None:\n    try:",
+        "detail": "src.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "register_athena_tables",
+        "kind": 2,
+        "importPath": "src.preprocessing",
+        "description": "src.preprocessing",
+        "peekOfCode": "def register_athena_tables(\n    session: boto3.Session,\n    bucket: str,\n    results_prefix: str,\n    database: str,\n    table_layout: str,\n    drop_existing: bool,\n    processed_prefix: str,\n    refined_prefix: str,\n    file_format: str = \"parquet\",",
+        "detail": "src.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "sync_athena_partitions",
+        "kind": 2,
+        "importPath": "src.preprocessing",
+        "description": "src.preprocessing",
+        "peekOfCode": "def sync_athena_partitions(\n    session: boto3.Session,\n    bucket: str,\n    results_prefix: str,\n    database: str,\n    table: str,\n) -> None:\n    try:\n        from aws import athena_client as athena\n    except ModuleNotFoundError:",
         "detail": "src.preprocessing",
         "documentation": {}
     },
@@ -3147,6 +3413,15 @@
         "importPath": "src.preprocessing",
         "description": "src.preprocessing",
         "peekOfCode": "def main() -> int:\n    load_env_file()\n    args = parse_args()\n    # ── Validate config ────────────────────────────────────────────────────\n    if not args.bucket:\n        print(\"Missing S3 bucket. Provide --bucket or set S3_BUCKET.\", file=sys.stderr)\n        return 2\n    raw_prefix = args.raw_prefix.strip(\"/\")\n    processed_prefix = args.processed_prefix.strip(\"/\")\n    refined_prefix = args.refined_prefix.strip(\"/\")",
+        "detail": "src.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "DASHBOARD_COLS",
+        "kind": 5,
+        "importPath": "src.preprocessing",
+        "description": "src.preprocessing",
+        "peekOfCode": "DASHBOARD_COLS = {\n    \"YEAR\": \"year\",\n    \"MONTH\": \"month\",\n    \"DAY\": \"day\",\n    \"ARRIVAL_DELAY\": \"arrival_delay\",\n    \"IS_DELAYED\": \"is_delayed\",\n    \"AIRLINE_NAME\": \"airline_name\",\n    \"AIRLINE\": \"airline\",\n    \"ORIGIN_STATE\": \"origin_state\",\n}",
         "detail": "src.preprocessing",
         "documentation": {}
     },

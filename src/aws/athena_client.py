@@ -2,21 +2,22 @@
 """Register S3 flight data in AWS Athena via the Glue Data Catalog.
 
 Creates the flight_advisor database and the following external tables:
-  - flights_processed   (processed/flights_processed.parquet)
-  - train               (processed/train.parquet)
-  - test                (processed/test.parquet)
-  - airport_profiles    (refined/airport_profiles.parquet)
+  - flights_processed   (processed/flights_processed/)
+  - train               (processed/train/)
+  - test                (processed/test/)
+  - airport_profiles    (refined/airport_profiles/)
 
 Usage:
     python src/aws/athena_client.py
-    python src/aws/athena_client.py --bucket my-bucket --format parquet
-    python src/aws/athena_client.py --dry-run
+    python src/aws/athena_client.py --bucket my-bucket --format parquet --table-layout folder
+    python src/aws/athena_client.py --dry-run --table-layout folder
 """
 
 from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -35,6 +36,7 @@ from botocore.exceptions import (
 # ---------------------------------------------------------------------------
 
 DATABASE = "flight_advisor"
+_BUCKET_RE = re.compile(r"^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$")
 
 # Schema definitions for each table.
 # Each entry: (table_name, s3_prefix, [(col_name, col_type), ...])
@@ -174,6 +176,12 @@ TABLE_DEFINITIONS = [
     ),
 ]
 
+# Tables written as partitioned folders in S3 (Hive-style)
+PARTITIONED_TABLES = {"flights_processed"}
+PARTITION_COLUMNS = {
+    "flights_processed": ("YEAR", "MONTH"),
+}
+
 
 # ---------------------------------------------------------------------------
 # Environment helpers
@@ -226,9 +234,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--table-layout",
         choices=["file", "folder"],
-        default=os.getenv("S3_TABLE_LAYOUT", "file"),
+        default=os.getenv("S3_TABLE_LAYOUT", "folder"),
         help="S3 layout for tables: file uses <prefix>/<table>.<ext>; "
-             "folder uses <prefix>/<table>/ (default: file)",
+             "folder uses <prefix>/<table>/ (default: folder). "
+             "Athena expects a directory for Parquet; partitioned tables are forced to 'folder'.",
     )
     parser.add_argument(
         "--region",
@@ -251,6 +260,35 @@ def parse_args() -> argparse.Namespace:
         help="Print DDL statements without executing them",
     )
     return parser.parse_args()
+
+
+def looks_like_placeholder_bucket(value: str) -> bool:
+    lowered = value.strip().lower()
+    if "<" in value or ">" in value:
+        return True
+    if lowered.startswith("s3://"):
+        return True
+    placeholders = {
+        "your-bucket",
+        "my-bucket",
+        "bucket",
+        "s3-bucket",
+        "example-bucket",
+        "<bucket>",
+    }
+    return lowered in placeholders
+
+
+def validate_bucket_name(bucket: str) -> bool:
+    if looks_like_placeholder_bucket(bucket):
+        return False
+    if not _BUCKET_RE.match(bucket):
+        return False
+    # reject IP-like bucket names
+    parts = bucket.split(".")
+    if len(parts) == 4 and all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -296,8 +334,17 @@ def build_create_table_ddl(
     columns: list[tuple[str, str]],
     s3_location: str,
     file_format: str,
+    partition_cols: list[tuple[str, str]] | None = None,
 ) -> str:
-    col_defs = ",\n    ".join(f"`{name}` {dtype}" for name, dtype in columns)
+    partition_cols = partition_cols or []
+    partition_names = {name for name, _ in partition_cols}
+    main_columns = [(name, dtype) for name, dtype in columns if name not in partition_names]
+
+    col_defs = ",\n    ".join(f"`{name}` {dtype}" for name, dtype in main_columns)
+    partition_clause = ""
+    if partition_cols:
+        part_defs = ", ".join(f"`{name}` {dtype}" for name, dtype in partition_cols)
+        partition_clause = f"PARTITIONED BY ({part_defs})\n"
 
     if file_format == "parquet":
         storage_clause = "STORED AS PARQUET"
@@ -321,6 +368,7 @@ def build_create_table_ddl(
         f"CREATE EXTERNAL TABLE IF NOT EXISTS {database}.{table} (\n"
         f"    {col_defs}\n"
         f")\n"
+        f"{partition_clause}"
         f"{storage_clause}\n"
         f"LOCATION '{s3_location}'\n"
         f"{tbl_props};"
@@ -336,10 +384,25 @@ def build_table_location(
 ) -> str:
     base = f"s3://{bucket}/{prefix.strip('/')}"
     if layout == "folder":
-        return f"{base}/{table}/"
+        location = f"{base}/{table}"
+        return location if location.endswith("/") else location + "/"
     # layout == "file"
     ext = "parquet" if file_format == "parquet" else "csv"
     return f"{base}/{table}.{ext}"
+
+
+def resolve_table_layout(table: str, default_layout: str) -> str:
+    return "folder" if table in PARTITIONED_TABLES else default_layout
+
+
+def resolve_partition_cols(
+    table: str,
+    columns: list[tuple[str, str]],
+) -> list[tuple[str, str]]:
+    names = PARTITION_COLUMNS.get(table, ())
+    if not names:
+        return []
+    return [(name, dtype) for name, dtype in columns if name in names]
 
 
 # ---------------------------------------------------------------------------
@@ -394,22 +457,46 @@ def main() -> int:
     if not args.bucket:
         print("Missing S3 bucket. Provide --bucket or set S3_BUCKET.", file=sys.stderr)
         return 2
+    if not validate_bucket_name(args.bucket):
+        print(
+            f"Invalid S3 bucket name '{args.bucket}'.\n"
+            "Use the real bucket name (e.g. 'flight-advisor-fiap3'), not placeholders like '<bucket>' "
+            "and do not include the 's3://' prefix.",
+            file=sys.stderr,
+        )
+        return 2
+
+    if args.table_layout == "file":
+        print(
+            "Warning: Athena expects table LOCATION to be a directory. "
+            "Use --table-layout folder (or set S3_TABLE_LAYOUT=folder) to avoid DDL errors.",
+            file=sys.stderr,
+        )
 
     results_location = f"s3://{args.bucket}/{args.athena_results_prefix.strip('/')}/"
 
     if args.dry_run:
         print(f"-- Database\n{build_create_database_ddl(args.database)}\n")
         for table, prefix, columns in TABLE_DEFINITIONS:
+            layout = resolve_table_layout(table, args.table_layout)
             s3_loc = build_table_location(
                 args.bucket,
                 prefix,
                 table,
                 args.format,
-                args.table_layout,
+                layout,
             )
             if args.drop_existing:
                 print(f"-- Drop\n{build_drop_table_ddl(args.database, table)}\n")
-            ddl = build_create_table_ddl(args.database, table, columns, s3_loc, args.format)
+            partition_cols = resolve_partition_cols(table, columns)
+            ddl = build_create_table_ddl(
+                args.database,
+                table,
+                columns,
+                s3_loc,
+                args.format,
+                partition_cols=partition_cols,
+            )
             print(f"-- Table: {table}\n{ddl}\n")
         print(f"-- Athena results location: {results_location}")
         return 0
@@ -453,7 +540,8 @@ def main() -> int:
         # ── Create tables ──────────────────────────────────────────────────
         print(f"\n[2/2] Registering {len(TABLE_DEFINITIONS)} tables...")
         for i, (table, prefix, columns) in enumerate(TABLE_DEFINITIONS, 1):
-            s3_loc = f"s3://{args.bucket}/{prefix}/{table}/"
+            layout = resolve_table_layout(table, args.table_layout)
+            s3_loc = build_table_location(args.bucket, prefix, table, args.format, layout)
 
             if args.drop_existing:
                 print(f"  [{i}/{len(TABLE_DEFINITIONS)}] Dropping '{table}'...")
@@ -464,7 +552,15 @@ def main() -> int:
                     database=args.database,
                 )
 
-            ddl = build_create_table_ddl(args.database, table, columns, s3_loc, args.format)
+            partition_cols = resolve_partition_cols(table, columns)
+            ddl = build_create_table_ddl(
+                args.database,
+                table,
+                columns,
+                s3_loc,
+                args.format,
+                partition_cols=partition_cols,
+            )
             print(f"  [{i}/{len(TABLE_DEFINITIONS)}] Creating '{args.database}.{table}' -> {s3_loc}")
             run_query(athena, ddl, results_location, database=args.database)
             print(f"       OK")

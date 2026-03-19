@@ -66,10 +66,12 @@ def resolve_data_source() -> Optional[str]:
     if source:
         return source
     bucket = os.getenv("S3_BUCKET") or os.getenv("S3_Bucket")
-    refined_prefix = os.getenv("S3_REFINED_PREFIX", "refined")
+    processed_prefix = os.getenv("S3_PROCESSED_PREFIX")
+    refined_prefix = os.getenv("S3_REFINED_PREFIX")
+    data_prefix = processed_prefix or refined_prefix or "processed"
     filename = os.getenv("DASH_FILENAME", "flights_processed.parquet")  # FIX: era .csv
     if bucket:
-        return default_s3_uri(bucket, refined_prefix, filename)
+        return default_s3_uri(bucket, data_prefix, filename)
     return None
 
 
@@ -95,6 +97,11 @@ def athena_config() -> dict:
 # Input sanitisation
 # ---------------------------------------------------------------------------
 SAFE_TEXT = re.compile(r"^[A-Za-z0-9 .&/_-]+$")
+
+# ---------------------------------------------------------------------------
+# Athena error state (in-process, best-effort)
+# ---------------------------------------------------------------------------
+_ATHENA_ERROR: dict[str, Optional[str]] = {"message": None}
 
 
 def sanitize_text(values: List[str]) -> List[str]:
@@ -136,8 +143,14 @@ def limit_items(values: List, limit: int) -> List:
     return values[-limit:] if len(values) > limit else values
 
 
+def clear_athena_error() -> None:
+    _ATHENA_ERROR["message"] = None
+
+
 def log_athena_error(context: str, exc: Exception) -> None:
-    print(f"[Athena] {context} failed: {exc}", file=sys.stderr)
+    msg = f"{context} failed: {exc}"
+    _ATHENA_ERROR["message"] = msg
+    print(f"[Athena] {msg}", file=sys.stderr)
 
 
 def build_where(
@@ -298,6 +311,10 @@ def load_flights_cached(
         print(f"[load_flights] Failed to load Parquet: {exc}", file=sys.stderr)
         return pd.DataFrame()
 
+    if not df.empty:
+        key_cols = ["arrival_delay", "is_delayed", "month", get_airline_column(df)]
+        df.dropna(subset=[c for c in key_cols if c in df.columns], inplace=True)
+
     sample = int(os.getenv("DASH_SAMPLE", "0") or 0)
     if sample > 0 and len(df) > sample:
         df = df.sample(n=sample, random_state=42)
@@ -448,10 +465,10 @@ def build_airline_bar(df: pd.DataFrame):
     grouped = (
         df.groupby(col)["arrival_delay"].mean()
         .sort_values(ascending=False)
-        .head(15)
+        .head(20)
         .reset_index()
     )
-    fig = px.bar(grouped, x=col, y="arrival_delay", title="Average delay by airline (top 15)")
+    fig = px.bar(grouped, x=col, y="arrival_delay", title="Average delay by airline (top 20)")
     return _style_fig(fig, xaxis_title="", yaxis_title="Avg delay (min)")
 
 
@@ -526,7 +543,7 @@ def query_worst_airline_athena(years, months, airlines, states) -> str:
 def query_airline_bar_athena(years, months, airlines, states):
     cfg = athena_config()
     where = build_where(years, months, airlines, states)
-    top_n = int(os.getenv("DASH_TOP_N", "15"))
+    top_n = int(os.getenv("DASH_TOP_N", "20"))
     sql = f"""
         SELECT COALESCE(airline_name, airline) AS airline,
                AVG(arrival_delay) AS avg_delay
@@ -656,6 +673,17 @@ _KPI_VALUE = {
     "fontSize": "26px", "fontWeight": "600", "color": "#2b2b2b",
     "fontFamily": "'DM Mono', monospace",
 }
+_ERROR_BANNER = {
+    "background": "#fff1f0",
+    "border": "1px solid #ffccc7",
+    "color": "#a8071a",
+    "padding": "10px 12px",
+    "borderRadius": "8px",
+    "fontFamily": "'DM Mono', monospace",
+    "fontSize": "11px",
+    "marginBottom": "16px",
+    "display": "none",
+}
 
 data_source_label = (
     f"Athena {athena_config()['database']}.{athena_config()['table']}"
@@ -676,6 +704,8 @@ app.layout = html.Div(
         dcc.Store(id="store-filter-options"),
         # ── store: triggers first load on page open ─────────────────────────
         dcc.Store(id="store-init", data=True),
+        # ── interval: refresh Athena error banner ───────────────────────────
+        dcc.Interval(id="athena-error-poll", interval=3000, n_intervals=0),
 
         html.Div(
             style={"maxWidth": "1280px", "margin": "0 auto"},
@@ -704,6 +734,7 @@ app.layout = html.Div(
                         ),
                     ],
                 ),
+                html.Div(id="athena-error", style=_ERROR_BANNER, children=""),
 
                 # ── KPI row ────────────────────────────────────────────────
                 dcc.Loading(
@@ -791,6 +822,22 @@ app.layout = html.Div(
 
 
 # ---------------------------------------------------------------------------
+# Athena error banner refresh
+# ---------------------------------------------------------------------------
+@app.callback(
+    Output("athena-error", "children"),
+    Output("athena-error", "style"),
+    Input("athena-error-poll", "n_intervals"),
+    prevent_initial_call=False,
+)
+def refresh_athena_error(_n):
+    msg = _ATHENA_ERROR.get("message")
+    if not msg:
+        return "", {**_ERROR_BANNER, "display": "none"}
+    return f"Athena error: {msg}", {**_ERROR_BANNER, "display": "block"}
+
+
+# ---------------------------------------------------------------------------
 # Callback 1 – populate filter dropdowns AND store in a single round-trip
 # ---------------------------------------------------------------------------
 @app.callback(
@@ -812,6 +859,8 @@ def load_and_populate_filters(_init):
     months   = options.get("months",   [])
     airlines = options.get("airlines", [])
     states   = options.get("states",   [])
+    if USE_ATHENA and any([years, months, airlines, states]):
+        clear_athena_error()
 
     year_opts    = [{"label": str(y), "value": y} for y in years]
     airline_opts = [{"label": a, "value": a} for a in airlines]
@@ -847,6 +896,8 @@ def load_and_populate_filters(_init):
 def update_kpis(years_sel, airlines_sel, months_sel, states_sel, options_data):
     if not options_data:
         return "—", "—", "—", "—"
+    if USE_ATHENA:
+        clear_athena_error()
 
     years_sel    = years_sel    or []
     airlines_sel = airlines_sel or []
@@ -895,6 +946,8 @@ _AIRLINE_INPUTS = {"filter-year.value", "filter-airline.value", "filter-month.va
 def update_charts(years_sel, airlines_sel, months_sel, states_sel, options_data):
     if not options_data:
         return _empty_bar("Average delay by airline"), _empty_line("Monthly delay trend")
+    if USE_ATHENA:
+        clear_athena_error()
 
     ctx = callback_context
     triggered_ids: set[str] = {t["prop_id"] for t in ctx.triggered} if ctx.triggered else set()

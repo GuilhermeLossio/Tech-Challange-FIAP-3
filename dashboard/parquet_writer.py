@@ -4,11 +4,11 @@ Converts processed flight data to partitioned Parquet on S3 (or local disk).
 
 Usage
 -----
-# Write from a local CSV to S3
+# Write from a local CSV or Parquet to S3
 python parquet_writer.py \
-    --input  data/flights_processed.csv \
+    --input  data/flights_processed.parquet \
     --bucket my-bucket \
-    --prefix refined/flights_processed
+    --prefix processed/flights_processed
 
 # Write from a local CSV to a local directory (for testing)
 python parquet_writer.py \
@@ -16,7 +16,7 @@ python parquet_writer.py \
     --output local_parquet/flights_processed
 
 After writing, register the Glue/Athena table once:
-    python parquet_writer.py --repair-table --bucket my-bucket --prefix refined/flights_processed
+    python parquet_writer.py --repair-table --bucket my-bucket --prefix processed/flights_processed
 
 Output layout
 -------------
@@ -110,17 +110,21 @@ PARQUET_COMPRESSION = "snappy"
 # Helpers
 # ---------------------------------------------------------------------------
 
-def load_csv(path: str | Path) -> pd.DataFrame:
-    """Load CSV with explicit dtypes to avoid DtypeWarning."""
-    # Build dtype dict with only columns present in the file
-    raw = pd.read_csv(path, nrows=0)
-    available = {c.lower(): c for c in raw.columns}
-    dtype_arg = {
-        available[col]: dtype
-        for col, dtype in DTYPE_MAP.items()
-        if col in available
-    }
-    df = pd.read_csv(path, dtype=dtype_arg, low_memory=False)
+def load_table(path: str | Path) -> pd.DataFrame:
+    """Load CSV or Parquet; normalize columns to lowercase."""
+    path = Path(path)
+    if path.suffix.lower() == ".parquet":
+        df = pd.read_parquet(path)
+    else:
+        # Build dtype dict with only columns present in the file
+        raw = pd.read_csv(path, nrows=0)
+        available = {c.lower(): c for c in raw.columns}
+        dtype_arg = {
+            available[col]: dtype
+            for col, dtype in DTYPE_MAP.items()
+            if col in available
+        }
+        df = pd.read_csv(path, dtype=dtype_arg, low_memory=False)
     # Normalise column names to lowercase
     df.columns = [c.lower() for c in df.columns]
     return df
@@ -179,14 +183,19 @@ def repair_athena_table(
     region: str = "us-east-1",
     profile: Optional[str] = None,
 ) -> None:
-    """Run MSCK REPAIR TABLE so Athena discovers new partitions."""
+    """Sync Athena partitions (engine v3 compatible)."""
     import time
     session = boto3.Session(profile_name=profile, region_name=region)
     athena = session.client("athena")
     s3_output = f"s3://{bucket}/{results_prefix.rstrip('/')}/"
-    print(f"Running MSCK REPAIR TABLE {database}.{table} …")
+    catalog = os.getenv("ATHENA_CATALOG")
+    if catalog:
+        query = f"CALL {catalog}.system.sync_partition_metadata('{database}','{table}','ADD')"
+    else:
+        query = f"CALL system.sync_partition_metadata('{database}','{table}','ADD')"
+    print(f"Running partition sync for {database}.{table} …")
     resp = athena.start_query_execution(
-        QueryString=f"MSCK REPAIR TABLE `{database}`.`{table}`",
+        QueryString=query,
         QueryExecutionContext={"Database": database},
         ResultConfiguration={"OutputLocation": s3_output},
     )
@@ -212,8 +221,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Write partitioned Parquet to S3 or local disk")
     p.add_argument("--input",  required=False, help="Path to source CSV file")
     p.add_argument("--bucket", required=False, help="S3 bucket name")
-    p.add_argument("--prefix", required=False, default="refined/flights_processed",
-                   help="S3 key prefix (default: refined/flights_processed)")
+    p.add_argument("--prefix", required=False, default="processed/flights_processed",
+                   help="S3 key prefix (default: processed/flights_processed)")
     p.add_argument("--output", required=False,
                    help="Local output directory (skips S3 upload, useful for testing)")
     p.add_argument("--region", default=os.getenv("AWS_REGION", "us-east-1"))
@@ -249,7 +258,7 @@ def main() -> None:
         sys.exit(1)
 
     print(f"Loading {args.input} …")
-    df = load_csv(args.input)
+    df = load_table(args.input)
     print(f"  {len(df):,} rows, {len(df.columns)} columns")
 
     s3_client = None

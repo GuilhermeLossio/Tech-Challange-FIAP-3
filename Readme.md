@@ -252,7 +252,9 @@ flight-advisor/
 │       └── main.py             # FastAPI endpoints
 │
 ├── dashboard/
-│   └── app.py                  # Dash dashboard
+│   ├── app.py                  # Dash dashboard
+│   ├── build_dashboard_dataset.py # Build slim S3 dataset for dashboard
+│   └── parquet_writer.py       # Legacy partition writer (optional)
 │
 ├── models/                     # Serialized models (.pkl)
 │
@@ -302,42 +304,98 @@ cp .env.example .env
 Optional but recommended for AWS/S3:
 
 - `S3_BUCKET` — default bucket for dataset reads/writes and artifact uploads
+- `S3_RAW_PREFIX` — raw dataset prefix (default: `raw`)
 - `S3_PROCESSED_PREFIX` — processed dataset prefix (default: `processed`)
+- `S3_REFINED_PREFIX` — refined dataset prefix (default: `refined`)
+- `S3_DASHBOARD_PREFIX` — dashboard dataset prefix (default: `processed/flights_dashboard`)
 - `S3_MODEL_PREFIX` — model artifacts prefix (default: `models`)
 - `S3_EXPLAIN_PREFIX` — SHAP outputs prefix (default: `explain`)
+- `S3_ATHENA_RESULTS_PREFIX` — Athena query results prefix (default: `athena-results`)
+- `S3_TABLE_LAYOUT` — S3 layout for Athena tables (`folder` recommended)
+- `ATHENA_DATABASE` — Athena database name (default: `flight_advisor`)
+- `ATHENA_TABLE` — table to sync partitions (default: `flights_processed`)
 - `AWS_REGION` and `AWS_PROFILE` — AWS credentials resolution
 
 ### Optional: S3 + Athena pipeline
 
 If you are running the pipeline on AWS (S3 + Athena), use the steps below.
-All dataset interactions default to S3 when `S3_BUCKET` is set (upload is explicit).
+All dataset interactions default to S3 when `S3_BUCKET` is set.
 
-#### Step 1 — Upload raw datasets to S3 (Parquet)
+#### Step 1 — Upload raw datasets to S3 (CSV or Parquet)
 
 ```bash
 python src/aws/uploader.py --bucket flight-advisor-fiap3 --input data/raw/flights.csv  --name flights.parquet
 python src/aws/uploader.py --bucket flight-advisor-fiap3 --input data/raw/airports.csv --name airports.parquet
 python src/aws/uploader.py --bucket flight-advisor-fiap3 --input data/raw/airlines.csv --name airlines.parquet
 ```
+The uploader converts CSVs to Parquet and stores them in `s3://$S3_BUCKET/raw/`.
 
 #### Step 2 — Preprocessing (reads from `raw/`, writes to `processed/` and `refined/`)
 
 ```bash
-python src/preprocessing.py --bucket flight-advisor-fiap3
+python src/preprocessing.py --bucket flight-advisor-fiap3 --athena-table-layout folder
 ```
 
-#### Step 3 — Athena setup (Parquet + file layout)
+For a first run or schema change, add `--athena-drop-existing`.
+Preprocessing also registers Athena tables and syncs partitions unless you pass `--skip-athena`.
+Use `--skip-partitioned` or `--skip-dashboard` if you want to disable specific outputs.
+
+This step uploads the following to S3:
+- `s3://$S3_BUCKET/processed/flights_processed.parquet`
+- `s3://$S3_BUCKET/processed/train.parquet`
+- `s3://$S3_BUCKET/processed/test.parquet`
+- `s3://$S3_BUCKET/refined/airport_profiles.parquet`
+- `s3://$S3_BUCKET/refined/flights_processed.parquet`
+- `s3://$S3_BUCKET/refined/train.parquet`
+- `s3://$S3_BUCKET/refined/test.parquet`
+- `s3://$S3_BUCKET/processed/flights_processed/` (partitioned by `YEAR`/`MONTH` for Athena)
+- `s3://$S3_BUCKET/processed/flights_dashboard/` (slim dataset for the dashboard)
+- `s3://$S3_BUCKET/processed/train/` (Athena folder layout)
+- `s3://$S3_BUCKET/processed/test/` (Athena folder layout)
+- `s3://$S3_BUCKET/refined/airport_profiles/` (Athena folder layout)
+
+#### Step 3 — Athena setup (folder layout)
 
 ```bash
 # Normal execution
-python src/aws/athena_client.py --bucket flight-advisor-fiap3 --format parquet --table-layout file
+python src/aws/athena_client.py --bucket flight-advisor-fiap3 --format parquet --table-layout folder
 
 # See the DDL without executing
-python src/aws/athena_client.py --bucket flight-advisor-fiap3 --dry-run --format parquet --table-layout file
+python src/aws/athena_client.py --bucket flight-advisor-fiap3 --dry-run --format parquet --table-layout folder
 
 # Recreate tables from scratch
-python src/aws/athena_client.py --bucket flight-advisor-fiap3 --drop-existing --format parquet --table-layout file
+python src/aws/athena_client.py --bucket flight-advisor-fiap3 --drop-existing --format parquet --table-layout folder
 ```
+
+Notes:
+- `flights_processed` is partitioned (`YEAR`, `MONTH`) and uses **folder layout**
+  (e.g. `s3://$S3_BUCKET/processed/flights_processed/`).
+- `train`, `test`, and `airport_profiles` also use **folder layout** for Athena.
+
+Partition sync (preprocessing already runs this step):
+
+```bash
+# Athena Engine v3
+CALL system.sync_partition_metadata('flight_advisor','flights_processed','ADD');
+```
+
+```bash
+# Athena Engine v2 fallback
+MSCK REPAIR TABLE flight_advisor.flights_processed;
+```
+
+#### Step 4 — (Optional) Rebuild only the dashboard dataset
+
+```bash
+python dashboard/build_dashboard_dataset.py \
+  --input s3://$S3_BUCKET/processed/flights_processed/ \
+  --bucket flight-advisor-fiap3 \
+  --prefix processed/flights_dashboard \
+  --overwrite
+```
+
+Legacy option: `dashboard/parquet_writer.py` can still build the partitioned dataset from a local
+`data/flights_processed.parquet`, but preprocessing already produces the S3 partitions.
 
 #### AWS credentials diagnostics
 
@@ -371,20 +429,20 @@ python src/preprocessing.py
 
 ```bash
 python src/trainer.py
-# Default: reads s3://$S3_BUCKET/$S3_PROCESSED_PREFIX/train.csv and test.csv
+# Default: reads s3://$S3_BUCKET/$S3_PROCESSED_PREFIX/train.parquet and test.parquet
 # and uploads artifacts to s3://$S3_BUCKET/$S3_MODEL_PREFIX/
 ```
 
 Local fallback (explicit CSV paths + no upload):
 
 ```bash
-python src/trainer.py --train data/processed/train.csv --test data/processed/test.csv --no-upload
+python src/trainer.py --train data/processed/train.parquet --test data/processed/test.parquet --no-upload
 ```
 
 ### 6. Generate SHAP explanations
 
 ```bash
-python src/explainer.py --input s3://$S3_BUCKET/$S3_PROCESSED_PREFIX/test.csv --plot
+python src/explainer.py --input s3://$S3_BUCKET/$S3_PROCESSED_PREFIX/test.parquet --plot
 # Outputs: models/explain/shap_top_featured.csv and shap_summary.png
 # Uploads: s3://$S3_BUCKET/$S3_EXPLAIN_PREFIX/
 ```
@@ -517,7 +575,7 @@ For the complete schema of all columns, cleaning rules, and feature engineering,
 
 ### ☁️ Storage
 
-CSV reads and writes default to **AWS S3** when `S3_BUCKET` is set. Model artifacts and SHAP outputs are automatically uploaded to S3 after training and explanation runs, keeping environments in sync.
+Parquet reads and writes default to **AWS S3** when `S3_BUCKET` is set (raw CSVs are converted on upload). Model artifacts and SHAP outputs are automatically uploaded to S3 after training and explanation runs, keeping environments in sync.
 
 ---
 

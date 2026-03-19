@@ -81,6 +81,32 @@ def parse_args() -> argparse.Namespace:
         help="S3 refined prefix (default: env S3_REFINED_PREFIX or 'refined')",
     )
     parser.add_argument(
+        "--dashboard-prefix",
+        default=os.getenv("S3_DASHBOARD_PREFIX", "processed/flights_dashboard"),
+        help="S3 prefix for the slim dashboard dataset (default: processed/flights_dashboard)",
+    )
+    parser.add_argument(
+        "--athena-results-prefix",
+        default=os.getenv("S3_ATHENA_RESULTS_PREFIX", "athena-results"),
+        help="S3 prefix for Athena query results (default: athena-results)",
+    )
+    parser.add_argument(
+        "--athena-database",
+        default=os.getenv("ATHENA_DATABASE", "flight_advisor"),
+        help="Athena database name (default: flight_advisor)",
+    )
+    parser.add_argument(
+        "--athena-table",
+        default=os.getenv("ATHENA_TABLE", "flights_processed"),
+        help="Athena table name for partition sync (default: flights_processed)",
+    )
+    parser.add_argument(
+        "--athena-table-layout",
+        choices=["file", "folder"],
+        default=os.getenv("S3_TABLE_LAYOUT", "file"),
+        help="Athena table layout (default: file; partitioned tables forced to folder).",
+    )
+    parser.add_argument(
     "--flights-file",
     default="flights.csv",
     help="Flights filename in raw prefix (default: flights.csv)",
@@ -129,6 +155,26 @@ def parse_args() -> argparse.Namespace:
         "--dry-run",
         action="store_true",
         help="Show planned S3 reads/writes without executing",
+    )
+    parser.add_argument(
+        "--skip-partitioned",
+        action="store_true",
+        help="Skip creating the partitioned flights_processed dataset on S3.",
+    )
+    parser.add_argument(
+        "--skip-dashboard",
+        action="store_true",
+        help="Skip creating the slim dashboard dataset on S3.",
+    )
+    parser.add_argument(
+        "--skip-athena",
+        action="store_true",
+        help="Skip registering datasets in Athena.",
+    )
+    parser.add_argument(
+        "--athena-drop-existing",
+        action="store_true",
+        help="Drop and recreate Athena tables if they already exist.",
     )
     return parser.parse_args()
 
@@ -204,11 +250,236 @@ def s3_upload(s3_client, path: Path, bucket: str, key: str) -> None:
         raise
 
 
+def s3_delete_prefix(s3_client, bucket: str, prefix: str) -> None:
+    paginator = s3_client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        items = page.get("Contents", [])
+        if not items:
+            continue
+        objects = [{"Key": obj["Key"]} for obj in items]
+        s3_client.delete_objects(Bucket=bucket, Delete={"Objects": objects})
+
+
+def upload_parquet_folder(
+    s3_client,
+    local_path: Path,
+    bucket: str,
+    prefix: str,
+) -> None:
+    key_prefix = prefix.strip("/") + "/"
+    try:
+        s3_delete_prefix(s3_client, bucket, key_prefix)
+    except ClientError as exc:
+        code = exc.response["Error"]["Code"]
+        print(
+            f"Warning: could not delete existing s3://{bucket}/{key_prefix} ({code}).",
+            file=sys.stderr,
+        )
+    s3_upload(s3_client, local_path, bucket, f"{key_prefix}part-0.parquet")
+
+
 def read_tabular(path: Path) -> pd.DataFrame:
     suffix = path.suffix.lower()
     if suffix == ".parquet":
         return pd.read_parquet(path)
     return pd.read_csv(path)
+
+
+def coerce_df_to_athena_schema(df: pd.DataFrame, table_name: str) -> pd.DataFrame:
+    """Coerce dataframe column types to match Athena table definitions."""
+    try:
+        from aws import athena_client as athena
+    except ModuleNotFoundError:
+        return df
+
+    schema = next((cols for (tbl, _prefix, cols) in athena.TABLE_DEFINITIONS if tbl == table_name), None)
+    if not schema:
+        return df
+
+    df = df.copy()
+    for col, dtype in schema:
+        if col not in df.columns:
+            continue
+        if dtype == "INT":
+            df[col] = pd.to_numeric(df[col], errors="coerce").round(0).astype("Int32")
+        elif dtype == "BIGINT":
+            df[col] = pd.to_numeric(df[col], errors="coerce").round(0).astype("Int64")
+        elif dtype == "DOUBLE":
+            df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
+        elif dtype == "STRING":
+            df[col] = df[col].astype("string")
+    return df
+
+
+# ---------------------------------------------------------------------------
+# Partitioned dataset helpers
+# ---------------------------------------------------------------------------
+
+DASHBOARD_COLS = {
+    "YEAR": "year",
+    "MONTH": "month",
+    "DAY": "day",
+    "ARRIVAL_DELAY": "arrival_delay",
+    "IS_DELAYED": "is_delayed",
+    "AIRLINE_NAME": "airline_name",
+    "AIRLINE": "airline",
+    "ORIGIN_STATE": "origin_state",
+}
+
+
+def build_dashboard_frame(flights: pd.DataFrame) -> pd.DataFrame:
+    missing = [col for col in DASHBOARD_COLS if col not in flights.columns]
+    if missing:
+        raise ValueError(f"Missing columns for dashboard dataset: {', '.join(missing)}")
+    return flights[list(DASHBOARD_COLS)].rename(columns=DASHBOARD_COLS).copy()
+
+
+def write_partitioned_dataset_to_s3(
+    df: pd.DataFrame,
+    bucket: str,
+    prefix: str,
+    region: str,
+    session: boto3.Session,
+    partition_cols: list[str],
+    lowercase: bool = False,
+) -> None:
+    try:
+        import pyarrow as pa
+        import pyarrow.dataset as ds
+        import pyarrow.fs as pafs
+    except ModuleNotFoundError:
+        print(
+            "pyarrow is required to build partitioned datasets.\n"
+            "Install with:\n"
+            "  pip install pyarrow",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+
+    if lowercase:
+        df = df.copy()
+        df.columns = [c.lower() for c in df.columns]
+        partition_cols = [c.lower() for c in partition_cols]
+
+    table = pa.Table.from_pandas(df, preserve_index=False)
+    creds = session.get_credentials()
+    frozen = creds.get_frozen_credentials() if creds else None
+    fs = pafs.S3FileSystem(
+        access_key=frozen.access_key if frozen else None,
+        secret_key=frozen.secret_key if frozen else None,
+        session_token=frozen.token if frozen else None,
+        region=region,
+    )
+    base_dir = f"{bucket}/{prefix.strip('/')}"
+    file_format = ds.ParquetFileFormat()
+    write_options = file_format.make_write_options(compression="snappy")
+    ds.write_dataset(
+        table,
+        base_dir=base_dir,
+        format=file_format,
+        filesystem=fs,
+        partitioning=partition_cols,
+        partitioning_flavor="hive",
+        file_options=write_options,
+        existing_data_behavior="delete_matching",
+    )
+
+
+def register_athena_tables(
+    session: boto3.Session,
+    bucket: str,
+    results_prefix: str,
+    database: str,
+    table_layout: str,
+    drop_existing: bool,
+    processed_prefix: str,
+    refined_prefix: str,
+    file_format: str = "parquet",
+) -> None:
+    try:
+        from aws import athena_client as athena
+    except ModuleNotFoundError:
+        print(
+            "Athena registration skipped: could not import aws.athena_client.",
+            file=sys.stderr,
+        )
+        return
+
+    athena_client = session.client("athena")
+    results_location = f"s3://{bucket}/{results_prefix.strip('/')}/"
+
+    athena.run_query(
+        athena_client,
+        athena.build_create_database_ddl(database),
+        results_location,
+    )
+
+    effective_layout = table_layout
+    if file_format == "parquet" and table_layout == "file":
+        effective_layout = "folder"
+
+    for table, prefix, columns in athena.TABLE_DEFINITIONS:
+        if table in {"flights_processed", "train", "test"}:
+            prefix = processed_prefix
+        elif table == "airport_profiles":
+            prefix = refined_prefix
+        layout = athena.resolve_table_layout(table, effective_layout)
+        s3_loc = athena.build_table_location(bucket, prefix, table, file_format, layout)
+
+        if drop_existing:
+            athena.run_query(
+                athena_client,
+                athena.build_drop_table_ddl(database, table),
+                results_location,
+                database=database,
+            )
+
+        partition_cols = athena.resolve_partition_cols(table, columns)
+        ddl = athena.build_create_table_ddl(
+            database,
+            table,
+            columns,
+            s3_loc,
+            file_format,
+            partition_cols=partition_cols,
+        )
+        athena.run_query(athena_client, ddl, results_location, database=database)
+
+
+def sync_athena_partitions(
+    session: boto3.Session,
+    bucket: str,
+    results_prefix: str,
+    database: str,
+    table: str,
+) -> None:
+    try:
+        from aws import athena_client as athena
+    except ModuleNotFoundError:
+        print(
+            "Athena partition sync skipped: could not import aws.athena_client.",
+            file=sys.stderr,
+        )
+        return
+
+    athena_client = session.client("athena")
+    results_location = f"s3://{bucket}/{results_prefix.strip('/')}/"
+    catalog = os.getenv("ATHENA_CATALOG")
+    if catalog:
+        query = f"CALL {catalog}.system.sync_partition_metadata('{database}','{table}','ADD')"
+    else:
+        query = f"CALL system.sync_partition_metadata('{database}','{table}','ADD')"
+    try:
+        athena.run_query(athena_client, query, results_location, database=database)
+        return
+    except RuntimeError as exc:
+        msg = str(exc)
+        if "mismatched input 'CALL'" not in msg and "CALL" not in msg:
+            raise
+
+    # Fallback for Athena engine v2 (no CALL support)
+    repair_sql = f"MSCK REPAIR TABLE {database}.{table};"
+    athena.run_query(athena_client, repair_sql, results_location, database=database)
 
 
 # ---------------------------------------------------------------------------
@@ -363,6 +634,9 @@ def main() -> int:
     raw_prefix = args.raw_prefix.strip("/")
     processed_prefix = args.processed_prefix.strip("/")
     refined_prefix = args.refined_prefix.strip("/")
+    dashboard_prefix = args.dashboard_prefix.strip("/")
+    if args.dashboard_prefix == "processed/flights_dashboard" and processed_prefix != "processed":
+        dashboard_prefix = f"{processed_prefix}/flights_dashboard"
 
     flights_key = f"{raw_prefix}/{args.flights_file}"
     airports_key = f"{raw_prefix}/{args.airports_file}"
@@ -391,6 +665,19 @@ def main() -> int:
             out_refined_test_key,
         ):
             print(f"  s3://{args.bucket}/{k}")
+        if not args.skip_partitioned:
+            print(f"  s3://{args.bucket}/{processed_prefix}/flights_processed/ (partitioned)")
+        if not args.skip_dashboard:
+            print(f"  s3://{args.bucket}/{dashboard_prefix}/ (dashboard)")
+        if not args.skip_athena:
+            print("Planned Athena folder layouts:")
+            print(f"  s3://{args.bucket}/{processed_prefix}/train/ (parquet)")
+            print(f"  s3://{args.bucket}/{processed_prefix}/test/ (parquet)")
+            print(f"  s3://{args.bucket}/{refined_prefix}/airport_profiles/ (parquet)")
+        if not args.skip_athena:
+            print("Planned Athena registration:")
+            print(f"  database: {args.athena_database}")
+            print(f"  results:  s3://{args.bucket}/{args.athena_results_prefix.strip('/')}/")
         return 0
 
     # ── Build session & validate credentials ──────────────────────────────
@@ -423,7 +710,7 @@ def main() -> int:
     tmp_in = Path(".tmp_preprocessing")
     tmp_out = Path(".tmp_preprocessing_out")
     try:
-        print("\n[1/5] Downloading raw files from S3...")
+        print("\n[1/7] Downloading raw files from S3...")
         flights_path = tmp_in / args.flights_file
         airports_path = tmp_in / args.airports_file
         airlines_path = tmp_in / args.airlines_file
@@ -443,7 +730,7 @@ def main() -> int:
             print(f"  Sampled down to {len(flights):,} rows.")
 
         # ── Join ───────────────────────────────────────────────────────────
-        print("\n[2/5] Joining datasets...")
+        print("\n[2/7] Joining datasets...")
         flights = flights.merge(
             airlines.rename(columns={"IATA_CODE": "AIRLINE", "AIRLINE": "AIRLINE_NAME"}),
             on="AIRLINE",
@@ -467,7 +754,7 @@ def main() -> int:
             )
 
         # ── Cleaning ───────────────────────────────────────────────────────
-        print("\n[3/5] Cleaning data...")
+        print("\n[3/7] Cleaning data...")
         before = len(flights)
         flights["ARRIVAL_DELAY"] = pd.to_numeric(flights["ARRIVAL_DELAY"], errors="coerce")
         flights = flights[flights["CANCELLED"] != 1]
@@ -476,7 +763,7 @@ def main() -> int:
         print(f"  Rows after cleaning: {len(flights):,}  (removed {before - len(flights):,})")
 
         # ── Feature engineering ────────────────────────────────────────────
-        print("\n[4/5] Engineering features...")
+        print("\n[4/7] Engineering features...")
         dep = flights["SCHEDULED_DEPARTURE"].fillna(0).astype(int)
         raw_hours = dep // 100
         invalid_count = (raw_hours > 23).sum()
@@ -521,6 +808,12 @@ def main() -> int:
         # ── Airport profiles ───────────────────────────────────────────────
         profiles = build_airport_profiles(flights, airports)
 
+        # ── Coerce dtypes for Athena consistency ──────────────────────────
+        flights = coerce_df_to_athena_schema(flights, "flights_processed")
+        train_df = coerce_df_to_athena_schema(train_df, "train")
+        test_df = coerce_df_to_athena_schema(test_df, "test")
+        profiles = coerce_df_to_athena_schema(profiles, "airport_profiles")
+
         # ── Save locally ───────────────────────────────────────────────────
         tmp_out.mkdir(parents=True, exist_ok=True)
         processed_path = tmp_out / "flights_processed.parquet"
@@ -534,7 +827,7 @@ def main() -> int:
         profiles.to_parquet(profiles_path, index=False)
 
         # ── Upload ─────────────────────────────────────────────────────────
-        print("\n[5/5] Uploading processed files to S3...")
+        print("\n[5/7] Uploading processed files to S3...")
         s3_upload(s3, processed_path, args.bucket, out_processed_key)
         s3_upload(s3, train_path,     args.bucket, out_train_key)
         s3_upload(s3, test_path,      args.bucket, out_test_key)
@@ -544,6 +837,83 @@ def main() -> int:
         s3_upload(s3, processed_path, args.bucket, out_refined_processed_key)
         s3_upload(s3, train_path,     args.bucket, out_refined_train_key)
         s3_upload(s3, test_path,      args.bucket, out_refined_test_key)
+
+        # ── Partitioned datasets for Athena/Dashboard ─────────────────────
+        print("\n[6/7] Building partitioned datasets for Athena/Dashboard...")
+        if not args.skip_partitioned:
+            write_partitioned_dataset_to_s3(
+                flights,
+                bucket=args.bucket,
+                prefix=f"{processed_prefix}/flights_processed",
+                region=args.region,
+                session=session,
+                partition_cols=["YEAR", "MONTH"],
+                lowercase=False,
+            )
+        if not args.skip_dashboard:
+            dash_df = build_dashboard_frame(flights)
+            write_partitioned_dataset_to_s3(
+                dash_df,
+                bucket=args.bucket,
+                prefix=dashboard_prefix,
+                region=args.region,
+                session=session,
+                partition_cols=["year", "month"],
+                lowercase=False,
+            )
+        if args.skip_partitioned and not args.skip_athena:
+            print(
+                "Warning: --skip-partitioned is set. Athena table 'flights_processed' expects "
+                f"s3://{args.bucket}/{processed_prefix}/flights_processed/ partitions.",
+                file=sys.stderr,
+            )
+
+        if not args.skip_athena:
+            print("  Preparing folder layouts for Athena tables (train/test/airport_profiles)...")
+            upload_parquet_folder(
+                s3,
+                train_path,
+                args.bucket,
+                f"{processed_prefix}/train",
+            )
+            upload_parquet_folder(
+                s3,
+                test_path,
+                args.bucket,
+                f"{processed_prefix}/test",
+            )
+            upload_parquet_folder(
+                s3,
+                profiles_path,
+                args.bucket,
+                f"{refined_prefix}/airport_profiles",
+            )
+
+        print("\n[7/7] Registering datasets in Athena...")
+        if args.skip_athena:
+            print("  Skipped.")
+        else:
+            try:
+                register_athena_tables(
+                    session=session,
+                    bucket=args.bucket,
+                    results_prefix=args.athena_results_prefix,
+                    database=args.athena_database,
+                    table_layout=args.athena_table_layout,
+                    drop_existing=args.athena_drop_existing,
+                    processed_prefix=processed_prefix,
+                    refined_prefix=refined_prefix,
+                )
+                sync_athena_partitions(
+                    session=session,
+                    bucket=args.bucket,
+                    results_prefix=args.athena_results_prefix,
+                    database=args.athena_database,
+                    table=args.athena_table,
+                )
+            except (RuntimeError, TimeoutError) as exc:
+                print(f"\nAthena error: {exc}", file=sys.stderr)
+                return 1
 
         print(f"\nDone. Processed data -> s3://{args.bucket}/{processed_prefix}/")
         print(f"      Refined data   -> s3://{args.bucket}/{refined_prefix}/")

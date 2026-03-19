@@ -73,13 +73,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--model",        default=None, help="Path or s3:// URI to model.")
     parser.add_argument("--meta",         default=None, help="Optional metadata JSON (path or s3://).")
-    parser.add_argument("--input",        default=None, help="Upcoming flights CSV (path or s3://).")
+    parser.add_argument("--input",        default=None, help="Upcoming flights dataset (path or s3://).")
     parser.add_argument(
         "--rates-source",
         default=None,
-        help="Historical CSV to compute delay rates (path or s3://).",
+        help="Historical dataset to compute delay rates (path or s3://).",
     )
-    parser.add_argument("--output",       default=None, help="Output CSV (path or s3://).")
+    parser.add_argument("--output",       default=None, help="Output dataset (path or s3://).")
     parser.add_argument("--threshold",    type=float, default=0.5, help="Classification threshold.")
     parser.add_argument(
         "--week-start",
@@ -147,7 +147,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--validation-output",
         default=None,
-        help="Where to save the validation report CSV (path or s3://). "
+        help="Where to save the validation report dataset (path or s3://). "
              "Defaults to s3://<bucket>/<predictions-prefix>/validation_<tag>.csv",
     )
 
@@ -167,25 +167,25 @@ def default_paths(args: argparse.Namespace) -> argparse.Namespace:
     if args.rates_source is None:
         if not args.bucket:
             raise ValueError("Missing --rates-source and S3_BUCKET.")
-        args.rates_source = default_s3_uri(args.bucket, args.processed_prefix, "train.csv")
+        args.rates_source = default_s3_uri(args.bucket, args.processed_prefix, "train.parquet")
 
     if args.input is None:
         if not args.bucket:
             raise ValueError("Missing --input and S3_BUCKET.")
-        args.input = default_s3_uri(args.bucket, args.refined_prefix, "future_flights.csv")
+        args.input = default_s3_uri(args.bucket, args.refined_prefix, "future_flights.parquet")
 
     if args.output is None:
         if not args.bucket:
             raise ValueError("Missing --output and S3_BUCKET.")
         tag = (args.week_start or date.today().isoformat()).replace("-", "")
-        args.output = default_s3_uri(args.bucket, args.predictions_prefix, f"weekly_predictions_{tag}.csv")
+        args.output = default_s3_uri(args.bucket, args.predictions_prefix, f"weekly_predictions_{tag}.parquet")
 
     if args.validate and args.validation_output is None:
         if not args.bucket:
             raise ValueError("Missing --validation-output and S3_BUCKET.")
         tag = (args.week_start or date.today().isoformat()).replace("-", "")
         args.validation_output = default_s3_uri(
-            args.bucket, args.predictions_prefix, f"validation_{tag}.csv"
+            args.bucket, args.predictions_prefix, f"validation_{tag}.parquet"
         )
 
     return args
@@ -336,17 +336,32 @@ def ensure_features(
     return df
 
 
-def write_output(df: pd.DataFrame, output: str, s3, tmp_dir: Path) -> None:
+def normalize_s3_parquet_uri(uri: str) -> str:
+    if not is_s3_uri(uri):
+        return uri
+    if uri.lower().endswith(".parquet"):
+        return uri
+    if uri.lower().endswith(".csv"):
+        return uri[:-4] + ".parquet"
+    return uri + ".parquet"
+
+
+def write_output(df: pd.DataFrame, output: str, s3, tmp_dir: Path) -> str:
     if is_s3_uri(output):
+        output = normalize_s3_parquet_uri(output)
         bucket, key = parse_s3_uri(output)
         dest = tmp_dir / key
         dest.parent.mkdir(parents=True, exist_ok=True)
-        df.to_csv(dest, index=False)
+        df.to_parquet(dest, index=False)
         upload_s3_object(s3, dest, bucket, key)
-        return
+        return output
     path = Path(output)
     path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(path, index=False)
+    if path.suffix.lower() == ".parquet":
+        df.to_parquet(path, index=False)
+    else:
+        df.to_csv(path, index=False)
+    return str(path)
 
 
 def load_metadata(args, model_path: Path, s3, tmp_dir: Path) -> dict | None:
@@ -653,8 +668,8 @@ def main() -> int:
         output_df["generated_at"]      = datetime.now(timezone.utc).isoformat()
 
         # ── Save predictions ───────────────────────────────────────────────
-        write_output(output_df, args.output, s3, tmp_dir)
-        print(f"Saved weekly predictions ({len(output_df):,} rows) to: {args.output}")
+        final_output = write_output(output_df, args.output, s3, tmp_dir)
+        print(f"Saved weekly predictions ({len(output_df):,} rows) to: {final_output}")
 
         # ── Validation against Athena actuals ──────────────────────────────
         if args.validate:
@@ -716,8 +731,8 @@ def main() -> int:
 
             # ── Save validation report ─────────────────────────────────────
             if not merged_df.empty and args.validation_output:
-                write_output(merged_df, args.validation_output, s3, tmp_dir)
-                print(f"\nValidation report saved to: {args.validation_output}")
+                final_validation = write_output(merged_df, args.validation_output, s3, tmp_dir)
+                print(f"\nValidation report saved to: {final_validation}")
 
         return 0
 

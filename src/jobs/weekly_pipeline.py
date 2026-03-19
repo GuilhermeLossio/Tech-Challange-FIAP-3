@@ -22,10 +22,10 @@ import weekly_predict  # noqa: E402
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate future_flights.csv and run weekly predictions."
+        description="Generate future_flights.parquet and run weekly predictions."
     )
-    parser.add_argument("--source", default=None, help="Source CSV for sampling (path or s3://).")
-    parser.add_argument("--future-output", default=None, help="Future flights CSV (path or s3://).")
+    parser.add_argument("--source", default=None, help="Source dataset for sampling (path or s3://).")
+    parser.add_argument("--future-output", default=None, help="Future flights dataset (path or s3://).")
     parser.add_argument("--rows", type=int, default=50000, help="Number of rows to generate.")
     parser.add_argument(
         "--start-date",
@@ -40,7 +40,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--rates-source",
         default=None,
-        help="Historical CSV for delay rates (path or s3://).",
+        help="Historical dataset for delay rates (path or s3://).",
     )
     parser.add_argument("--threshold", type=float, default=0.5, help="Prediction threshold.")
     parser.add_argument(
@@ -90,20 +90,20 @@ def parse_args() -> argparse.Namespace:
 
 def build_defaults(args: argparse.Namespace) -> argparse.Namespace:
     if args.source is None and args.bucket:
-        args.source = default_s3_uri(args.bucket, args.refined_prefix, "flights_processed.csv")
+        args.source = default_s3_uri(args.bucket, args.refined_prefix, "flights_processed.parquet")
 
     if args.future_output is None and args.bucket:
-        args.future_output = default_s3_uri(args.bucket, args.refined_prefix, "future_flights.csv")
+        args.future_output = default_s3_uri(args.bucket, args.refined_prefix, "future_flights.parquet")
 
     if args.model is None and args.bucket:
         args.model = default_s3_uri(args.bucket, args.model_prefix, "delay_model.pkl")
 
     if args.rates_source is None and args.bucket:
-        args.rates_source = default_s3_uri(args.bucket, args.processed_prefix, "train.csv")
+        args.rates_source = default_s3_uri(args.bucket, args.processed_prefix, "train.parquet")
 
     if args.output is None and args.bucket:
         tag = (args.week_start or args.start_date or date.today().isoformat()).replace("-", "")
-        args.output = default_s3_uri(args.bucket, args.predictions_prefix, f"weekly_predictions_{tag}.csv")
+        args.output = default_s3_uri(args.bucket, args.predictions_prefix, f"weekly_predictions_{tag}.parquet")
 
     return args
 

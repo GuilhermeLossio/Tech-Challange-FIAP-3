@@ -101,7 +101,7 @@ def load_input_frame(
     if sum(1 for s in sources if s) == 0:
         bucket = os.getenv("S3_BUCKET") or os.getenv("S3_Bucket")
         prefix = os.getenv("S3_PROCESSED_PREFIX", "processed")
-        default_input = default_s3_uri(bucket, prefix, "test.csv")
+        default_input = default_s3_uri(bucket, prefix, "test.parquet")
         if not default_input:
             raise ValueError("Provide --input/--json/--row or set S3_BUCKET.")
         args.input = default_input

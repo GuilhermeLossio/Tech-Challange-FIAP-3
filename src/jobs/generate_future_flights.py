@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate synthetic future_flights.csv for weekly predictions."""
+"""Generate synthetic future_flights.parquet for weekly predictions."""
 
 from __future__ import annotations
 
@@ -45,10 +45,10 @@ BASE_COLS = [
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate a synthetic future_flights.csv for weekly predictions."
+        description="Generate a synthetic future_flights.parquet for weekly predictions."
     )
-    parser.add_argument("--input", default=None, help="Source CSV (path or s3://).")
-    parser.add_argument("--output", default=None, help="Output CSV (path or s3://).")
+    parser.add_argument("--input", default=None, help="Source dataset (path or s3://).")
+    parser.add_argument("--output", default=None, help="Output dataset (path or s3://).")
     parser.add_argument("--rows", type=int, default=50000, help="Number of rows to generate.")
     parser.add_argument(
         "--start-date",
@@ -88,13 +88,13 @@ def parse_args() -> argparse.Namespace:
 def default_paths(args: argparse.Namespace) -> argparse.Namespace:
     if args.input is None:
         if not args.bucket:
-            raise ValueError("Missing --input and S3_BUCKET. Provide a source CSV or set S3_BUCKET.")
-        args.input = default_s3_uri(args.bucket, args.refined_prefix, "flights_processed.csv")
+            raise ValueError("Missing --input and S3_BUCKET. Provide a source dataset or set S3_BUCKET.")
+        args.input = default_s3_uri(args.bucket, args.refined_prefix, "flights_processed.parquet")
 
     if args.output is None:
         if not args.bucket:
             raise ValueError("Missing --output and S3_BUCKET. Provide an output path or set S3_BUCKET.")
-        args.output = default_s3_uri(args.bucket, args.refined_prefix, "future_flights.csv")
+        args.output = default_s3_uri(args.bucket, args.refined_prefix, "future_flights.parquet")
 
     return args
 
@@ -122,6 +122,12 @@ def reservoir_sample(
 ) -> pd.DataFrame:
     if n <= 0:
         raise ValueError("--rows must be greater than 0.")
+
+    if path.suffix.lower() == ".parquet":
+        df = pd.read_parquet(path, columns=usecols)
+        if len(df) <= n:
+            return df.reset_index(drop=True)
+        return df.sample(n=n, random_state=seed).reset_index(drop=True)
 
     rng = np.random.default_rng(seed)
     reservoir: List[pd.Series] = []
@@ -162,18 +168,33 @@ def assign_future_dates(
     return df
 
 
-def write_output(df: pd.DataFrame, output: str, s3, tmp_dir: Path) -> None:
+def normalize_s3_parquet_uri(uri: str) -> str:
+    if not is_s3_uri(uri):
+        return uri
+    if uri.lower().endswith(".parquet"):
+        return uri
+    if uri.lower().endswith(".csv"):
+        return uri[:-4] + ".parquet"
+    return uri + ".parquet"
+
+
+def write_output(df: pd.DataFrame, output: str, s3, tmp_dir: Path) -> str:
     if is_s3_uri(output):
+        output = normalize_s3_parquet_uri(output)
         bucket, key = parse_s3_uri(output)
         dest = tmp_dir / key
         dest.parent.mkdir(parents=True, exist_ok=True)
-        df.to_csv(dest, index=False)
+        df.to_parquet(dest, index=False)
         upload_s3_object(s3, dest, bucket, key)
-        return
+        return output
 
     path = Path(output)
     path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(path, index=False)
+    if path.suffix.lower() == ".parquet":
+        df.to_parquet(path, index=False)
+    else:
+        df.to_csv(path, index=False)
+    return str(path)
 
 
 def main() -> int:
@@ -194,7 +215,7 @@ def main() -> int:
         tmp_dir = Path(tmp)
         source_path = load_model_any(args.input, s3, tmp_dir)
         if not source_path.exists():
-            print(f"Source CSV not found: {source_path}", file=sys.stderr)
+            print(f"Source dataset not found: {source_path}", file=sys.stderr)
             return 2
 
         try:
@@ -204,7 +225,7 @@ def main() -> int:
             return 2
 
         if sample_df.empty:
-            print("Source CSV has no rows to sample.", file=sys.stderr)
+            print("Source dataset has no rows to sample.", file=sys.stderr)
             return 2
 
         ensure_base_columns(sample_df, BASE_COLS)
@@ -214,8 +235,8 @@ def main() -> int:
         start = date.fromisoformat(args.start_date) if args.start_date else next_monday()
         future_df = assign_future_dates(sample_df, start, args.week_days, args.seed)
 
-        write_output(future_df, args.output, s3, tmp_dir)
-        print(f"Generated future flights CSV -> {args.output}")
+        final_output = write_output(future_df, args.output, s3, tmp_dir)
+        print(f"Generated future flights dataset -> {final_output}")
         return 0
 
 

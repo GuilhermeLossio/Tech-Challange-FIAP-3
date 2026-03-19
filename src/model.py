@@ -92,12 +92,12 @@ def parse_args() -> argparse.Namespace:
     train.add_argument(
         "--train",
         default=None,
-        help="Path or s3:// URI to train CSV (default: S3 when S3_BUCKET is set).",
+        help="Path or s3:// URI to train dataset (default: S3 when S3_BUCKET is set).",
     )
     train.add_argument(
         "--test",
         default=None,
-        help="Path or s3:// URI to test CSV (default: S3 when S3_BUCKET is set).",
+        help="Path or s3:// URI to test dataset (default: S3 when S3_BUCKET is set).",
     )
     train.add_argument("--model-dir", default="models", help="Directory to save model artifacts.")
     train.add_argument("--model-name", default="delay_model.pkl", help="Model filename.")
@@ -123,8 +123,8 @@ def parse_args() -> argparse.Namespace:
         default=os.getenv("S3_PROCESSED_PREFIX", "processed"),
         help="S3 processed prefix (default: env S3_PROCESSED_PREFIX or 'processed').",
     )
-    train.add_argument("--train-key", default="train.csv", help="S3 object for train CSV.")
-    train.add_argument("--test-key", default="test.csv", help="S3 object for test CSV.")
+    train.add_argument("--train-key", default="train.parquet", help="S3 object for train dataset.")
+    train.add_argument("--test-key", default="test.parquet", help="S3 object for test dataset.")
     train.add_argument(
         "--region",
         default=os.getenv("AWS_REGION", "us-east-1"),
@@ -158,7 +158,7 @@ def parse_args() -> argparse.Namespace:
     pred.add_argument(
         "--input",
         default=None,
-        help="CSV input with feature columns (default: S3 when S3_BUCKET is set).",
+        help="CSV/Parquet input with feature columns (default: S3 when S3_BUCKET is set).",
     )
     pred.add_argument("--json", dest="json_path", default=None, help="JSON file input.")
     pred.add_argument("--row", default=None, help="Inline JSON row.")
@@ -317,6 +317,9 @@ def upload_s3_object(s3, path: Path, bucket: str, key: str) -> None:
 def load_csv(path: Path) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"File not found: {path}")
+    suffix = path.suffix.lower()
+    if suffix == ".parquet":
+        return pd.read_parquet(path)
     return pd.read_csv(path)
 
 
@@ -353,7 +356,7 @@ def resolve_s3_sources(args: argparse.Namespace) -> Tuple[str, str | None]:
     else:
         test_source = None
     if not train_source:
-        raise ValueError("Missing --train and S3_BUCKET. Provide a CSV path or set S3_BUCKET.")
+        raise ValueError("Missing --train and S3_BUCKET. Provide a file path or set S3_BUCKET.")
     return train_source, test_source
 
 
@@ -363,19 +366,47 @@ def load_csv_any(
     tmp_dir: Path,
     allow_missing: bool = False,
 ) -> pd.DataFrame | None:
-    if is_s3_uri(source):
-        bucket, key = parse_s3_uri(source)
-        dest = tmp_dir / key
-        downloaded = download_s3_object(s3, bucket, key, dest, allow_missing=allow_missing)
-        if not downloaded:
+    """
+    Loads data from a source (local or S3), with a fallback from .parquet to .csv.
+    """
+
+    def _try_load(current_source: str) -> pd.DataFrame | None:
+        """Tries to load a single source, returns None on failure."""
+        if is_s3_uri(current_source):
+            if not s3:
+                # This can happen if a local-only execution gets an s3 path by mistake
+                print(f"ERROR: S3 URI '{current_source}' found but S3 is not configured.", file=sys.stderr)
+                return None
+            bucket, key = parse_s3_uri(current_source)
+            dest = tmp_dir / PurePosixPath(key)
+            if not download_s3_object(s3, bucket, key, dest, allow_missing=True):
+                return None
+            return load_csv(dest)
+
+        path = Path(current_source)
+        if not path.exists():
             return None
-        return load_csv(dest)
-    path = Path(source)
-    if not path.exists():
-        if allow_missing:
-            return None
-        raise FileNotFoundError(f"File not found: {path}")
-    return load_csv(path)
+        return load_csv(path)
+
+    # Try original source
+    df = _try_load(source)
+    if df is not None:
+        return df
+
+    # If not found, try fallback from .parquet to .csv
+    if source.endswith(".parquet"):
+        fallback_source = source.replace(".parquet", ".csv")
+        print(f"INFO: '{source}' not found, falling back to '{fallback_source}'.", file=sys.stderr)
+        df = _try_load(fallback_source)
+        if df is not None:
+            return df
+
+    # If still not found, handle final error
+    if not allow_missing:
+        fallback_msg = " or its .csv fallback" if source.endswith(".parquet") else ""
+        raise FileNotFoundError(f"File not found: {source}{fallback_msg}")
+
+    return None
 
 
 def load_model_any(source: str, s3, tmp_dir: Path) -> Path:
@@ -573,28 +604,32 @@ def train_command(args: argparse.Namespace) -> int:
     try:
         train_source, test_source = resolve_s3_sources(args)
     except ValueError as exc:
-        print(str(exc), file=sys.stderr)
+        print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
     needs_s3 = is_s3_uri(train_source) or (test_source and is_s3_uri(test_source))
     s3 = build_s3_client(args.region, args.profile) if needs_s3 else None
 
-    if s3:
-        import tempfile
+    import tempfile
 
+    try:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_dir = Path(tmp)
-            train_df = load_csv_any(train_source, s3, tmp_dir)
+
+            # train_source is required, so we don't allow missing
+            train_df = load_csv_any(train_source, s3, tmp_dir, allow_missing=False)
+
+            # test_source is optional
             test_df = (
                 load_csv_any(test_source, s3, tmp_dir, allow_missing=True)
                 if test_source
                 else None
             )
             return train_command_from_frames(args, train_df, test_df)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"ERROR: Could not load data. {exc}", file=sys.stderr)
+        return 2
 
-    train_df = load_csv(Path(train_source))
-    test_df = load_csv(Path(test_source)) if test_source and Path(test_source).exists() else None
-    return train_command_from_frames(args, train_df, test_df)
 
 
 def train_command_from_frames(
@@ -607,7 +642,7 @@ def train_command_from_frames(
         return 2
 
     if test_df is None:
-        print("Test CSV not found. Splitting training data automatically.")
+        print("Test dataset not found. Splitting training data automatically.")
         train_df, test_df = stratified_split(train_df, TARGET_COL, args.test_size, args.seed)
 
     if TARGET_COL not in test_df.columns:
@@ -714,7 +749,7 @@ def resolve_predict_sources(args: argparse.Namespace) -> argparse.Namespace:
     if sum(1 for s in sources if s) == 0:
         bucket = os.getenv("S3_BUCKET") or os.getenv("S3_Bucket")
         prefix = os.getenv("S3_PROCESSED_PREFIX", "processed")
-        default_input = default_s3_uri(bucket, prefix, "test.csv")
+        default_input = default_s3_uri(bucket, prefix, "test.parquet")
         if not default_input:
             raise ValueError("Provide --input/--json/--row or set S3_BUCKET.")
         args.input = default_input

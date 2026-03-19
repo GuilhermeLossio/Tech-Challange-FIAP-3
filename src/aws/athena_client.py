@@ -2,10 +2,10 @@
 """Register S3 flight data in AWS Athena via the Glue Data Catalog.
 
 Creates the flight_advisor database and the following external tables:
-  - flights_processed   (processed/flights_processed.csv)
-  - train               (processed/train.csv)
-  - test                (processed/test.csv)
-  - airport_profiles    (refined/airport_profiles.csv)
+  - flights_processed   (processed/flights_processed.parquet)
+  - train               (processed/train.parquet)
+  - test                (processed/test.parquet)
+  - airport_profiles    (refined/airport_profiles.parquet)
 
 Usage:
     python src/aws/athena_client.py
@@ -220,8 +220,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--format",
         choices=["csv", "parquet"],
-        default="csv",
-        help="File format of the data in S3 (default: csv)",
+        default="parquet",
+        help="File format of the data in S3 (default: parquet)",
+    )
+    parser.add_argument(
+        "--table-layout",
+        choices=["file", "folder"],
+        default=os.getenv("S3_TABLE_LAYOUT", "file"),
+        help="S3 layout for tables: file uses <prefix>/<table>.<ext>; "
+             "folder uses <prefix>/<table>/ (default: file)",
     )
     parser.add_argument(
         "--region",
@@ -320,6 +327,21 @@ def build_create_table_ddl(
     )
 
 
+def build_table_location(
+    bucket: str,
+    prefix: str,
+    table: str,
+    file_format: str,
+    layout: str,
+) -> str:
+    base = f"s3://{bucket}/{prefix.strip('/')}"
+    if layout == "folder":
+        return f"{base}/{table}/"
+    # layout == "file"
+    ext = "parquet" if file_format == "parquet" else "csv"
+    return f"{base}/{table}.{ext}"
+
+
 # ---------------------------------------------------------------------------
 # Athena execution helpers
 # ---------------------------------------------------------------------------
@@ -378,7 +400,13 @@ def main() -> int:
     if args.dry_run:
         print(f"-- Database\n{build_create_database_ddl(args.database)}\n")
         for table, prefix, columns in TABLE_DEFINITIONS:
-            s3_loc = f"s3://{args.bucket}/{prefix}/{table}/"
+            s3_loc = build_table_location(
+                args.bucket,
+                prefix,
+                table,
+                args.format,
+                args.table_layout,
+            )
             if args.drop_existing:
                 print(f"-- Drop\n{build_drop_table_ddl(args.database, table)}\n")
             ddl = build_create_table_ddl(args.database, table, columns, s3_loc, args.format)

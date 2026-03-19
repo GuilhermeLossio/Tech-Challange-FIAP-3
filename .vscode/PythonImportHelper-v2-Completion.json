@@ -84,6 +84,78 @@
         "documentation": {}
     },
     {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
         "label": "os",
         "kind": 6,
         "isExtraImport": true,
@@ -93,12 +165,69 @@
         "documentation": {}
     },
     {
-        "label": "time",
+        "label": "re",
         "kind": 6,
         "isExtraImport": true,
-        "importPath": "time",
-        "description": "time",
-        "detail": "time",
+        "importPath": "re",
+        "description": "re",
+        "detail": "re",
+        "documentation": {}
+    },
+    {
+        "label": "threading",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "threading",
+        "description": "threading",
+        "detail": "threading",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
         "documentation": {}
     },
     {
@@ -142,12 +271,922 @@
         "documentation": {}
     },
     {
+        "label": "PurePosixPath",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "PurePosixPath",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Tuple",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Iterable",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Iterable",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Iterable",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Tuple",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Tuple",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Iterable",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Tuple",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Iterable",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Tuple",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "pandas",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "pandas",
+        "description": "pandas",
+        "detail": "pandas",
+        "documentation": {}
+    },
+    {
+        "label": "plotly.express",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "plotly.express",
+        "description": "plotly.express",
+        "detail": "plotly.express",
+        "documentation": {}
+    },
+    {
+        "label": "Dash",
+        "importPath": "dash",
+        "description": "dash",
+        "isExtraImport": true,
+        "detail": "dash",
+        "documentation": {}
+    },
+    {
+        "label": "Input",
+        "importPath": "dash",
+        "description": "dash",
+        "isExtraImport": true,
+        "detail": "dash",
+        "documentation": {}
+    },
+    {
+        "label": "Output",
+        "importPath": "dash",
+        "description": "dash",
+        "isExtraImport": true,
+        "detail": "dash",
+        "documentation": {}
+    },
+    {
+        "label": "State",
+        "importPath": "dash",
+        "description": "dash",
+        "isExtraImport": true,
+        "detail": "dash",
+        "documentation": {}
+    },
+    {
+        "label": "dcc",
+        "importPath": "dash",
+        "description": "dash",
+        "isExtraImport": true,
+        "detail": "dash",
+        "documentation": {}
+    },
+    {
+        "label": "html",
+        "importPath": "dash",
+        "description": "dash",
+        "isExtraImport": true,
+        "detail": "dash",
+        "documentation": {}
+    },
+    {
+        "label": "callback_context",
+        "importPath": "dash",
+        "description": "dash",
+        "isExtraImport": true,
+        "detail": "dash",
+        "documentation": {}
+    },
+    {
+        "label": "no_update",
+        "importPath": "dash",
+        "description": "dash",
+        "isExtraImport": true,
+        "detail": "dash",
+        "documentation": {}
+    },
+    {
+        "label": "Cache",
+        "importPath": "flask_caching",
+        "description": "flask_caching",
+        "isExtraImport": true,
+        "detail": "flask_caching",
+        "documentation": {}
+    },
+    {
+        "label": "run_query",
+        "importPath": "aws.athena_query",
+        "description": "aws.athena_query",
+        "isExtraImport": true,
+        "detail": "aws.athena_query",
+        "documentation": {}
+    },
+    {
+        "label": "# noqa: E402\n    build_s3_client",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "default_s3_uri",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "is_s3_uri",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "load_env_file",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "load_csv_any",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "# noqa: E402\n    FEATURE_SPECS",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "TARGET_COL",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "build_s3_client",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "coerce_feature_types",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "default_s3_uri",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "is_s3_uri",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "load_env_file",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "load_model_any",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "parse_s3_uri",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "# noqa: E402\n    TARGET_COL",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "build_s3_client",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "default_s3_uri",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "is_s3_uri",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "load_env_file",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "load_model_any",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "parse_s3_uri",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "upload_s3_object",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "default_s3_uri",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "load_env_file",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "FEATURE_SPECS",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "TARGET_COL",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "build_s3_client",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "coerce_feature_types",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "default_s3_uri",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "download_s3_object",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "is_s3_uri",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "load_env_file",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "load_csv_any",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "load_model_any",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "parse_s3_uri",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "upload_s3_object",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "TARGET_COL",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "build_s3_client",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "coerce_feature_types",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "default_s3_uri",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "download_s3_object",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "is_s3_uri",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "load_env_file",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "load_csv_any",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "load_json_input",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "load_model_any",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "parse_s3_uri",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "upload_s3_object",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "load_env_file",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "train_command",
+        "importPath": "model",
+        "description": "model",
+        "isExtraImport": true,
+        "detail": "model",
+        "documentation": {}
+    },
+    {
+        "label": "tempfile",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "tempfile",
+        "description": "tempfile",
+        "detail": "tempfile",
+        "documentation": {}
+    },
+    {
         "label": "boto3",
         "kind": 6,
         "isExtraImport": true,
         "importPath": "boto3",
         "description": "boto3",
         "detail": "boto3",
+        "documentation": {}
+    },
+    {
+        "label": "pyarrow",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "pyarrow",
+        "description": "pyarrow",
+        "detail": "pyarrow",
+        "documentation": {}
+    },
+    {
+        "label": "pyarrow.parquet",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "pyarrow.parquet",
+        "description": "pyarrow.parquet",
+        "detail": "pyarrow.parquet",
+        "documentation": {}
+    },
+    {
+        "label": "date",
+        "importPath": "datetime",
+        "description": "datetime",
+        "isExtraImport": true,
+        "detail": "datetime",
+        "documentation": {}
+    },
+    {
+        "label": "datetime",
+        "importPath": "datetime",
+        "description": "datetime",
+        "isExtraImport": true,
+        "detail": "datetime",
+        "documentation": {}
+    },
+    {
+        "label": "timedelta",
+        "importPath": "datetime",
+        "description": "datetime",
+        "isExtraImport": true,
+        "detail": "datetime",
+        "documentation": {}
+    },
+    {
+        "label": "timezone",
+        "importPath": "datetime",
+        "description": "datetime",
+        "isExtraImport": true,
+        "detail": "datetime",
+        "documentation": {}
+    },
+    {
+        "label": "date",
+        "importPath": "datetime",
+        "description": "datetime",
+        "isExtraImport": true,
+        "detail": "datetime",
+        "documentation": {}
+    },
+    {
+        "label": "timedelta",
+        "importPath": "datetime",
+        "description": "datetime",
+        "isExtraImport": true,
+        "detail": "datetime",
+        "documentation": {}
+    },
+    {
+        "label": "date",
+        "importPath": "datetime",
+        "description": "datetime",
+        "isExtraImport": true,
+        "detail": "datetime",
+        "documentation": {}
+    },
+    {
+        "label": "date",
+        "importPath": "datetime",
+        "description": "datetime",
+        "isExtraImport": true,
+        "detail": "datetime",
+        "documentation": {}
+    },
+    {
+        "label": "datetime",
+        "importPath": "datetime",
+        "description": "datetime",
+        "isExtraImport": true,
+        "detail": "datetime",
+        "documentation": {}
+    },
+    {
+        "label": "timedelta",
+        "importPath": "datetime",
+        "description": "datetime",
+        "isExtraImport": true,
+        "detail": "datetime",
+        "documentation": {}
+    },
+    {
+        "label": "timezone",
+        "importPath": "datetime",
+        "description": "datetime",
+        "isExtraImport": true,
+        "detail": "datetime",
+        "documentation": {}
+    },
+    {
+        "label": "datetime",
+        "importPath": "datetime",
+        "description": "datetime",
+        "isExtraImport": true,
+        "detail": "datetime",
+        "documentation": {}
+    },
+    {
+        "label": "timezone",
+        "importPath": "datetime",
+        "description": "datetime",
+        "isExtraImport": true,
+        "detail": "datetime",
+        "documentation": {}
+    },
+    {
+        "label": "lru_cache",
+        "importPath": "functools",
+        "description": "functools",
+        "isExtraImport": true,
+        "detail": "functools",
+        "documentation": {}
+    },
+    {
+        "label": "FastAPI",
+        "importPath": "fastapi",
+        "description": "fastapi",
+        "isExtraImport": true,
+        "detail": "fastapi",
+        "documentation": {}
+    },
+    {
+        "label": "HTTPException",
+        "importPath": "fastapi",
+        "description": "fastapi",
+        "isExtraImport": true,
+        "detail": "fastapi",
+        "documentation": {}
+    },
+    {
+        "label": "CORSMiddleware",
+        "importPath": "fastapi.middleware.cors",
+        "description": "fastapi.middleware.cors",
+        "isExtraImport": true,
+        "detail": "fastapi.middleware.cors",
+        "documentation": {}
+    },
+    {
+        "label": "BaseModel",
+        "importPath": "pydantic",
+        "description": "pydantic",
+        "isExtraImport": true,
+        "detail": "pydantic",
+        "documentation": {}
+    },
+    {
+        "label": "Field",
+        "importPath": "pydantic",
+        "description": "pydantic",
+        "isExtraImport": true,
+        "detail": "pydantic",
+        "documentation": {}
+    },
+    {
+        "label": "validator",
+        "importPath": "pydantic",
+        "description": "pydantic",
+        "isExtraImport": true,
+        "detail": "pydantic",
+        "documentation": {}
+    },
+    {
+        "label": "time",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "time",
+        "description": "time",
+        "detail": "time",
         "documentation": {}
     },
     {
@@ -279,83 +1318,20 @@
         "documentation": {}
     },
     {
-        "label": "dataclass",
-        "importPath": "dataclasses",
-        "description": "dataclasses",
+        "label": "io",
+        "kind": 6,
         "isExtraImport": true,
-        "detail": "dataclasses",
+        "importPath": "io",
+        "description": "io",
+        "detail": "io",
         "documentation": {}
     },
     {
-        "label": "datetime",
-        "importPath": "datetime",
-        "description": "datetime",
+        "label": "unquote_plus",
+        "importPath": "urllib.parse",
+        "description": "urllib.parse",
         "isExtraImport": true,
-        "detail": "datetime",
-        "documentation": {}
-    },
-    {
-        "label": "timezone",
-        "importPath": "datetime",
-        "description": "datetime",
-        "isExtraImport": true,
-        "detail": "datetime",
-        "documentation": {}
-    },
-    {
-        "label": "Dict",
-        "importPath": "typing",
-        "description": "typing",
-        "isExtraImport": true,
-        "detail": "typing",
-        "documentation": {}
-    },
-    {
-        "label": "Iterable",
-        "importPath": "typing",
-        "description": "typing",
-        "isExtraImport": true,
-        "detail": "typing",
-        "documentation": {}
-    },
-    {
-        "label": "List",
-        "importPath": "typing",
-        "description": "typing",
-        "isExtraImport": true,
-        "detail": "typing",
-        "documentation": {}
-    },
-    {
-        "label": "Tuple",
-        "importPath": "typing",
-        "description": "typing",
-        "isExtraImport": true,
-        "detail": "typing",
-        "documentation": {}
-    },
-    {
-        "label": "Dict",
-        "importPath": "typing",
-        "description": "typing",
-        "isExtraImport": true,
-        "detail": "typing",
-        "documentation": {}
-    },
-    {
-        "label": "Iterable",
-        "importPath": "typing",
-        "description": "typing",
-        "isExtraImport": true,
-        "detail": "typing",
-        "documentation": {}
-    },
-    {
-        "label": "Tuple",
-        "importPath": "typing",
-        "description": "typing",
-        "isExtraImport": true,
-        "detail": "typing",
+        "detail": "urllib.parse",
         "documentation": {}
     },
     {
@@ -368,12 +1344,29 @@
         "documentation": {}
     },
     {
-        "label": "pandas",
+        "label": "generate_future_flights",
         "kind": 6,
         "isExtraImport": true,
-        "importPath": "pandas",
-        "description": "pandas",
-        "detail": "pandas",
+        "importPath": "generate_future_flights",
+        "description": "generate_future_flights",
+        "detail": "generate_future_flights",
+        "documentation": {}
+    },
+    {
+        "label": "weekly_predict",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "weekly_predict",
+        "description": "weekly_predict",
+        "detail": "weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "dataclass",
+        "importPath": "dataclasses",
+        "description": "dataclasses",
+        "isExtraImport": true,
+        "detail": "dataclasses",
         "documentation": {}
     },
     {
@@ -400,6 +1393,717 @@
         "description": ".venv.Scripts.jp",
         "peekOfCode": "def main():\n    parser = argparse.ArgumentParser()\n    parser.add_argument('expression')\n    parser.add_argument('-f', '--filename',\n                        help=('The filename containing the input data.  '\n                              'If a filename is not given then data is '\n                              'read from stdin.'))\n    parser.add_argument('--ast', action='store_true',\n                        help=('Pretty print the AST, do not search the data.'))\n    args = parser.parse_args()",
         "detail": ".venv.Scripts.jp",
+        "documentation": {}
+    },
+    {
+        "label": "resolve_data_source",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def resolve_data_source() -> Optional[str]:\n    source = os.getenv(\"DASH_SOURCE\")\n    if source:\n        return source\n    bucket = os.getenv(\"S3_BUCKET\") or os.getenv(\"S3_Bucket\")\n    refined_prefix = os.getenv(\"S3_REFINED_PREFIX\", \"refined\")\n    filename = os.getenv(\"DASH_FILENAME\", \"flights_processed.parquet\")  # FIX: era .csv\n    if bucket:\n        return default_s3_uri(bucket, refined_prefix, filename)\n    return None",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "athena_enabled",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def athena_enabled() -> bool:\n    flag = os.getenv(\"DASH_USE_ATHENA\", \"1\")\n    bucket = os.getenv(\"S3_BUCKET\") or os.getenv(\"S3_Bucket\")\n    return flag == \"1\" and bool(bucket)\ndef athena_config() -> dict:\n    bucket = os.getenv(\"S3_BUCKET\") or os.getenv(\"S3_Bucket\")\n    return {\n        \"bucket\": bucket,\n        \"database\": os.getenv(\"ATHENA_DATABASE\", \"flight_advisor\"),\n        \"table\": os.getenv(\"ATHENA_TABLE\", \"flights_processed\"),",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "athena_config",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def athena_config() -> dict:\n    bucket = os.getenv(\"S3_BUCKET\") or os.getenv(\"S3_Bucket\")\n    return {\n        \"bucket\": bucket,\n        \"database\": os.getenv(\"ATHENA_DATABASE\", \"flight_advisor\"),\n        \"table\": os.getenv(\"ATHENA_TABLE\", \"flights_processed\"),\n        \"results_prefix\": os.getenv(\"S3_ATHENA_RESULTS_PREFIX\", \"athena-results\"),\n        \"region\": os.getenv(\"AWS_REGION\", \"us-east-1\"),\n        \"profile\": os.getenv(\"AWS_PROFILE\"),\n    }",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "sanitize_text",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def sanitize_text(values: List[str]) -> List[str]:\n    cleaned: List[str] = []\n    for value in values:\n        if not isinstance(value, str):\n            continue\n        value = value.strip()\n        if not value or len(value) > 60:\n            continue\n        if not SAFE_TEXT.match(value):\n            continue",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "sql_list_text",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def sql_list_text(values: List[str]) -> str:\n    safe = sanitize_text(values)\n    if not safe:\n        return \"\"\n    escaped = [val.replace(\"'\", \"''\") for val in safe]\n    return \", \".join(f\"'{val}'\" for val in escaped)\ndef sql_list_int(values: List[int]) -> str:\n    clean: List[str] = []\n    for value in values:\n        try:",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "sql_list_int",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def sql_list_int(values: List[int]) -> str:\n    clean: List[str] = []\n    for value in values:\n        try:\n            num = int(value)\n        except (TypeError, ValueError):\n            continue\n        clean.append(str(num))\n    return \", \".join(clean)\ndef limit_items(values: List, limit: int) -> List:",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "limit_items",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def limit_items(values: List, limit: int) -> List:\n    if limit <= 0:\n        return values\n    return values[-limit:] if len(values) > limit else values\ndef log_athena_error(context: str, exc: Exception) -> None:\n    print(f\"[Athena] {context} failed: {exc}\", file=sys.stderr)\ndef build_where(\n    years: List[int],\n    months: List[int],\n    airlines: List[str],",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "log_athena_error",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def log_athena_error(context: str, exc: Exception) -> None:\n    print(f\"[Athena] {context} failed: {exc}\", file=sys.stderr)\ndef build_where(\n    years: List[int],\n    months: List[int],\n    airlines: List[str],\n    states: List[str],\n) -> str:\n    clauses: List[str] = []\n    if years:",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "build_where",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def build_where(\n    years: List[int],\n    months: List[int],\n    airlines: List[str],\n    states: List[str],\n) -> str:\n    clauses: List[str] = []\n    if years:\n        s = sql_list_int(years)\n        if s:",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "get_airline_column",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def get_airline_column(df: pd.DataFrame) -> str:\n    return \"airline_name\" if \"airline_name\" in df.columns else \"airline\"\ndef get_state_column(df: pd.DataFrame) -> Optional[str]:\n    if \"origin_state\" in df.columns:\n        return \"origin_state\"\n    if \"state\" in df.columns:\n        return \"state\"\n    return None\n# Columns we actually need — avoids loading unused fields from Parquet\n_REQUIRED_COLUMNS = [",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "get_state_column",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def get_state_column(df: pd.DataFrame) -> Optional[str]:\n    if \"origin_state\" in df.columns:\n        return \"origin_state\"\n    if \"state\" in df.columns:\n        return \"state\"\n    return None\n# Columns we actually need — avoids loading unused fields from Parquet\n_REQUIRED_COLUMNS = [\n    \"year\", \"month\", \"day\",\n    \"arrival_delay\", \"is_delayed\",",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "normalize_base_path",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def normalize_base_path(path: str) -> str:\n    if not path.startswith(\"/\"):\n        path = \"/\" + path\n    if not path.endswith(\"/\"):\n        path = path + \"/\"\n    return path\nUSE_ATHENA = athena_enabled()\n_base_path = normalize_base_path(os.getenv(\"DASH_BASE_PATH\", \"/\"))\napp = Dash(\n    __name__,",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "load_flights_cached",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def load_flights_cached(\n    years: tuple = (),\n    months: tuple = (),\n    airlines: tuple = (),\n    states: tuple = (),\n) -> pd.DataFrame:\n    \"\"\"Load Parquet data with full predicate + column pushdown.\"\"\"\n    if USE_ATHENA:\n        return pd.DataFrame()\n    source = resolve_data_source()",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "fetch_filter_options_cached",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def fetch_filter_options_cached() -> dict:\n    \"\"\"Fetch distinct filter values from Athena or local Parquet. Cached.\"\"\"\n    if not USE_ATHENA:\n        source = resolve_data_source()\n        if not source:\n            return {\"years\": [], \"months\": [], \"airlines\": [], \"states\": []}\n        import pyarrow.dataset as ds\n        try:\n            if is_s3_uri(source):\n                import pyarrow.fs as pafs",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "kpi_total",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def kpi_total(df: pd.DataFrame) -> str:\n    return f\"{len(df):,}\"\ndef kpi_delay_rate(df: pd.DataFrame) -> str:\n    if \"is_delayed\" not in df.columns or df.empty:\n        return \"—\"\n    return f\"{df['is_delayed'].mean() * 100:.1f}%\"\ndef kpi_avg_delay(df: pd.DataFrame) -> str:\n    if \"arrival_delay\" not in df.columns or df.empty:\n        return \"—\"\n    return f\"{df['arrival_delay'].mean():.1f} min\"",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "kpi_delay_rate",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def kpi_delay_rate(df: pd.DataFrame) -> str:\n    if \"is_delayed\" not in df.columns or df.empty:\n        return \"—\"\n    return f\"{df['is_delayed'].mean() * 100:.1f}%\"\ndef kpi_avg_delay(df: pd.DataFrame) -> str:\n    if \"arrival_delay\" not in df.columns or df.empty:\n        return \"—\"\n    return f\"{df['arrival_delay'].mean():.1f} min\"\ndef kpi_worst_airline(df: pd.DataFrame) -> str:\n    if df.empty or \"arrival_delay\" not in df.columns:",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "kpi_avg_delay",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def kpi_avg_delay(df: pd.DataFrame) -> str:\n    if \"arrival_delay\" not in df.columns or df.empty:\n        return \"—\"\n    return f\"{df['arrival_delay'].mean():.1f} min\"\ndef kpi_worst_airline(df: pd.DataFrame) -> str:\n    if df.empty or \"arrival_delay\" not in df.columns:\n        return \"—\"\n    col = get_airline_column(df)\n    grouped = df.groupby(col)[\"arrival_delay\"].mean().sort_values(ascending=False)\n    return str(grouped.index[0]) if not grouped.empty else \"—\"",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "kpi_worst_airline",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def kpi_worst_airline(df: pd.DataFrame) -> str:\n    if df.empty or \"arrival_delay\" not in df.columns:\n        return \"—\"\n    col = get_airline_column(df)\n    grouped = df.groupby(col)[\"arrival_delay\"].mean().sort_values(ascending=False)\n    return str(grouped.index[0]) if not grouped.empty else \"—\"\ndef filter_df(\n    df: pd.DataFrame,\n    airlines: List[str],\n    states: List[str],",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "filter_df",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def filter_df(\n    df: pd.DataFrame,\n    airlines: List[str],\n    states: List[str],\n) -> pd.DataFrame:\n    \"\"\"In-memory filter for dimensions NOT already pushed down to PyArrow.\"\"\"\n    if df.empty:\n        return df\n    airline_col = get_airline_column(df)\n    state_col   = get_state_column(df)",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "build_airline_bar",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def build_airline_bar(df: pd.DataFrame):\n    if df.empty or \"arrival_delay\" not in df.columns:\n        return _empty_bar(\"Average delay by airline\")\n    col = get_airline_column(df)\n    grouped = (\n        df.groupby(col)[\"arrival_delay\"].mean()\n        .sort_values(ascending=False)\n        .head(15)\n        .reset_index()\n    )",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "build_monthly_line",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def build_monthly_line(df: pd.DataFrame):\n    if df.empty or \"arrival_delay\" not in df.columns:\n        return _empty_line(\"Monthly delay trend\")\n    grouped = df.groupby(\"month\")[\"arrival_delay\"].mean().reset_index()\n    fig = px.line(grouped, x=\"month\", y=\"arrival_delay\", markers=True, title=\"Monthly delay trend\")\n    return _style_fig(fig, xaxis_title=\"Month\", yaxis_title=\"Avg delay (min)\")\n# ---------------------------------------------------------------------------\n# Chart helpers (Athena)\n# ---------------------------------------------------------------------------\ndef query_kpis_athena(years, months, airlines, states) -> dict:",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "query_kpis_athena",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def query_kpis_athena(years, months, airlines, states) -> dict:\n    cfg = athena_config()\n    where = build_where(years, months, airlines, states)\n    sql = f\"\"\"\n        SELECT\n            COUNT(*)                                               AS total_flights,\n            AVG(CASE WHEN is_delayed = 1 THEN 1.0 ELSE 0.0 END)  AS delay_rate,\n            AVG(arrival_delay)                                     AS avg_delay\n        FROM \"{cfg['database']}\".\"{cfg['table']}\"\n        {where}",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "query_worst_airline_athena",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def query_worst_airline_athena(years, months, airlines, states) -> str:\n    cfg = athena_config()\n    where = build_where(years, months, airlines, states)\n    sql = f\"\"\"\n        SELECT COALESCE(airline_name, airline) AS airline,\n               AVG(arrival_delay) AS avg_delay\n        FROM \"{cfg['database']}\".\"{cfg['table']}\"\n        {where}\n        GROUP BY 1\n        ORDER BY avg_delay DESC",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "query_airline_bar_athena",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def query_airline_bar_athena(years, months, airlines, states):\n    cfg = athena_config()\n    where = build_where(years, months, airlines, states)\n    top_n = int(os.getenv(\"DASH_TOP_N\", \"15\"))\n    sql = f\"\"\"\n        SELECT COALESCE(airline_name, airline) AS airline,\n               AVG(arrival_delay) AS avg_delay\n        FROM \"{cfg['database']}\".\"{cfg['table']}\"\n        {where}\n        GROUP BY 1",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "query_monthly_line_athena",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def query_monthly_line_athena(years, months, airlines, states):\n    cfg = athena_config()\n    where = build_where(years, months, airlines, states)\n    sql = f\"\"\"\n        SELECT month, AVG(arrival_delay) AS avg_delay\n        FROM \"{cfg['database']}\".\"{cfg['table']}\"\n        {where}\n        GROUP BY month\n        ORDER BY month\n    \"\"\"",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "default_year_selection",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def default_year_selection(years: List[int]) -> List[int]:\n    if not years:\n        return []\n    env = os.getenv(\"DASH_DEFAULT_YEARS\")\n    if env:\n        try:\n            selected = [int(v.strip()) for v in env.split(\",\") if v.strip()]\n            return [y for y in selected if y in years]\n        except ValueError:\n            pass",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "default_month_selection",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def default_month_selection(months: List[int]) -> List[int]:\n    if not months:\n        return []\n    env = os.getenv(\"DASH_DEFAULT_MONTHS\")\n    if env:\n        try:\n            selected = [int(v.strip()) for v in env.split(\",\") if v.strip()]\n            return [m for m in selected if m in months]\n        except ValueError:\n            pass",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "load_and_populate_filters",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def load_and_populate_filters(_init):\n    \"\"\"Fetch filter options and populate dropdowns in a single callback.\"\"\"\n    options = fetch_filter_options_cached()\n    years    = options.get(\"years\",    [])\n    months   = options.get(\"months\",   [])\n    airlines = options.get(\"airlines\", [])\n    states   = options.get(\"states\",   [])\n    year_opts    = [{\"label\": str(y), \"value\": y} for y in years]\n    airline_opts = [{\"label\": a, \"value\": a} for a in airlines]\n    month_opts   = [{\"label\": str(m), \"value\": m} for m in months]",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "update_kpis",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def update_kpis(years_sel, airlines_sel, months_sel, states_sel, options_data):\n    if not options_data:\n        return \"—\", \"—\", \"—\", \"—\"\n    years_sel    = years_sel    or []\n    airlines_sel = airlines_sel or []\n    months_sel   = months_sel   or []\n    states_sel   = states_sel   or []\n    max_years    = int(os.getenv(\"DASH_MAX_YEARS\",    \"3\"))\n    max_airlines = int(os.getenv(\"DASH_MAX_AIRLINES\", \"25\"))\n    max_states   = int(os.getenv(\"DASH_MAX_STATES\",   \"25\"))",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "update_charts",
+        "kind": 2,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "def update_charts(years_sel, airlines_sel, months_sel, states_sel, options_data):\n    if not options_data:\n        return _empty_bar(\"Average delay by airline\"), _empty_line(\"Monthly delay trend\")\n    ctx = callback_context\n    triggered_ids: set[str] = {t[\"prop_id\"] for t in ctx.triggered} if ctx.triggered else set()\n    years_sel    = years_sel    or []\n    airlines_sel = airlines_sel or []\n    months_sel   = months_sel   or []\n    states_sel   = states_sel   or []\n    max_years    = int(os.getenv(\"DASH_MAX_YEARS\",    \"3\"))",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "ROOT_DIR",
+        "kind": 5,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "ROOT_DIR = Path(__file__).resolve().parents[1]\nSRC_DIR = ROOT_DIR / \"src\"\nif str(SRC_DIR) not in sys.path:\n    sys.path.insert(0, str(SRC_DIR))\nfrom aws.athena_query import run_query  # noqa: E402\nfrom model import (  # noqa: E402\n    build_s3_client,\n    default_s3_uri,\n    is_s3_uri,\n    load_env_file,",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "SRC_DIR",
+        "kind": 5,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "SRC_DIR = ROOT_DIR / \"src\"\nif str(SRC_DIR) not in sys.path:\n    sys.path.insert(0, str(SRC_DIR))\nfrom aws.athena_query import run_query  # noqa: E402\nfrom model import (  # noqa: E402\n    build_s3_client,\n    default_s3_uri,\n    is_s3_uri,\n    load_env_file,\n    load_csv_any,",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "SAFE_TEXT",
+        "kind": 5,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "SAFE_TEXT = re.compile(r\"^[A-Za-z0-9 .&/_-]+$\")\ndef sanitize_text(values: List[str]) -> List[str]:\n    cleaned: List[str] = []\n    for value in values:\n        if not isinstance(value, str):\n            continue\n        value = value.strip()\n        if not value or len(value) > 60:\n            continue\n        if not SAFE_TEXT.match(value):",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "_REQUIRED_COLUMNS",
+        "kind": 5,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "_REQUIRED_COLUMNS = [\n    \"year\", \"month\", \"day\",\n    \"arrival_delay\", \"is_delayed\",\n    \"airline_name\", \"airline\",\n    \"origin_state\",\n]\n# ---------------------------------------------------------------------------\n# Dash app\n# ---------------------------------------------------------------------------\ndef normalize_base_path(path: str) -> str:",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "USE_ATHENA",
+        "kind": 5,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "USE_ATHENA = athena_enabled()\n_base_path = normalize_base_path(os.getenv(\"DASH_BASE_PATH\", \"/\"))\napp = Dash(\n    __name__,\n    external_stylesheets=[\n        \"https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap\"\n    ],\n    requests_pathname_prefix=_base_path,\n    routes_pathname_prefix=_base_path,\n    suppress_callback_exceptions=True,",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "_base_path",
+        "kind": 5,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "_base_path = normalize_base_path(os.getenv(\"DASH_BASE_PATH\", \"/\"))\napp = Dash(\n    __name__,\n    external_stylesheets=[\n        \"https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap\"\n    ],\n    requests_pathname_prefix=_base_path,\n    routes_pathname_prefix=_base_path,\n    suppress_callback_exceptions=True,\n)",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "app",
+        "kind": 5,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "app = Dash(\n    __name__,\n    external_stylesheets=[\n        \"https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap\"\n    ],\n    requests_pathname_prefix=_base_path,\n    routes_pathname_prefix=_base_path,\n    suppress_callback_exceptions=True,\n)\nserver = app.server  # expose Flask server for Gunicorn",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "server",
+        "kind": 5,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "server = app.server  # expose Flask server for Gunicorn\n# ---------------------------------------------------------------------------\n# Cache\n# ---------------------------------------------------------------------------\nCACHE_CONFIG: dict = {\n    \"CACHE_TYPE\": os.getenv(\"CACHE_TYPE\", \"SimpleCache\"),\n    \"CACHE_DEFAULT_TIMEOUT\": int(os.getenv(\"CACHE_TIMEOUT\", \"3600\")),\n}\nif os.getenv(\"CACHE_REDIS_URL\"):\n    CACHE_CONFIG[\"CACHE_TYPE\"] = \"RedisCache\"",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "cache",
+        "kind": 5,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "cache = Cache()\ncache.init_app(server, config=CACHE_CONFIG)\n# ---------------------------------------------------------------------------\n# Cached data helpers\n# ---------------------------------------------------------------------------\ndef _and_expr(left, right):\n    \"\"\"Combine two PyArrow expressions with AND, handling None.\"\"\"\n    return right if left is None else (left & right)\ndef _build_pa_filter(years: tuple, months: tuple, airlines: tuple, states: tuple):\n    \"\"\"Build a PyArrow expression covering ALL filter dimensions.\"\"\"",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "_FONT_COLOR",
+        "kind": 5,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "_FONT_COLOR = \"#2b2b2b\"\n_GRID_COLOR = \"#e8e4dc\"\n_ACCENT    = \"#c47c2b\"\ndef _style_fig(fig, **layout_kwargs):\n    fig.update_layout(\n        paper_bgcolor=_PAPER_BG,\n        plot_bgcolor=_PLOT_BG,\n        font=dict(family=\"DM Sans, sans-serif\", color=_FONT_COLOR),\n        title_font=dict(size=14, weight=600),\n        xaxis=dict(gridcolor=_GRID_COLOR, linecolor=_GRID_COLOR),",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "_GRID_COLOR",
+        "kind": 5,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "_GRID_COLOR = \"#e8e4dc\"\n_ACCENT    = \"#c47c2b\"\ndef _style_fig(fig, **layout_kwargs):\n    fig.update_layout(\n        paper_bgcolor=_PAPER_BG,\n        plot_bgcolor=_PLOT_BG,\n        font=dict(family=\"DM Sans, sans-serif\", color=_FONT_COLOR),\n        title_font=dict(size=14, weight=600),\n        xaxis=dict(gridcolor=_GRID_COLOR, linecolor=_GRID_COLOR),\n        yaxis=dict(gridcolor=_GRID_COLOR, linecolor=_GRID_COLOR),",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "_CARD",
+        "kind": 5,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "_CARD = {\n    \"background\": \"#ffffff\",\n    \"padding\": \"16px 20px\",\n    \"borderRadius\": \"14px\",\n    \"boxShadow\": \"0 1px 4px rgba(0,0,0,0.06)\",\n}\n_KPI_LABEL = {\n    \"fontSize\": \"11px\", \"color\": \"#888\", \"textTransform\": \"uppercase\",\n    \"letterSpacing\": \"0.06em\", \"marginBottom\": \"6px\",\n}",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "_KPI_LABEL",
+        "kind": 5,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "_KPI_LABEL = {\n    \"fontSize\": \"11px\", \"color\": \"#888\", \"textTransform\": \"uppercase\",\n    \"letterSpacing\": \"0.06em\", \"marginBottom\": \"6px\",\n}\n_KPI_VALUE = {\n    \"fontSize\": \"26px\", \"fontWeight\": \"600\", \"color\": \"#2b2b2b\",\n    \"fontFamily\": \"'DM Mono', monospace\",\n}\ndata_source_label = (\n    f\"Athena {athena_config()['database']}.{athena_config()['table']}\"",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "_KPI_VALUE",
+        "kind": 5,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "_KPI_VALUE = {\n    \"fontSize\": \"26px\", \"fontWeight\": \"600\", \"color\": \"#2b2b2b\",\n    \"fontFamily\": \"'DM Mono', monospace\",\n}\ndata_source_label = (\n    f\"Athena {athena_config()['database']}.{athena_config()['table']}\"\n    if USE_ATHENA\n    else (resolve_data_source() or \"not configured\")\n)\napp.layout = html.Div(",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "data_source_label",
+        "kind": 5,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "data_source_label = (\n    f\"Athena {athena_config()['database']}.{athena_config()['table']}\"\n    if USE_ATHENA\n    else (resolve_data_source() or \"not configured\")\n)\napp.layout = html.Div(\n    style={\n        \"fontFamily\": \"'DM Sans', sans-serif\",\n        \"background\": \"linear-gradient(160deg, #f5f2ec 0%, #faf8f4 100%)\",\n        \"minHeight\": \"100vh\",",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "app.layout",
+        "kind": 5,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "app.layout = html.Div(\n    style={\n        \"fontFamily\": \"'DM Sans', sans-serif\",\n        \"background\": \"linear-gradient(160deg, #f5f2ec 0%, #faf8f4 100%)\",\n        \"minHeight\": \"100vh\",\n        \"padding\": \"28px 24px\",\n        \"color\": \"#2b2b2b\",\n    },\n    children=[\n        # ── store: holds filter options fetched lazily ──────────────────────",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "_MONTHLY_INPUTS",
+        "kind": 5,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "_MONTHLY_INPUTS = {\"filter-year.value\", \"filter-month.value\", \"filter-state.value\"}\n_AIRLINE_INPUTS = {\"filter-year.value\", \"filter-airline.value\", \"filter-month.value\", \"filter-state.value\"}\n@app.callback(\n    Output(\"chart-airline\", \"figure\"),\n    Output(\"chart-month\",   \"figure\"),\n    Input(\"filter-year\",    \"value\"),\n    Input(\"filter-airline\", \"value\"),\n    Input(\"filter-month\",   \"value\"),\n    Input(\"filter-state\",   \"value\"),\n    State(\"store-filter-options\", \"data\"),",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "_AIRLINE_INPUTS",
+        "kind": 5,
+        "importPath": "dashboard.app",
+        "description": "dashboard.app",
+        "peekOfCode": "_AIRLINE_INPUTS = {\"filter-year.value\", \"filter-airline.value\", \"filter-month.value\", \"filter-state.value\"}\n@app.callback(\n    Output(\"chart-airline\", \"figure\"),\n    Output(\"chart-month\",   \"figure\"),\n    Input(\"filter-year\",    \"value\"),\n    Input(\"filter-airline\", \"value\"),\n    Input(\"filter-month\",   \"value\"),\n    Input(\"filter-state\",   \"value\"),\n    State(\"store-filter-options\", \"data\"),\n    prevent_initial_call=True,",
+        "detail": "dashboard.app",
+        "documentation": {}
+    },
+    {
+        "label": "load_csv",
+        "kind": 2,
+        "importPath": "dashboard.parquet_writer",
+        "description": "dashboard.parquet_writer",
+        "peekOfCode": "def load_csv(path: str | Path) -> pd.DataFrame:\n    \"\"\"Load CSV with explicit dtypes to avoid DtypeWarning.\"\"\"\n    # Build dtype dict with only columns present in the file\n    raw = pd.read_csv(path, nrows=0)\n    available = {c.lower(): c for c in raw.columns}\n    dtype_arg = {\n        available[col]: dtype\n        for col, dtype in DTYPE_MAP.items()\n        if col in available\n    }",
+        "detail": "dashboard.parquet_writer",
+        "documentation": {}
+    },
+    {
+        "label": "write_partitioned_parquet",
+        "kind": 2,
+        "importPath": "dashboard.parquet_writer",
+        "description": "dashboard.parquet_writer",
+        "peekOfCode": "def write_partitioned_parquet(\n    df: pd.DataFrame,\n    output_dir: Path,\n    bucket: Optional[str] = None,\n    s3_prefix: Optional[str] = None,\n    s3_client=None,\n) -> list[str]:\n    \"\"\"\n    Write df as Hive-partitioned Parquet files.\n    If bucket + s3_prefix are given, files are uploaded to S3 after writing",
+        "detail": "dashboard.parquet_writer",
+        "documentation": {}
+    },
+    {
+        "label": "repair_athena_table",
+        "kind": 2,
+        "importPath": "dashboard.parquet_writer",
+        "description": "dashboard.parquet_writer",
+        "peekOfCode": "def repair_athena_table(\n    database: str,\n    table: str,\n    bucket: str,\n    prefix: str,\n    results_prefix: str = \"athena-results\",\n    region: str = \"us-east-1\",\n    profile: Optional[str] = None,\n) -> None:\n    \"\"\"Run MSCK REPAIR TABLE so Athena discovers new partitions.\"\"\"",
+        "detail": "dashboard.parquet_writer",
+        "documentation": {}
+    },
+    {
+        "label": "build_parser",
+        "kind": 2,
+        "importPath": "dashboard.parquet_writer",
+        "description": "dashboard.parquet_writer",
+        "peekOfCode": "def build_parser() -> argparse.ArgumentParser:\n    p = argparse.ArgumentParser(description=\"Write partitioned Parquet to S3 or local disk\")\n    p.add_argument(\"--input\",  required=False, help=\"Path to source CSV file\")\n    p.add_argument(\"--bucket\", required=False, help=\"S3 bucket name\")\n    p.add_argument(\"--prefix\", required=False, default=\"refined/flights_processed\",\n                   help=\"S3 key prefix (default: refined/flights_processed)\")\n    p.add_argument(\"--output\", required=False,\n                   help=\"Local output directory (skips S3 upload, useful for testing)\")\n    p.add_argument(\"--region\", default=os.getenv(\"AWS_REGION\", \"us-east-1\"))\n    p.add_argument(\"--profile\", default=os.getenv(\"AWS_PROFILE\"))",
+        "detail": "dashboard.parquet_writer",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "dashboard.parquet_writer",
+        "description": "dashboard.parquet_writer",
+        "peekOfCode": "def main() -> None:\n    args = build_parser().parse_args()\n    if args.repair_table:\n        if not args.bucket:\n            print(\"--bucket is required for --repair-table\", file=sys.stderr)\n            sys.exit(1)\n        repair_athena_table(\n            database=args.database,\n            table=args.table,\n            bucket=args.bucket,",
+        "detail": "dashboard.parquet_writer",
+        "documentation": {}
+    },
+    {
+        "label": "PARTITION_COLS",
+        "kind": 5,
+        "importPath": "dashboard.parquet_writer",
+        "description": "dashboard.parquet_writer",
+        "peekOfCode": "PARTITION_COLS = [\"year\", \"month\"]\n# Compression: snappy is fast and well-supported by Athena\nPARQUET_COMPRESSION = \"snappy\"\n# ---------------------------------------------------------------------------\n# Helpers\n# ---------------------------------------------------------------------------\ndef load_csv(path: str | Path) -> pd.DataFrame:\n    \"\"\"Load CSV with explicit dtypes to avoid DtypeWarning.\"\"\"\n    # Build dtype dict with only columns present in the file\n    raw = pd.read_csv(path, nrows=0)",
+        "detail": "dashboard.parquet_writer",
+        "documentation": {}
+    },
+    {
+        "label": "PARQUET_COMPRESSION",
+        "kind": 5,
+        "importPath": "dashboard.parquet_writer",
+        "description": "dashboard.parquet_writer",
+        "peekOfCode": "PARQUET_COMPRESSION = \"snappy\"\n# ---------------------------------------------------------------------------\n# Helpers\n# ---------------------------------------------------------------------------\ndef load_csv(path: str | Path) -> pd.DataFrame:\n    \"\"\"Load CSV with explicit dtypes to avoid DtypeWarning.\"\"\"\n    # Build dtype dict with only columns present in the file\n    raw = pd.read_csv(path, nrows=0)\n    available = {c.lower(): c for c in raw.columns}\n    dtype_arg = {",
+        "detail": "dashboard.parquet_writer",
+        "documentation": {}
+    },
+    {
+        "label": "AdviseRequest",
+        "kind": 6,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "class AdviseRequest(BaseModel):\n    origin_airport: str = Field(..., description=\"Origin IATA code\")\n    destination_airport: str = Field(..., description=\"Destination IATA code\")\n    airline: str = Field(..., description=\"Airline IATA code\")\n    scheduled_departure: int = Field(..., description=\"Scheduled departure time (HHMM)\")\n    month: int | None = Field(None, ge=1, le=12)\n    day_of_week: int | None = Field(None, ge=1, le=7)\n    day: int | None = Field(None, ge=1, le=31)\n    year: int | None = Field(None, ge=2000, le=2100)\n    flight_date: str | None = Field(None, description=\"YYYY-MM-DD\")",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "Factor",
+        "kind": 6,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "class Factor(BaseModel):\n    feature: str\n    impact: str\nclass AdviseResponse(BaseModel):\n    delay_probability: float\n    risk_level: str\n    top_factors: List[Factor]\n    advice: str\nRATE_COLS = [\n    \"ORIGIN_DELAY_RATE\",",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "AdviseResponse",
+        "kind": 6,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "class AdviseResponse(BaseModel):\n    delay_probability: float\n    risk_level: str\n    top_factors: List[Factor]\n    advice: str\nRATE_COLS = [\n    \"ORIGIN_DELAY_RATE\",\n    \"DEST_DELAY_RATE\",\n    \"CARRIER_DELAY_RATE\",\n    \"ROUTE_DELAY_RATE\",",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "mount_dash_app",
+        "kind": 2,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "def mount_dash_app(fastapi_app: FastAPI) -> None:\n    if os.getenv(\"ENABLE_DASH\", \"1\") != \"1\":\n        return\n    try:\n        from starlette.middleware.wsgi import WSGIMiddleware\n        from dashboard.app import create_dash_app\n    except Exception as exc:\n        print(f\"Dash not mounted: {exc}\", file=sys.stderr)\n        return\n    dash_app = create_dash_app(\"/dashboard/\", \"/\")",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "season_from_month",
+        "kind": 2,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "def season_from_month(month: int) -> str:\n    if month in (12, 1, 2):\n        return \"winter\"\n    if month in (3, 4, 5):\n        return \"spring\"\n    if month in (6, 7, 8):\n        return \"summer\"\n    return \"fall\"\ndef time_of_day(hour: int) -> str:\n    if 5 <= hour <= 11:",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "time_of_day",
+        "kind": 2,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "def time_of_day(hour: int) -> str:\n    if 5 <= hour <= 11:\n        return \"morning\"\n    if 12 <= hour <= 16:\n        return \"afternoon\"\n    if 17 <= hour <= 21:\n        return \"evening\"\n    return \"night\"\ndef build_holiday_set(dates: List[pd.Timestamp]) -> set[pd.Timestamp]:\n    from pandas.tseries.holiday import USFederalHolidayCalendar",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "build_holiday_set",
+        "kind": 2,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "def build_holiday_set(dates: List[pd.Timestamp]) -> set[pd.Timestamp]:\n    from pandas.tseries.holiday import USFederalHolidayCalendar\n    if not dates:\n        return set()\n    start = min(dates).normalize()\n    end = max(dates).normalize()\n    cal = USFederalHolidayCalendar()\n    holidays = cal.holidays(start=start, end=end)\n    return set(pd.to_datetime(holidays).normalize())\ndef infer_date(req: AdviseRequest) -> date:",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "infer_date",
+        "kind": 2,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "def infer_date(req: AdviseRequest) -> date:\n    if req.flight_date:\n        return date.fromisoformat(req.flight_date)\n    if req.year and req.month and req.day:\n        return date(req.year, req.month, req.day)\n    if req.month is None or req.day_of_week is None:\n        raise ValueError(\"Provide flight_date or (month + day_of_week).\")\n    today = date.today()\n    year = req.year or today.year\n    if req.month < today.month:",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "build_route_distance_map",
+        "kind": 2,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "def build_route_distance_map(df: pd.DataFrame) -> Tuple[Dict[str, float], float]:\n    if \"ROUTE\" not in df.columns:\n        df = df.copy()\n        df[\"ROUTE\"] = df[\"ORIGIN_AIRPORT\"].astype(str) + \"_\" + df[\"DESTINATION_AIRPORT\"].astype(str)\n    distance_map = df.groupby(\"ROUTE\")[\"DISTANCE\"].mean().to_dict()\n    global_dist = float(df[\"DISTANCE\"].mean())\n    return distance_map, global_dist\ndef build_rate_maps(df: pd.DataFrame) -> Tuple[Dict[str, Dict[str, float]], float]:\n    if TARGET_COL not in df.columns:\n        raise ValueError(f\"Rates dataset must include {TARGET_COL}.\")",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "build_rate_maps",
+        "kind": 2,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "def build_rate_maps(df: pd.DataFrame) -> Tuple[Dict[str, Dict[str, float]], float]:\n    if TARGET_COL not in df.columns:\n        raise ValueError(f\"Rates dataset must include {TARGET_COL}.\")\n    global_rate = float(df[TARGET_COL].mean())\n    if \"ROUTE\" not in df.columns:\n        df = df.copy()\n        df[\"ROUTE\"] = df[\"ORIGIN_AIRPORT\"].astype(str) + \"_\" + df[\"DESTINATION_AIRPORT\"].astype(str)\n    if \"AIRLINE_DOW\" not in df.columns:\n        df = df.copy()\n        df[\"AIRLINE_DOW\"] = df[\"AIRLINE\"].astype(str) + \"_\" + df[\"DAY_OF_WEEK\"].astype(str)",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "apply_rate_maps",
+        "kind": 2,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "def apply_rate_maps(\n    df: pd.DataFrame,\n    maps: Dict[str, Dict[str, float]],\n    global_rate: float,\n) -> pd.DataFrame:\n    df = df.copy()\n    df[\"ORIGIN_DELAY_RATE\"] = df[\"ORIGIN_AIRPORT\"].map(maps[\"ORIGIN_DELAY_RATE\"]).fillna(global_rate)\n    df[\"DEST_DELAY_RATE\"] = df[\"DESTINATION_AIRPORT\"].map(maps[\"DEST_DELAY_RATE\"]).fillna(global_rate)\n    df[\"CARRIER_DELAY_RATE\"] = df[\"AIRLINE\"].map(maps[\"CARRIER_DELAY_RATE\"]).fillna(global_rate)\n    df[\"ROUTE_DELAY_RATE\"] = df[\"ROUTE\"].map(maps[\"ROUTE_DELAY_RATE\"]).fillna(global_rate)",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "build_features",
+        "kind": 2,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "def build_features(\n    req: AdviseRequest,\n    maps: Dict[str, Dict[str, float]],\n    global_rate: float,\n    route_distance_map: Dict[str, float],\n    global_distance: float,\n) -> pd.DataFrame:\n    flight_date = infer_date(req)\n    day_of_week = req.day_of_week or (flight_date.weekday() + 1)\n    route = f\"{req.origin_airport}_{req.destination_airport}\"",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "compute_top_factors",
+        "kind": 2,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "def compute_top_factors(\n    df: pd.DataFrame,\n    global_rate: float,\n    top_k: int = 3,\n) -> List[Factor]:\n    factors = []\n    for col in RATE_COLS:\n        rate = float(df[col].iloc[0])\n        delta = rate - global_rate\n        impact = f\"{delta * 100:+.1f}%\"",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "risk_level",
+        "kind": 2,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "def risk_level(prob: float) -> str:\n    if prob >= 0.7:\n        return \"HIGH\"\n    if prob >= 0.4:\n        return \"MEDIUM\"\n    return \"LOW\"\ndef advice_text(prob: float, level: str, top_factors: List[Factor]) -> str:\n    base = f\"This flight has a {level} risk of delay ({prob:.0%}).\"\n    if top_factors:\n        best = top_factors[0]",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "advice_text",
+        "kind": 2,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "def advice_text(prob: float, level: str, top_factors: List[Factor]) -> str:\n    base = f\"This flight has a {level} risk of delay ({prob:.0%}).\"\n    if top_factors:\n        best = top_factors[0]\n        return f\"{base} The strongest signal is {best.feature} ({best.impact}).\"\n    return base\ndef resolve_uri(env_key: str, default_uri: str | None) -> str | None:\n    value = os.getenv(env_key)\n    return value or default_uri\n@lru_cache",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "resolve_uri",
+        "kind": 2,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "def resolve_uri(env_key: str, default_uri: str | None) -> str | None:\n    value = os.getenv(env_key)\n    return value or default_uri\n@lru_cache\ndef load_assets():\n    load_env_file()\n    bucket = os.getenv(\"S3_BUCKET\") or os.getenv(\"S3_Bucket\")\n    processed_prefix = os.getenv(\"S3_PROCESSED_PREFIX\", \"processed\")\n    model_prefix = os.getenv(\"S3_MODEL_PREFIX\", \"models\")\n    model_default = default_s3_uri(bucket, model_prefix, \"delay_model.pkl\") if bucket else \"models/delay_model.pkl\"",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "load_assets",
+        "kind": 2,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "def load_assets():\n    load_env_file()\n    bucket = os.getenv(\"S3_BUCKET\") or os.getenv(\"S3_Bucket\")\n    processed_prefix = os.getenv(\"S3_PROCESSED_PREFIX\", \"processed\")\n    model_prefix = os.getenv(\"S3_MODEL_PREFIX\", \"models\")\n    model_default = default_s3_uri(bucket, model_prefix, \"delay_model.pkl\") if bucket else \"models/delay_model.pkl\"\n    meta_default = default_s3_uri(bucket, model_prefix, \"delay_model_meta.json\") if bucket else \"models/delay_model_meta.json\"\n    rates_default = default_s3_uri(bucket, processed_prefix, \"train.parquet\") if bucket else \"data/processed/train.parquet\"\n    model_uri = resolve_uri(\"MODEL_URI\", model_default)\n    meta_uri = resolve_uri(\"MODEL_META_URI\", meta_default)",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "health",
+        "kind": 2,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "def health():\n    try:\n        _ = load_assets()\n        return {\"status\": \"ok\"}\n    except Exception as exc:\n        raise HTTPException(status_code=500, detail=str(exc))\n@app.post(\"/advise\", response_model=AdviseResponse)\ndef advise(payload: AdviseRequest):\n    try:\n        pipeline, meta, maps, global_rate, route_distance_map, global_distance = load_assets()",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "advise",
+        "kind": 2,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "def advise(payload: AdviseRequest):\n    try:\n        pipeline, meta, maps, global_rate, route_distance_map, global_distance = load_assets()\n    except Exception as exc:\n        raise HTTPException(status_code=500, detail=str(exc))\n    try:\n        df = build_features(payload, maps, global_rate, route_distance_map, global_distance)\n    except ValueError as exc:\n        raise HTTPException(status_code=400, detail=str(exc))\n    X = df",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "SRC_DIR",
+        "kind": 5,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "SRC_DIR = Path(__file__).resolve().parents[1]\nROOT_DIR = SRC_DIR.parent\nif str(SRC_DIR) not in sys.path:\n    sys.path.insert(0, str(SRC_DIR))\nif str(ROOT_DIR) not in sys.path:\n    sys.path.insert(0, str(ROOT_DIR))\nfrom model import (  # noqa: E402\n    FEATURE_SPECS,\n    TARGET_COL,\n    build_s3_client,",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "ROOT_DIR",
+        "kind": 5,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "ROOT_DIR = SRC_DIR.parent\nif str(SRC_DIR) not in sys.path:\n    sys.path.insert(0, str(SRC_DIR))\nif str(ROOT_DIR) not in sys.path:\n    sys.path.insert(0, str(ROOT_DIR))\nfrom model import (  # noqa: E402\n    FEATURE_SPECS,\n    TARGET_COL,\n    build_s3_client,\n    coerce_feature_types,",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "app",
+        "kind": 5,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "app = FastAPI(title=\"Flight Advisor API\", version=\"0.1.0\")\norigins = os.getenv(\"CORS_ORIGINS\")\nif origins:\n    allowed = [origin.strip() for origin in origins.split(\",\") if origin.strip()]\nelse:\n    allowed = [\"*\"]\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=allowed,\n    allow_credentials=True,",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "origins",
+        "kind": 5,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "origins = os.getenv(\"CORS_ORIGINS\")\nif origins:\n    allowed = [origin.strip() for origin in origins.split(\",\") if origin.strip()]\nelse:\n    allowed = [\"*\"]\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=allowed,\n    allow_credentials=True,\n    allow_methods=[\"*\"],",
+        "detail": "src.api.main",
+        "documentation": {}
+    },
+    {
+        "label": "RATE_COLS",
+        "kind": 5,
+        "importPath": "src.api.main",
+        "description": "src.api.main",
+        "peekOfCode": "RATE_COLS = [\n    \"ORIGIN_DELAY_RATE\",\n    \"DEST_DELAY_RATE\",\n    \"CARRIER_DELAY_RATE\",\n    \"ROUTE_DELAY_RATE\",\n    \"CARRIER_DELAY_RATE_DOW\",\n]\ndef season_from_month(month: int) -> str:\n    if month in (12, 1, 2):\n        return \"winter\"",
+        "detail": "src.api.main",
         "documentation": {}
     },
     {
@@ -466,6 +2170,15 @@
         "documentation": {}
     },
     {
+        "label": "build_table_location",
+        "kind": 2,
+        "importPath": "src.aws.athena_client",
+        "description": "src.aws.athena_client",
+        "peekOfCode": "def build_table_location(\n    bucket: str,\n    prefix: str,\n    table: str,\n    file_format: str,\n    layout: str,\n) -> str:\n    base = f\"s3://{bucket}/{prefix.strip('/')}\"\n    if layout == \"folder\":\n        return f\"{base}/{table}/\"",
+        "detail": "src.aws.athena_client",
+        "documentation": {}
+    },
+    {
         "label": "run_query",
         "kind": 2,
         "importPath": "src.aws.athena_client",
@@ -504,6 +2217,42 @@
     {
         "label": "load_env_file",
         "kind": 2,
+        "importPath": "src.aws.athena_query",
+        "description": "src.aws.athena_query",
+        "peekOfCode": "def load_env_file(path: Path = Path(\".env\")) -> None:\n    \"\"\"Load key=value pairs from *path* into os.environ (no overwrite).\"\"\"\n    if not path.exists():\n        return\n    for line in path.read_text(encoding=\"utf-8\").splitlines():\n        stripped = line.strip()\n        if not stripped or stripped.startswith(\"#\") or \"=\" not in stripped:\n            continue\n        key, value = stripped.split(\"=\", 1)\n        key = key.strip()",
+        "detail": "src.aws.athena_query",
+        "documentation": {}
+    },
+    {
+        "label": "build_session",
+        "kind": 2,
+        "importPath": "src.aws.athena_query",
+        "description": "src.aws.athena_query",
+        "peekOfCode": "def build_session(profile: str | None, region: str) -> boto3.Session:\n    try:\n        return boto3.Session(profile_name=profile, region_name=region)\n    except ProfileNotFound:\n        profiles = boto3.Session().available_profiles\n        hint = f\"Available profiles: {profiles}\" if profiles else \"No profiles found in ~/.aws/credentials.\"\n        raise RuntimeError(f\"AWS profile '{profile}' not found. {hint}\")\ndef check_credentials(session: boto3.Session) -> None:\n    creds = session.get_credentials()\n    if creds is None:",
+        "detail": "src.aws.athena_query",
+        "documentation": {}
+    },
+    {
+        "label": "check_credentials",
+        "kind": 2,
+        "importPath": "src.aws.athena_query",
+        "description": "src.aws.athena_query",
+        "peekOfCode": "def check_credentials(session: boto3.Session) -> None:\n    creds = session.get_credentials()\n    if creds is None:\n        raise NoCredentialsError()\n    resolved = creds.get_frozen_credentials()\n    if not resolved.access_key:\n        raise NoCredentialsError()\ndef run_query(\n    query: str,\n    database: str,",
+        "detail": "src.aws.athena_query",
+        "documentation": {}
+    },
+    {
+        "label": "run_query",
+        "kind": 2,
+        "importPath": "src.aws.athena_query",
+        "description": "src.aws.athena_query",
+        "peekOfCode": "def run_query(\n    query: str,\n    database: str,\n    bucket: str,\n    output_prefix: str,\n    region: str,\n    profile: str | None = None,\n    max_rows: int | None = None,\n    poll_seconds: float = 1.0,\n    max_wait_seconds: float = 120.0,",
+        "detail": "src.aws.athena_query",
+        "documentation": {}
+    },
+    {
+        "label": "load_env_file",
+        "kind": 2,
         "importPath": "src.aws.uploader",
         "description": "src.aws.uploader",
         "peekOfCode": "def load_env_file(path: Path = Path(\".env\")) -> None:\n    if not path.exists():\n        return\n    for line in path.read_text(encoding=\"utf-8\").splitlines():\n        stripped = line.strip()\n        if not stripped or stripped.startswith(\"#\") or \"=\" not in stripped:\n            continue\n        key, value = stripped.split(\"=\", 1)\n        key = key.strip()\n        value = value.strip().strip('\"').strip(\"'\")",
@@ -515,7 +2264,7 @@
         "kind": 2,
         "importPath": "src.aws.uploader",
         "description": "src.aws.uploader",
-        "peekOfCode": "def parse_args() -> argparse.Namespace:\n    parser = argparse.ArgumentParser(\n        description=\"Upload flight data (CSV) to the S3 raw zone.\"\n    )\n    parser.add_argument(\n        \"--input\",\n        default=\"data/raw/flights.csv\",\n        help=\"Path to flights CSV (default: data/raw/flights.csv)\",\n    )\n    parser.add_argument(",
+        "peekOfCode": "def parse_args() -> argparse.Namespace:\n    parser = argparse.ArgumentParser(\n        description=\"Upload flight data to the S3 raw zone (Parquet only).\"\n    )\n    parser.add_argument(\n        \"--input\",\n        default=\"data/raw/flights.csv\",\n        help=\"Path to flights CSV or Parquet (default: data/raw/flights.csv)\",\n    )\n    parser.add_argument(",
         "detail": "src.aws.uploader",
         "documentation": {}
     },
@@ -542,7 +2291,25 @@
         "kind": 2,
         "importPath": "src.aws.uploader",
         "description": "src.aws.uploader",
-        "peekOfCode": "def upload(s3_client, input_path: Path, bucket: str, key: str) -> None:\n    \"\"\"Upload a file to S3 with structured error handling.\"\"\"\n    s3_client.upload_file(str(input_path), bucket, key)\ndef main() -> int:\n    load_env_file()\n    args = parse_args()\n    # ── Validate inputs ────────────────────────────────────────────────────────\n    if not args.bucket:\n        print(\"Missing S3 bucket. Provide --bucket or set S3_BUCKET.\", file=sys.stderr)\n        return 2",
+        "peekOfCode": "def upload(s3_client, input_path: Path, bucket: str, key: str) -> None:\n    \"\"\"Upload a file to S3 with structured error handling.\"\"\"\n    s3_client.upload_file(str(input_path), bucket, key)\ndef normalize_output_name(name: str) -> str:\n    if name.lower().endswith(\".parquet\"):\n        return name\n    if name.lower().endswith(\".csv\"):\n        return name[:-4] + \".parquet\"\n    return name + \".parquet\"\ndef convert_input_to_parquet(input_path: Path, dest: Path) -> Path:",
+        "detail": "src.aws.uploader",
+        "documentation": {}
+    },
+    {
+        "label": "normalize_output_name",
+        "kind": 2,
+        "importPath": "src.aws.uploader",
+        "description": "src.aws.uploader",
+        "peekOfCode": "def normalize_output_name(name: str) -> str:\n    if name.lower().endswith(\".parquet\"):\n        return name\n    if name.lower().endswith(\".csv\"):\n        return name[:-4] + \".parquet\"\n    return name + \".parquet\"\ndef convert_input_to_parquet(input_path: Path, dest: Path) -> Path:\n    df = pd.read_parquet(input_path) if input_path.suffix.lower() == \".parquet\" else pd.read_csv(input_path)\n    df.to_parquet(dest, index=False)\n    return dest",
+        "detail": "src.aws.uploader",
+        "documentation": {}
+    },
+    {
+        "label": "convert_input_to_parquet",
+        "kind": 2,
+        "importPath": "src.aws.uploader",
+        "description": "src.aws.uploader",
+        "peekOfCode": "def convert_input_to_parquet(input_path: Path, dest: Path) -> Path:\n    df = pd.read_parquet(input_path) if input_path.suffix.lower() == \".parquet\" else pd.read_csv(input_path)\n    df.to_parquet(dest, index=False)\n    return dest\ndef main() -> int:\n    load_env_file()\n    args = parse_args()\n    # ── Validate inputs ────────────────────────────────────────────────────────\n    if not args.bucket:\n        print(\"Missing S3 bucket. Provide --bucket or set S3_BUCKET.\", file=sys.stderr)",
         "detail": "src.aws.uploader",
         "documentation": {}
     },
@@ -553,6 +2320,447 @@
         "description": "src.aws.uploader",
         "peekOfCode": "def main() -> int:\n    load_env_file()\n    args = parse_args()\n    # ── Validate inputs ────────────────────────────────────────────────────────\n    if not args.bucket:\n        print(\"Missing S3 bucket. Provide --bucket or set S3_BUCKET.\", file=sys.stderr)\n        return 2\n    input_path = Path(args.input)\n    if not input_path.exists():\n        print(f\"Input file not found: {input_path}\", file=sys.stderr)",
         "detail": "src.aws.uploader",
+        "documentation": {}
+    },
+    {
+        "label": "convert_csv_to_parquet",
+        "kind": 2,
+        "importPath": "src.jobs.csv_to_parquet_converter",
+        "description": "src.jobs.csv_to_parquet_converter",
+        "peekOfCode": "def convert_csv_to_parquet(bucket_name):\n    \"\"\"\n    Converts all CSV files in a given S3 bucket to Parquet format.\n    For each CSV file found in the bucket, this function will:\n    1. Read the CSV file into a pandas DataFrame.\n    2. Write the DataFrame to a Parquet file in-memory.\n    3. Upload the Parquet file to the same S3 bucket with the same name,\n       but with a .parquet extension.\n    4. Delete the original CSV file from the bucket.\n    Args:",
+        "detail": "src.jobs.csv_to_parquet_converter",
+        "documentation": {}
+    },
+    {
+        "label": "parse_args",
+        "kind": 2,
+        "importPath": "src.jobs.generate_future_flights",
+        "description": "src.jobs.generate_future_flights",
+        "peekOfCode": "def parse_args() -> argparse.Namespace:\n    parser = argparse.ArgumentParser(\n        description=\"Generate a synthetic future_flights.parquet for weekly predictions.\"\n    )\n    parser.add_argument(\"--input\", default=None, help=\"Source dataset (path or s3://).\")\n    parser.add_argument(\"--output\", default=None, help=\"Output dataset (path or s3://).\")\n    parser.add_argument(\"--rows\", type=int, default=50000, help=\"Number of rows to generate.\")\n    parser.add_argument(\n        \"--start-date\",\n        default=None,",
+        "detail": "src.jobs.generate_future_flights",
+        "documentation": {}
+    },
+    {
+        "label": "default_paths",
+        "kind": 2,
+        "importPath": "src.jobs.generate_future_flights",
+        "description": "src.jobs.generate_future_flights",
+        "peekOfCode": "def default_paths(args: argparse.Namespace) -> argparse.Namespace:\n    if args.input is None:\n        if not args.bucket:\n            raise ValueError(\"Missing --input and S3_BUCKET. Provide a source dataset or set S3_BUCKET.\")\n        args.input = default_s3_uri(args.bucket, args.refined_prefix, \"flights_processed.parquet\")\n    if args.output is None:\n        if not args.bucket:\n            raise ValueError(\"Missing --output and S3_BUCKET. Provide an output path or set S3_BUCKET.\")\n        args.output = default_s3_uri(args.bucket, args.refined_prefix, \"future_flights.parquet\")\n    return args",
+        "detail": "src.jobs.generate_future_flights",
+        "documentation": {}
+    },
+    {
+        "label": "next_monday",
+        "kind": 2,
+        "importPath": "src.jobs.generate_future_flights",
+        "description": "src.jobs.generate_future_flights",
+        "peekOfCode": "def next_monday() -> date:\n    today = date.today()\n    days_ahead = (0 - today.weekday()) % 7\n    if days_ahead == 0:\n        days_ahead = 7\n    return today + timedelta(days=days_ahead)\ndef ensure_base_columns(df: pd.DataFrame, cols: Iterable[str]) -> None:\n    missing = [col for col in cols if col not in df.columns]\n    if missing:\n        raise ValueError(f\"Missing required base columns: {', '.join(missing)}\")",
+        "detail": "src.jobs.generate_future_flights",
+        "documentation": {}
+    },
+    {
+        "label": "ensure_base_columns",
+        "kind": 2,
+        "importPath": "src.jobs.generate_future_flights",
+        "description": "src.jobs.generate_future_flights",
+        "peekOfCode": "def ensure_base_columns(df: pd.DataFrame, cols: Iterable[str]) -> None:\n    missing = [col for col in cols if col not in df.columns]\n    if missing:\n        raise ValueError(f\"Missing required base columns: {', '.join(missing)}\")\ndef reservoir_sample(\n    path: Path,\n    usecols: List[str],\n    n: int,\n    seed: int,\n    chunksize: int = 200_000,",
+        "detail": "src.jobs.generate_future_flights",
+        "documentation": {}
+    },
+    {
+        "label": "reservoir_sample",
+        "kind": 2,
+        "importPath": "src.jobs.generate_future_flights",
+        "description": "src.jobs.generate_future_flights",
+        "peekOfCode": "def reservoir_sample(\n    path: Path,\n    usecols: List[str],\n    n: int,\n    seed: int,\n    chunksize: int = 200_000,\n) -> pd.DataFrame:\n    if n <= 0:\n        raise ValueError(\"--rows must be greater than 0.\")\n    if path.suffix.lower() == \".parquet\":",
+        "detail": "src.jobs.generate_future_flights",
+        "documentation": {}
+    },
+    {
+        "label": "assign_future_dates",
+        "kind": 2,
+        "importPath": "src.jobs.generate_future_flights",
+        "description": "src.jobs.generate_future_flights",
+        "peekOfCode": "def assign_future_dates(\n    df: pd.DataFrame,\n    start: date,\n    week_days: int,\n    seed: int,\n) -> pd.DataFrame:\n    rng = np.random.default_rng(seed)\n    dates = [start + timedelta(days=i) for i in range(week_days)]\n    chosen = rng.choice(dates, size=len(df), replace=True)\n    df = df.copy()",
+        "detail": "src.jobs.generate_future_flights",
+        "documentation": {}
+    },
+    {
+        "label": "normalize_s3_parquet_uri",
+        "kind": 2,
+        "importPath": "src.jobs.generate_future_flights",
+        "description": "src.jobs.generate_future_flights",
+        "peekOfCode": "def normalize_s3_parquet_uri(uri: str) -> str:\n    if not is_s3_uri(uri):\n        return uri\n    if uri.lower().endswith(\".parquet\"):\n        return uri\n    if uri.lower().endswith(\".csv\"):\n        return uri[:-4] + \".parquet\"\n    return uri + \".parquet\"\ndef write_output(df: pd.DataFrame, output: str, s3, tmp_dir: Path) -> str:\n    if is_s3_uri(output):",
+        "detail": "src.jobs.generate_future_flights",
+        "documentation": {}
+    },
+    {
+        "label": "write_output",
+        "kind": 2,
+        "importPath": "src.jobs.generate_future_flights",
+        "description": "src.jobs.generate_future_flights",
+        "peekOfCode": "def write_output(df: pd.DataFrame, output: str, s3, tmp_dir: Path) -> str:\n    if is_s3_uri(output):\n        output = normalize_s3_parquet_uri(output)\n        bucket, key = parse_s3_uri(output)\n        dest = tmp_dir / key\n        dest.parent.mkdir(parents=True, exist_ok=True)\n        df.to_parquet(dest, index=False)\n        upload_s3_object(s3, dest, bucket, key)\n        return output\n    path = Path(output)",
+        "detail": "src.jobs.generate_future_flights",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "src.jobs.generate_future_flights",
+        "description": "src.jobs.generate_future_flights",
+        "peekOfCode": "def main() -> int:\n    load_env_file()\n    args = parse_args()\n    try:\n        args = default_paths(args)\n    except ValueError as exc:\n        print(str(exc), file=sys.stderr)\n        return 2\n    needs_s3 = any(is_s3_uri(value) for value in (args.input, args.output) if value)\n    s3 = build_s3_client(args.region, args.profile) if needs_s3 else None",
+        "detail": "src.jobs.generate_future_flights",
+        "documentation": {}
+    },
+    {
+        "label": "SRC_DIR",
+        "kind": 5,
+        "importPath": "src.jobs.generate_future_flights",
+        "description": "src.jobs.generate_future_flights",
+        "peekOfCode": "SRC_DIR = Path(__file__).resolve().parents[1]\nif str(SRC_DIR) not in sys.path:\n    sys.path.insert(0, str(SRC_DIR))\nfrom model import (  # noqa: E402\n    TARGET_COL,\n    build_s3_client,\n    default_s3_uri,\n    is_s3_uri,\n    load_env_file,\n    load_model_any,",
+        "detail": "src.jobs.generate_future_flights",
+        "documentation": {}
+    },
+    {
+        "label": "BASE_COLS",
+        "kind": 5,
+        "importPath": "src.jobs.generate_future_flights",
+        "description": "src.jobs.generate_future_flights",
+        "peekOfCode": "BASE_COLS = [\n    \"YEAR\",\n    \"MONTH\",\n    \"DAY\",\n    \"DAY_OF_WEEK\",\n    \"SCHEDULED_DEPARTURE\",\n    \"DISTANCE\",\n    \"ORIGIN_AIRPORT\",\n    \"DESTINATION_AIRPORT\",\n    \"AIRLINE\",",
+        "detail": "src.jobs.generate_future_flights",
+        "documentation": {}
+    },
+    {
+        "label": "parse_args",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_pipeline",
+        "description": "src.jobs.weekly_pipeline",
+        "peekOfCode": "def parse_args() -> argparse.Namespace:\n    parser = argparse.ArgumentParser(\n        description=\"Generate future_flights.parquet and run weekly predictions.\"\n    )\n    parser.add_argument(\"--source\", default=None, help=\"Source dataset for sampling (path or s3://).\")\n    parser.add_argument(\"--future-output\", default=None, help=\"Future flights dataset (path or s3://).\")\n    parser.add_argument(\"--rows\", type=int, default=50000, help=\"Number of rows to generate.\")\n    parser.add_argument(\n        \"--start-date\",\n        default=None,",
+        "detail": "src.jobs.weekly_pipeline",
+        "documentation": {}
+    },
+    {
+        "label": "build_defaults",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_pipeline",
+        "description": "src.jobs.weekly_pipeline",
+        "peekOfCode": "def build_defaults(args: argparse.Namespace) -> argparse.Namespace:\n    if args.source is None and args.bucket:\n        args.source = default_s3_uri(args.bucket, args.refined_prefix, \"flights_processed.parquet\")\n    if args.future_output is None and args.bucket:\n        args.future_output = default_s3_uri(args.bucket, args.refined_prefix, \"future_flights.parquet\")\n    if args.model is None and args.bucket:\n        args.model = default_s3_uri(args.bucket, args.model_prefix, \"delay_model.pkl\")\n    if args.rates_source is None and args.bucket:\n        args.rates_source = default_s3_uri(args.bucket, args.processed_prefix, \"train.parquet\")\n    if args.output is None and args.bucket:",
+        "detail": "src.jobs.weekly_pipeline",
+        "documentation": {}
+    },
+    {
+        "label": "run_module",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_pipeline",
+        "description": "src.jobs.weekly_pipeline",
+        "peekOfCode": "def run_module(module, argv: list[str]) -> int:\n    old_argv = sys.argv\n    try:\n        sys.argv = argv\n        return int(module.main())\n    finally:\n        sys.argv = old_argv\ndef main() -> int:\n    load_env_file()\n    args = parse_args()",
+        "detail": "src.jobs.weekly_pipeline",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_pipeline",
+        "description": "src.jobs.weekly_pipeline",
+        "peekOfCode": "def main() -> int:\n    load_env_file()\n    args = parse_args()\n    args = build_defaults(args)\n    if not args.source:\n        print(\"Missing --source or S3_BUCKET for generator.\", file=sys.stderr)\n        return 2\n    if not args.future_output:\n        print(\"Missing --future-output or S3_BUCKET for generator.\", file=sys.stderr)\n        return 2",
+        "detail": "src.jobs.weekly_pipeline",
+        "documentation": {}
+    },
+    {
+        "label": "SRC_DIR",
+        "kind": 5,
+        "importPath": "src.jobs.weekly_pipeline",
+        "description": "src.jobs.weekly_pipeline",
+        "peekOfCode": "SRC_DIR = Path(__file__).resolve().parents[1]\nif str(SRC_DIR) not in sys.path:\n    sys.path.insert(0, str(SRC_DIR))\nfrom model import default_s3_uri, load_env_file  # noqa: E402\nimport generate_future_flights  # noqa: E402\nimport weekly_predict  # noqa: E402\ndef parse_args() -> argparse.Namespace:\n    parser = argparse.ArgumentParser(\n        description=\"Generate future_flights.parquet and run weekly predictions.\"\n    )",
+        "detail": "src.jobs.weekly_pipeline",
+        "documentation": {}
+    },
+    {
+        "label": "parse_args",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "def parse_args() -> argparse.Namespace:\n    parser = argparse.ArgumentParser(\n        description=\"Weekly prediction job for upcoming flights.\"\n    )\n    parser.add_argument(\"--model\",        default=None, help=\"Path or s3:// URI to model.\")\n    parser.add_argument(\"--meta\",         default=None, help=\"Optional metadata JSON (path or s3://).\")\n    parser.add_argument(\"--input\",        default=None, help=\"Upcoming flights dataset (path or s3://).\")\n    parser.add_argument(\n        \"--rates-source\",\n        default=None,",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "default_paths",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "def default_paths(args: argparse.Namespace) -> argparse.Namespace:\n    if args.model is None:\n        if not args.bucket:\n            raise ValueError(\"Missing --model and S3_BUCKET.\")\n        args.model = default_s3_uri(args.bucket, args.model_prefix, \"delay_model.pkl\")\n    if args.rates_source is None:\n        if not args.bucket:\n            raise ValueError(\"Missing --rates-source and S3_BUCKET.\")\n        args.rates_source = default_s3_uri(args.bucket, args.processed_prefix, \"train.parquet\")\n    if args.input is None:",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "time_of_day",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "def time_of_day(hour: int) -> str:\n    if 5 <= hour <= 11:\n        return \"morning\"\n    if 12 <= hour <= 16:\n        return \"afternoon\"\n    if 17 <= hour <= 21:\n        return \"evening\"\n    return \"night\"\ndef season_from_month(month: int) -> str:\n    if month in (12, 1, 2):",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "season_from_month",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "def season_from_month(month: int) -> str:\n    if month in (12, 1, 2):\n        return \"winter\"\n    if month in (3, 4, 5):\n        return \"spring\"\n    if month in (6, 7, 8):\n        return \"summer\"\n    return \"fall\"\ndef build_holiday_set(dates: Iterable[pd.Timestamp]) -> set[pd.Timestamp]:\n    from pandas.tseries.holiday import USFederalHolidayCalendar",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "build_holiday_set",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "def build_holiday_set(dates: Iterable[pd.Timestamp]) -> set[pd.Timestamp]:\n    from pandas.tseries.holiday import USFederalHolidayCalendar\n    dates = list(dates)\n    if not dates:\n        return set()\n    start = min(dates).normalize()\n    end   = max(dates).normalize()\n    cal   = USFederalHolidayCalendar()\n    return set(pd.to_datetime(cal.holidays(start=start, end=end)).normalize())\ndef ensure_base_columns(df: pd.DataFrame, cols: Iterable[str]) -> None:",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "ensure_base_columns",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "def ensure_base_columns(df: pd.DataFrame, cols: Iterable[str]) -> None:\n    missing = [col for col in cols if col not in df.columns]\n    if missing:\n        raise ValueError(f\"Missing required base columns: {', '.join(missing)}\")\ndef add_engineered_features(df: pd.DataFrame) -> pd.DataFrame:\n    df  = df.copy()\n    dep = df[\"SCHEDULED_DEPARTURE\"].fillna(0).astype(int)\n    hours = (dep // 100).clip(0, 23)\n    df[\"TIME_OF_DAY\"] = hours.map(time_of_day)\n    df[\"SEASON\"]      = df[\"MONTH\"].astype(int).map(season_from_month)",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "add_engineered_features",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "def add_engineered_features(df: pd.DataFrame) -> pd.DataFrame:\n    df  = df.copy()\n    dep = df[\"SCHEDULED_DEPARTURE\"].fillna(0).astype(int)\n    hours = (dep // 100).clip(0, 23)\n    df[\"TIME_OF_DAY\"] = hours.map(time_of_day)\n    df[\"SEASON\"]      = df[\"MONTH\"].astype(int).map(season_from_month)\n    flight_dates = pd.to_datetime(\n        dict(year=df[\"YEAR\"], month=df[\"MONTH\"], day=df[\"DAY\"]), errors=\"coerce\"\n    )\n    holiday_set      = build_holiday_set(flight_dates.dropna())",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "build_rate_maps",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "def build_rate_maps(hist_df: pd.DataFrame) -> Tuple[Dict[str, Dict[str, float]], float]:\n    if TARGET_COL not in hist_df.columns:\n        raise ValueError(f\"Historical dataset must include {TARGET_COL}.\")\n    global_rate = float(hist_df[TARGET_COL].mean())\n    if \"ROUTE\" not in hist_df.columns:\n        hist_df = hist_df.copy()\n        hist_df[\"ROUTE\"] = (\n            hist_df[\"ORIGIN_AIRPORT\"].astype(str) + \"_\" + hist_df[\"DESTINATION_AIRPORT\"].astype(str)\n        )\n    if \"AIRLINE_DOW\" not in hist_df.columns:",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "apply_rate_maps",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "def apply_rate_maps(\n    df: pd.DataFrame, maps: Dict[str, Dict[str, float]], global_rate: float\n) -> pd.DataFrame:\n    df = df.copy()\n    df[\"ORIGIN_DELAY_RATE\"]      = df[\"ORIGIN_AIRPORT\"].map(maps[\"ORIGIN_DELAY_RATE\"]).fillna(global_rate)\n    df[\"DEST_DELAY_RATE\"]        = df[\"DESTINATION_AIRPORT\"].map(maps[\"DEST_DELAY_RATE\"]).fillna(global_rate)\n    df[\"CARRIER_DELAY_RATE\"]     = df[\"AIRLINE\"].map(maps[\"CARRIER_DELAY_RATE\"]).fillna(global_rate)\n    df[\"ROUTE_DELAY_RATE\"]       = df[\"ROUTE\"].map(maps[\"ROUTE_DELAY_RATE\"]).fillna(global_rate)\n    df[\"CARRIER_DELAY_RATE_DOW\"] = df[\"AIRLINE_DOW\"].map(maps[\"CARRIER_DELAY_RATE_DOW\"]).fillna(global_rate)\n    df[\"ROTA_DELAY_RATE\"]        = df[\"ROUTE_DELAY_RATE\"]",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "filter_week",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "def filter_week(df: pd.DataFrame, week_start: str, week_days: int) -> pd.DataFrame:\n    start = date.fromisoformat(week_start)\n    end   = start + timedelta(days=week_days)\n    if \"FLIGHT_DATE\" in df.columns:\n        dates = pd.to_datetime(df[\"FLIGHT_DATE\"], errors=\"coerce\").dt.date\n    else:\n        ensure_base_columns(df, [\"YEAR\", \"MONTH\", \"DAY\"])\n        dates = pd.to_datetime(\n            dict(year=df[\"YEAR\"], month=df[\"MONTH\"], day=df[\"DAY\"]), errors=\"coerce\"\n        ).dt.date",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "ensure_features",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "def ensure_features(\n    df: pd.DataFrame, rates_df: pd.DataFrame, required: List[str]\n) -> pd.DataFrame:\n    if not any(col not in df.columns for col in required):\n        return df\n    base_cols = [\n        \"YEAR\", \"MONTH\", \"DAY\", \"DAY_OF_WEEK\",\n        \"SCHEDULED_DEPARTURE\", \"DISTANCE\",\n        \"ORIGIN_AIRPORT\", \"DESTINATION_AIRPORT\", \"AIRLINE\",\n    ]",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "normalize_s3_parquet_uri",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "def normalize_s3_parquet_uri(uri: str) -> str:\n    if not is_s3_uri(uri):\n        return uri\n    if uri.lower().endswith(\".parquet\"):\n        return uri\n    if uri.lower().endswith(\".csv\"):\n        return uri[:-4] + \".parquet\"\n    return uri + \".parquet\"\ndef write_output(df: pd.DataFrame, output: str, s3, tmp_dir: Path) -> str:\n    if is_s3_uri(output):",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "write_output",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "def write_output(df: pd.DataFrame, output: str, s3, tmp_dir: Path) -> str:\n    if is_s3_uri(output):\n        output = normalize_s3_parquet_uri(output)\n        bucket, key = parse_s3_uri(output)\n        dest = tmp_dir / key\n        dest.parent.mkdir(parents=True, exist_ok=True)\n        df.to_parquet(dest, index=False)\n        upload_s3_object(s3, dest, bucket, key)\n        return output\n    path = Path(output)",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "load_metadata",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "def load_metadata(args, model_path: Path, s3, tmp_dir: Path) -> dict | None:\n    candidates: List[Path] = []\n    if args.meta:\n        candidates.append(load_model_any(args.meta, s3, tmp_dir))\n    else:\n        candidates.extend([\n            model_path.with_suffix(\".json\"),\n            model_path.with_name(f\"{model_path.stem}_meta.json\"),\n        ])\n        if is_s3_uri(args.model) and s3:",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "spec_columns",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "def spec_columns(kind: str) -> List[str]:\n    cols: List[str] = []\n    for spec in FEATURE_SPECS:\n        if spec.kind == kind:\n            cols.append(spec.canonical)\n            cols.extend(list(spec.alternatives))\n    return cols\n# ---------------------------------------------------------------------------\n# Athena validation\n# ---------------------------------------------------------------------------",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "fetch_actuals_from_athena",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "def fetch_actuals_from_athena(\n    session,\n    database: str,\n    table: str,\n    results_location: str,\n    week_start: str,\n    week_days: int,\n    region: str,\n) -> pd.DataFrame:\n    \"\"\"Query Athena for actual IS_DELAYED outcomes for a given week.\"\"\"",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "compute_metrics",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "def compute_metrics(\n    predictions_df: pd.DataFrame,\n    actuals_df: pd.DataFrame,\n) -> Tuple[pd.DataFrame, dict]:\n    \"\"\"Join predictions with actuals and compute classification metrics.\n    Join keys: YEAR, MONTH, DAY, AIRLINE, FLIGHT_NUMBER, ORIGIN_AIRPORT, DESTINATION_AIRPORT.\n    Falls back to YEAR + MONTH + DAY + ROUTE if FLIGHT_NUMBER is absent.\n    \"\"\"\n    join_keys = [\"YEAR\", \"MONTH\", \"DAY\", \"AIRLINE\", \"ORIGIN_AIRPORT\", \"DESTINATION_AIRPORT\"]\n    if \"FLIGHT_NUMBER\" in predictions_df.columns and \"FLIGHT_NUMBER\" in actuals_df.columns:",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "def main() -> int:\n    load_env_file()\n    args = parse_args()\n    try:\n        args = default_paths(args)\n    except ValueError as exc:\n        print(str(exc), file=sys.stderr)\n        return 2\n    needs_s3 = any(\n        is_s3_uri(value)",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "SRC_DIR",
+        "kind": 5,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "SRC_DIR = Path(__file__).resolve().parents[1]\nif str(SRC_DIR) not in sys.path:\n    sys.path.insert(0, str(SRC_DIR))\ntry:\n    import joblib\nexcept ModuleNotFoundError:\n    print(\n        \"Missing dependency: joblib. Install with:\\n\"\n        \"  pip install joblib\",\n        file=sys.stderr,",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "RATE_COLS",
+        "kind": 5,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "RATE_COLS = [\n    \"ORIGIN_DELAY_RATE\",\n    \"DEST_DELAY_RATE\",\n    \"CARRIER_DELAY_RATE\",\n    \"ROUTE_DELAY_RATE\",\n    \"CARRIER_DELAY_RATE_DOW\",\n]\n# Athena query poll settings\n_ATHENA_POLL_INTERVAL = 2.0   # seconds between status checks\n_ATHENA_TIMEOUT       = 120   # seconds before giving up",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "_ATHENA_POLL_INTERVAL",
+        "kind": 5,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "_ATHENA_POLL_INTERVAL = 2.0   # seconds between status checks\n_ATHENA_TIMEOUT       = 120   # seconds before giving up\n# ---------------------------------------------------------------------------\n# CLI\n# ---------------------------------------------------------------------------\ndef parse_args() -> argparse.Namespace:\n    parser = argparse.ArgumentParser(\n        description=\"Weekly prediction job for upcoming flights.\"\n    )\n    parser.add_argument(\"--model\",        default=None, help=\"Path or s3:// URI to model.\")",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "args_week_start_placeholder",
+        "kind": 5,
+        "importPath": "src.jobs.weekly_predict",
+        "description": "src.jobs.weekly_predict",
+        "peekOfCode": "args_week_start_placeholder = \"\"\ndef main() -> int:\n    load_env_file()\n    args = parse_args()\n    try:\n        args = default_paths(args)\n    except ValueError as exc:\n        print(str(exc), file=sys.stderr)\n        return 2\n    needs_s3 = any(",
+        "detail": "src.jobs.weekly_predict",
+        "documentation": {}
+    },
+    {
+        "label": "parse_args",
+        "kind": 2,
+        "importPath": "src.explainer",
+        "description": "src.explainer",
+        "peekOfCode": "def parse_args() -> argparse.Namespace:\n    parser = argparse.ArgumentParser(\n        description=\"Generate SHAP values and summary plots.\"\n    )\n    parser.add_argument(\"--model\", default=\"models/delay_model.pkl\", help=\"Path or s3:// URI to model.\")\n    parser.add_argument(\"--meta\", default=None, help=\"Optional metadata JSON (path or s3://).\")\n    parser.add_argument(\n        \"--input\",\n        default=None,\n        help=\"CSV input (path or s3://, default: S3 when S3_BUCKET is set).\",",
+        "detail": "src.explainer",
+        "documentation": {}
+    },
+    {
+        "label": "load_input_frame",
+        "kind": 2,
+        "importPath": "src.explainer",
+        "description": "src.explainer",
+        "peekOfCode": "def load_input_frame(\n    args: argparse.Namespace,\n    s3,\n    tmp_dir: Path,\n) -> pd.DataFrame:\n    sources = [args.input, args.json_path, args.row]\n    if sum(1 for s in sources if s) == 0:\n        bucket = os.getenv(\"S3_BUCKET\") or os.getenv(\"S3_Bucket\")\n        prefix = os.getenv(\"S3_PROCESSED_PREFIX\", \"processed\")\n        default_input = default_s3_uri(bucket, prefix, \"test.parquet\")",
+        "detail": "src.explainer",
+        "documentation": {}
+    },
+    {
+        "label": "load_metadata",
+        "kind": 2,
+        "importPath": "src.explainer",
+        "description": "src.explainer",
+        "peekOfCode": "def load_metadata(\n    args: argparse.Namespace,\n    model_path: Path,\n    s3,\n    tmp_dir: Path,\n) -> dict | None:\n    meta = None\n    candidates: List[Path] = []\n    if args.meta:\n        candidates.append(load_model_any(args.meta, s3, tmp_dir))",
+        "detail": "src.explainer",
+        "documentation": {}
+    },
+    {
+        "label": "extract_pipeline_parts",
+        "kind": 2,
+        "importPath": "src.explainer",
+        "description": "src.explainer",
+        "peekOfCode": "def extract_pipeline_parts(pipeline) -> Tuple[object | None, object]:\n    if hasattr(pipeline, \"named_steps\") and \"preprocess\" in pipeline.named_steps:\n        preprocessor = pipeline.named_steps[\"preprocess\"]\n        model = pipeline.named_steps.get(\"model\", pipeline)\n        return preprocessor, model\n    return None, pipeline\ndef get_feature_names(\n    preprocessor,\n    X_transformed: np.ndarray,\n    raw_df: pd.DataFrame,",
+        "detail": "src.explainer",
+        "documentation": {}
+    },
+    {
+        "label": "get_feature_names",
+        "kind": 2,
+        "importPath": "src.explainer",
+        "description": "src.explainer",
+        "peekOfCode": "def get_feature_names(\n    preprocessor,\n    X_transformed: np.ndarray,\n    raw_df: pd.DataFrame,\n) -> List[str]:\n    if preprocessor is None:\n        return list(raw_df.columns)\n    try:\n        return list(preprocessor.get_feature_names_out())\n    except Exception:",
+        "detail": "src.explainer",
+        "documentation": {}
+    },
+    {
+        "label": "densify",
+        "kind": 2,
+        "importPath": "src.explainer",
+        "description": "src.explainer",
+        "peekOfCode": "def densify(matrix):\n    if hasattr(matrix, \"toarray\"):\n        return matrix.toarray()\n    return matrix\ndef extract_shap_values(values: np.ndarray) -> np.ndarray:\n    if values.ndim == 3:\n        class_idx = 1 if values.shape[2] > 1 else 0\n        return values[:, :, class_idx]\n    return values\ndef build_top_factors(",
+        "detail": "src.explainer",
+        "documentation": {}
+    },
+    {
+        "label": "extract_shap_values",
+        "kind": 2,
+        "importPath": "src.explainer",
+        "description": "src.explainer",
+        "peekOfCode": "def extract_shap_values(values: np.ndarray) -> np.ndarray:\n    if values.ndim == 3:\n        class_idx = 1 if values.shape[2] > 1 else 0\n        return values[:, :, class_idx]\n    return values\ndef build_top_factors(\n    shap_values: np.ndarray,\n    feature_values: np.ndarray,\n    feature_names: List[str],\n    top_k: int,",
+        "detail": "src.explainer",
+        "documentation": {}
+    },
+    {
+        "label": "build_top_factors",
+        "kind": 2,
+        "importPath": "src.explainer",
+        "description": "src.explainer",
+        "peekOfCode": "def build_top_factors(\n    shap_values: np.ndarray,\n    feature_values: np.ndarray,\n    feature_names: List[str],\n    top_k: int,\n) -> pd.DataFrame:\n    rows = []\n    for row_idx, row_vals in enumerate(shap_values):\n        order = np.argsort(np.abs(row_vals))[::-1][:top_k]\n        for rank, feat_idx in enumerate(order, start=1):",
+        "detail": "src.explainer",
+        "documentation": {}
+    },
+    {
+        "label": "upload_explain_outputs",
+        "kind": 2,
+        "importPath": "src.explainer",
+        "description": "src.explainer",
+        "peekOfCode": "def upload_explain_outputs(\n    s3,\n    bucket: str,\n    prefix: str,\n    output_dir: Path,\n) -> None:\n    prefix = (prefix or \"\").strip(\"/\")\n    for path in output_dir.glob(\"*\"):\n        if path.is_dir():\n            continue",
+        "detail": "src.explainer",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "src.explainer",
+        "description": "src.explainer",
+        "peekOfCode": "def main() -> int:\n    load_env_file()\n    args = parse_args()\n    needs_s3 = any(\n        is_s3_uri(value)\n        for value in (args.model, args.meta, args.input, args.json_path)\n        if value\n    ) or (bool(args.bucket) and not args.no_upload)\n    s3 = build_s3_client(args.region, args.profile) if needs_s3 else None\n    import tempfile",
+        "detail": "src.explainer",
         "documentation": {}
     },
     {
@@ -578,7 +2786,7 @@
         "kind": 2,
         "importPath": "src.model",
         "description": "src.model",
-        "peekOfCode": "def parse_args() -> argparse.Namespace:\n    parser = argparse.ArgumentParser(\n        description=\"Train, serialize, and run inference for the flight delay model.\"\n    )\n    sub = parser.add_subparsers(dest=\"command\")\n    train = sub.add_parser(\"train\", help=\"Train and serialize a model.\")\n    train.add_argument(\"--train\", default=\"data/processed/train.csv\", help=\"Path to train CSV.\")\n    train.add_argument(\"--test\", default=\"data/processed/test.csv\", help=\"Path to test CSV.\")\n    train.add_argument(\"--model-dir\", default=\"models\", help=\"Directory to save model artifacts.\")\n    train.add_argument(\"--model-name\", default=\"delay_model.pkl\", help=\"Model filename.\")",
+        "peekOfCode": "def parse_args() -> argparse.Namespace:\n    parser = argparse.ArgumentParser(\n        description=\"Train, serialize, and run inference for the flight delay model.\"\n    )\n    sub = parser.add_subparsers(dest=\"command\")\n    train = sub.add_parser(\"train\", help=\"Train and serialize a model.\")\n    train.add_argument(\n        \"--train\",\n        default=None,\n        help=\"Path or s3:// URI to train dataset (default: S3 when S3_BUCKET is set).\",",
         "detail": "src.model",
         "documentation": {}
     },
@@ -587,7 +2795,16 @@
         "kind": 2,
         "importPath": "src.model",
         "description": "src.model",
-        "peekOfCode": "def is_s3_uri(value: str) -> bool:\n    return value.lower().startswith(\"s3://\")\ndef parse_s3_uri(uri: str) -> Tuple[str, str]:\n    if not is_s3_uri(uri):\n        raise ValueError(f\"Invalid S3 URI: {uri}\")\n    bucket_key = uri[5:]\n    bucket, _, key = bucket_key.partition(\"/\")\n    if not bucket or not key:\n        raise ValueError(f\"S3 URI must include bucket and key: {uri}\")\n    return bucket, key",
+        "peekOfCode": "def is_s3_uri(value: str) -> bool:\n    return value.lower().startswith(\"s3://\")\ndef default_s3_uri(bucket: str | None, prefix: str | None, filename: str) -> str | None:\n    if not bucket:\n        return None\n    prefix = (prefix or \"\").strip(\"/\")\n    key = f\"{prefix}/{filename}\" if prefix else filename\n    return f\"s3://{bucket}/{key}\"\ndef parse_s3_uri(uri: str) -> Tuple[str, str]:\n    if not is_s3_uri(uri):",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "default_s3_uri",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def default_s3_uri(bucket: str | None, prefix: str | None, filename: str) -> str | None:\n    if not bucket:\n        return None\n    prefix = (prefix or \"\").strip(\"/\")\n    key = f\"{prefix}/{filename}\" if prefix else filename\n    return f\"s3://{bucket}/{key}\"\ndef parse_s3_uri(uri: str) -> Tuple[str, str]:\n    if not is_s3_uri(uri):\n        raise ValueError(f\"Invalid S3 URI: {uri}\")\n    bucket_key = uri[5:]",
         "detail": "src.model",
         "documentation": {}
     },
@@ -619,11 +2836,20 @@
         "documentation": {}
     },
     {
+        "label": "upload_s3_object",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def upload_s3_object(s3, path: Path, bucket: str, key: str) -> None:\n    from botocore.exceptions import ClientError\n    try:\n        s3.upload_file(str(path), bucket, key)\n    except ClientError as exc:\n        code = exc.response[\"Error\"][\"Code\"]\n        match code:\n            case \"NoSuchBucket\":\n                print(f\"Bucket does not exist: {bucket}\", file=sys.stderr)\n            case \"AccessDenied\":",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
         "label": "load_csv",
         "kind": 2,
         "importPath": "src.model",
         "description": "src.model",
-        "peekOfCode": "def load_csv(path: Path) -> pd.DataFrame:\n    if not path.exists():\n        raise FileNotFoundError(f\"File not found: {path}\")\n    return pd.read_csv(path)\ndef stratified_split(\n    df: pd.DataFrame, target_col: str, test_size: float, seed: int\n) -> Tuple[pd.DataFrame, pd.DataFrame]:\n    df = df.sort_values(target_col).reset_index(drop=True)\n    rng = np.random.default_rng(seed)\n    train_idx, test_idx = [], []",
+        "peekOfCode": "def load_csv(path: Path) -> pd.DataFrame:\n    if not path.exists():\n        raise FileNotFoundError(f\"File not found: {path}\")\n    suffix = path.suffix.lower()\n    if suffix == \".parquet\":\n        return pd.read_parquet(path)\n    return pd.read_csv(path)\ndef stratified_split(\n    df: pd.DataFrame, target_col: str, test_size: float, seed: int\n) -> Tuple[pd.DataFrame, pd.DataFrame]:",
         "detail": "src.model",
         "documentation": {}
     },
@@ -641,7 +2867,7 @@
         "kind": 2,
         "importPath": "src.model",
         "description": "src.model",
-        "peekOfCode": "def resolve_s3_sources(args: argparse.Namespace) -> Tuple[str, str | None]:\n    if args.from_s3:\n        if not args.bucket:\n            raise ValueError(\"Missing --bucket for --from-s3.\")\n        prefix = args.processed_prefix.strip(\"/\") if args.processed_prefix else \"\"\n        train_key = f\"{prefix}/{args.train_key}\" if prefix else args.train_key\n        test_key = f\"{prefix}/{args.test_key}\" if prefix else args.test_key\n        return f\"s3://{args.bucket}/{train_key}\", f\"s3://{args.bucket}/{test_key}\"\n    return args.train, args.test\ndef load_csv_any(",
+        "peekOfCode": "def resolve_s3_sources(args: argparse.Namespace) -> Tuple[str, str | None]:\n    if args.from_s3:\n        if not args.bucket:\n            raise ValueError(\"Missing --bucket for --from-s3.\")\n        prefix = args.processed_prefix.strip(\"/\") if args.processed_prefix else \"\"\n        train_key = f\"{prefix}/{args.train_key}\" if prefix else args.train_key\n        test_key = f\"{prefix}/{args.test_key}\" if prefix else args.test_key\n        return f\"s3://{args.bucket}/{train_key}\", f\"s3://{args.bucket}/{test_key}\"\n    train_source = args.train or default_s3_uri(\n        args.bucket, args.processed_prefix, args.train_key",
         "detail": "src.model",
         "documentation": {}
     },
@@ -650,7 +2876,7 @@
         "kind": 2,
         "importPath": "src.model",
         "description": "src.model",
-        "peekOfCode": "def load_csv_any(\n    source: str,\n    s3,\n    tmp_dir: Path,\n    allow_missing: bool = False,\n) -> pd.DataFrame | None:\n    if is_s3_uri(source):\n        bucket, key = parse_s3_uri(source)\n        dest = tmp_dir / key\n        downloaded = download_s3_object(s3, bucket, key, dest, allow_missing=allow_missing)",
+        "peekOfCode": "def load_csv_any(\n    source: str,\n    s3,\n    tmp_dir: Path,\n    allow_missing: bool = False,\n) -> pd.DataFrame | None:\n    \"\"\"\n    Loads data from a source (local or S3), with a fallback from .parquet to .csv.\n    \"\"\"\n    def _try_load(current_source: str) -> pd.DataFrame | None:",
         "detail": "src.model",
         "documentation": {}
     },
@@ -722,7 +2948,7 @@
         "kind": 2,
         "importPath": "src.model",
         "description": "src.model",
-        "peekOfCode": "def train_command(args: argparse.Namespace) -> int:\n    try:\n        train_source, test_source = resolve_s3_sources(args)\n    except ValueError as exc:\n        print(str(exc), file=sys.stderr)\n        return 2\n    needs_s3 = is_s3_uri(train_source) or (test_source and is_s3_uri(test_source))\n    s3 = build_s3_client(args.region, args.profile) if needs_s3 else None\n    if s3:\n        import tempfile",
+        "peekOfCode": "def train_command(args: argparse.Namespace) -> int:\n    try:\n        train_source, test_source = resolve_s3_sources(args)\n    except ValueError as exc:\n        print(f\"ERROR: {exc}\", file=sys.stderr)\n        return 2\n    needs_s3 = is_s3_uri(train_source) or (test_source and is_s3_uri(test_source))\n    s3 = build_s3_client(args.region, args.profile) if needs_s3 else None\n    import tempfile\n    try:",
         "detail": "src.model",
         "documentation": {}
     },
@@ -731,7 +2957,7 @@
         "kind": 2,
         "importPath": "src.model",
         "description": "src.model",
-        "peekOfCode": "def train_command_from_frames(\n    args: argparse.Namespace,\n    train_df: pd.DataFrame,\n    test_df: pd.DataFrame | None,\n) -> int:\n    if TARGET_COL not in train_df.columns:\n        print(f\"Missing target column: {TARGET_COL}\", file=sys.stderr)\n        return 2\n    if test_df is None:\n        print(\"Test CSV not found. Splitting training data automatically.\")",
+        "peekOfCode": "def train_command_from_frames(\n    args: argparse.Namespace,\n    train_df: pd.DataFrame,\n    test_df: pd.DataFrame | None,\n) -> int:\n    if TARGET_COL not in train_df.columns:\n        print(f\"Missing target column: {TARGET_COL}\", file=sys.stderr)\n        return 2\n    if test_df is None:\n        print(\"Test dataset not found. Splitting training data automatically.\")",
         "detail": "src.model",
         "documentation": {}
     },
@@ -749,7 +2975,16 @@
         "kind": 2,
         "importPath": "src.model",
         "description": "src.model",
-        "peekOfCode": "def load_predict_input(args: argparse.Namespace) -> pd.DataFrame:\n    sources = [args.input, args.json_path, args.row]\n    if sum(1 for s in sources if s) != 1:\n        raise ValueError(\"Provide exactly one of --input, --json, or --row.\")\n    if args.input:\n        return load_csv(Path(args.input))\n    return load_json_input(Path(args.json_path) if args.json_path else None, args.row)\ndef predict_command(args: argparse.Namespace) -> int:\n    needs_s3 = any(\n        is_s3_uri(value)",
+        "peekOfCode": "def load_predict_input(args: argparse.Namespace) -> pd.DataFrame:\n    sources = [args.input, args.json_path, args.row]\n    if sum(1 for s in sources if s) != 1:\n        raise ValueError(\"Provide exactly one of --input, --json, or --row.\")\n    if args.input:\n        return load_csv(Path(args.input))\n    return load_json_input(Path(args.json_path) if args.json_path else None, args.row)\ndef resolve_predict_sources(args: argparse.Namespace) -> argparse.Namespace:\n    sources = [args.input, args.json_path, args.row]\n    if sum(1 for s in sources if s) == 0:",
+        "detail": "src.model",
+        "documentation": {}
+    },
+    {
+        "label": "resolve_predict_sources",
+        "kind": 2,
+        "importPath": "src.model",
+        "description": "src.model",
+        "peekOfCode": "def resolve_predict_sources(args: argparse.Namespace) -> argparse.Namespace:\n    sources = [args.input, args.json_path, args.row]\n    if sum(1 for s in sources if s) == 0:\n        bucket = os.getenv(\"S3_BUCKET\") or os.getenv(\"S3_Bucket\")\n        prefix = os.getenv(\"S3_PROCESSED_PREFIX\", \"processed\")\n        default_input = default_s3_uri(bucket, prefix, \"test.parquet\")\n        if not default_input:\n            raise ValueError(\"Provide --input/--json/--row or set S3_BUCKET.\")\n        args.input = default_input\n    return args",
         "detail": "src.model",
         "documentation": {}
     },
@@ -758,7 +2993,7 @@
         "kind": 2,
         "importPath": "src.model",
         "description": "src.model",
-        "peekOfCode": "def predict_command(args: argparse.Namespace) -> int:\n    needs_s3 = any(\n        is_s3_uri(value)\n        for value in (args.model, args.meta, args.input, args.json_path)\n        if value\n    )\n    s3 = build_s3_client(args.region, args.profile) if needs_s3 else None\n    import tempfile\n    with tempfile.TemporaryDirectory() as tmp:\n        tmp_dir = Path(tmp)",
+        "peekOfCode": "def predict_command(args: argparse.Namespace) -> int:\n    try:\n        args = resolve_predict_sources(args)\n    except ValueError as exc:\n        print(str(exc), file=sys.stderr)\n        return 2\n    needs_s3 = any(\n        is_s3_uri(value)\n        for value in (args.model, args.meta, args.input, args.json_path)\n        if value",
         "detail": "src.model",
         "documentation": {}
     },
@@ -844,6 +3079,15 @@
         "documentation": {}
     },
     {
+        "label": "read_tabular",
+        "kind": 2,
+        "importPath": "src.preprocessing",
+        "description": "src.preprocessing",
+        "peekOfCode": "def read_tabular(path: Path) -> pd.DataFrame:\n    suffix = path.suffix.lower()\n    if suffix == \".parquet\":\n        return pd.read_parquet(path)\n    return pd.read_csv(path)\n# ---------------------------------------------------------------------------\n# Feature engineering helpers\n# ---------------------------------------------------------------------------\ndef time_of_day(hour: int) -> str:\n    if 5 <= hour <= 11:",
+        "detail": "src.preprocessing",
+        "documentation": {}
+    },
+    {
         "label": "time_of_day",
         "kind": 2,
         "importPath": "src.preprocessing",
@@ -875,7 +3119,7 @@
         "kind": 2,
         "importPath": "src.preprocessing",
         "description": "src.preprocessing",
-        "peekOfCode": "def stratified_split(\n    df: pd.DataFrame,\n    target_col: str,\n    test_size: float,\n    seed: int,\n) -> Tuple[pd.DataFrame, pd.DataFrame]:\n    \"\"\"Reproducible stratified split by *target_col*.\"\"\"\n    # Sort for stable ordering across pandas versions\n    df = df.sort_values(target_col).reset_index(drop=True)\n    rng = np.random.default_rng(seed)",
+        "peekOfCode": "def stratified_split(\n    df,\n    target_col,\n    test_size,\n    seed\n    ):\n    df = df.sort_values(target_col).reset_index(drop=True)\n    rng = np.random.default_rng(seed)\n    train_idx, test_idx = [], []\n    for _, group in df.groupby(target_col):",
         "detail": "src.preprocessing",
         "documentation": {}
     },
@@ -913,6 +3157,24 @@
         "description": "src.preprocessing",
         "peekOfCode": "_DELAY_COLS = [\n    \"WEATHER_DELAY\",\n    \"LATE_AIRCRAFT_DELAY\",\n    \"NAS_DELAY\",\n    \"SECURITY_DELAY\",\n    \"CARRIER_DELAY\",\n]\ndef build_airport_profiles(df: pd.DataFrame, airports: pd.DataFrame) -> pd.DataFrame:\n    \"\"\"Aggregate per-airport statistics for downstream analytics and RAG.\"\"\"\n    # Build origin aggregation dynamically — only include delay cols present in df",
         "detail": "src.preprocessing",
+        "documentation": {}
+    },
+    {
+        "label": "parse_args",
+        "kind": 2,
+        "importPath": "src.trainer",
+        "description": "src.trainer",
+        "peekOfCode": "def parse_args() -> argparse.Namespace:\n    parser = argparse.ArgumentParser(\n        description=\"Train and export the flight delay model.\"\n    )\n    parser.add_argument(\n        \"--train\",\n        default=None,\n        help=\"Path or s3:// URI to train dataset (default: S3 when S3_BUCKET is set).\",\n    )\n    parser.add_argument(",
+        "detail": "src.trainer",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "src.trainer",
+        "description": "src.trainer",
+        "peekOfCode": "def main() -> int:\n    load_env_file()\n    args = parse_args()\n    return train_command(args)\nif __name__ == \"__main__\":\n    raise SystemExit(main())",
+        "detail": "src.trainer",
         "documentation": {}
     }
 ]

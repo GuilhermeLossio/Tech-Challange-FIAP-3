@@ -16,12 +16,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--train",
         default=None,
-        help="Path or s3:// URI to train CSV (default: S3 when S3_BUCKET is set).",
+        help="Path or s3:// URI to train dataset (default: S3 when S3_BUCKET is set).",
     )
     parser.add_argument(
         "--test",
         default=None,
-        help="Path or s3:// URI to test CSV (default: S3 when S3_BUCKET is set).",
+        help="Path or s3:// URI to test dataset (default: S3 when S3_BUCKET is set).",
     )
     parser.add_argument("--model-dir", default="models", help="Directory to save model artifacts.")
     parser.add_argument("--model-name", default="delay_model.pkl", help="Model filename.")
@@ -47,8 +47,8 @@ def parse_args() -> argparse.Namespace:
         default=os.getenv("S3_MODEL_PREFIX", "models"),
         help="S3 prefix for model artifacts (default: env S3_MODEL_PREFIX or 'models').",
     )
-    parser.add_argument("--train-key", default="train.csv", help="S3 object for train CSV.")
-    parser.add_argument("--test-key", default="test.csv", help="S3 object for test CSV.")
+    parser.add_argument("--train-key", default="train.parquet", help="S3 object for train dataset.")
+    parser.add_argument("--test-key", default="test.parquet", help="S3 object for test dataset.")
     parser.add_argument(
         "--region",
         default=os.getenv("AWS_REGION", "us-east-1"),

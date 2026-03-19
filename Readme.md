@@ -301,8 +301,8 @@ cp .env.example .env
 
 Optional but recommended for AWS/S3:
 
-- `S3_BUCKET` — default bucket for CSV reads/writes and artifact uploads
-- `S3_PROCESSED_PREFIX` — processed CSV prefix (default: `processed`)
+- `S3_BUCKET` — default bucket for dataset reads/writes and artifact uploads
+- `S3_PROCESSED_PREFIX` — processed dataset prefix (default: `processed`)
 - `S3_MODEL_PREFIX` — model artifacts prefix (default: `models`)
 - `S3_EXPLAIN_PREFIX` — SHAP outputs prefix (default: `explain`)
 - `AWS_REGION` and `AWS_PROFILE` — AWS credentials resolution
@@ -310,14 +310,14 @@ Optional but recommended for AWS/S3:
 ### Optional: S3 + Athena pipeline
 
 If you are running the pipeline on AWS (S3 + Athena), use the steps below.
-All CSV interactions default to S3 when `S3_BUCKET` is set (upload is explicit).
+All dataset interactions default to S3 when `S3_BUCKET` is set (upload is explicit).
 
-#### Step 1 — Upload raw CSVs to S3
+#### Step 1 — Upload raw datasets to S3 (Parquet)
 
 ```bash
-python src/aws/uploader.py --bucket flight-advisor-fiap3 --input data/raw/flights.csv  --name flights.csv
-python src/aws/uploader.py --bucket flight-advisor-fiap3 --input data/raw/airports.csv --name airports.csv
-python src/aws/uploader.py --bucket flight-advisor-fiap3 --input data/raw/airlines.csv --name airlines.csv
+python src/aws/uploader.py --bucket flight-advisor-fiap3 --input data/raw/flights.csv  --name flights.parquet
+python src/aws/uploader.py --bucket flight-advisor-fiap3 --input data/raw/airports.csv --name airports.parquet
+python src/aws/uploader.py --bucket flight-advisor-fiap3 --input data/raw/airlines.csv --name airlines.parquet
 ```
 
 #### Step 2 — Preprocessing (reads from `raw/`, writes to `processed/` and `refined/`)
@@ -326,17 +326,17 @@ python src/aws/uploader.py --bucket flight-advisor-fiap3 --input data/raw/airlin
 python src/preprocessing.py --bucket flight-advisor-fiap3
 ```
 
-#### Step 3 — Athena setup
+#### Step 3 — Athena setup (Parquet + file layout)
 
 ```bash
 # Normal execution
-python src/aws/athena_client.py --bucket flight-advisor-fiap3
+python src/aws/athena_client.py --bucket flight-advisor-fiap3 --format parquet --table-layout file
 
 # See the DDL without executing
-python src/aws/athena_client.py --bucket flight-advisor-fiap3 --dry-run
+python src/aws/athena_client.py --bucket flight-advisor-fiap3 --dry-run --format parquet --table-layout file
 
 # Recreate tables from scratch
-python src/aws/athena_client.py --bucket flight-advisor-fiap3 --drop-existing
+python src/aws/athena_client.py --bucket flight-advisor-fiap3 --drop-existing --format parquet --table-layout file
 ```
 
 #### AWS credentials diagnostics

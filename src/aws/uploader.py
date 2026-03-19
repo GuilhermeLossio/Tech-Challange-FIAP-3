@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Upload flight data to S3 raw zone.
 
-Defaults to data/raw/flights.csv and uploads to s3://$S3_BUCKET/$S3_PREFIX/flights.csv.
+Defaults to data/raw/flights.csv and uploads to s3://$S3_BUCKET/$S3_PREFIX/flights.parquet.
+S3 uploads are always Parquet (CSV inputs are converted locally before upload).
 """
 
 from __future__ import annotations
@@ -9,9 +10,11 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 import boto3
+import pandas as pd
 from botocore.exceptions import (
     ClientError,
     EndpointResolutionError,
@@ -39,12 +42,12 @@ def load_env_file(path: Path = Path(".env")) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Upload flight data (CSV) to the S3 raw zone."
+        description="Upload flight data to the S3 raw zone (Parquet only)."
     )
     parser.add_argument(
         "--input",
         default="data/raw/flights.csv",
-        help="Path to flights CSV (default: data/raw/flights.csv)",
+        help="Path to flights CSV or Parquet (default: data/raw/flights.csv)",
     )
     parser.add_argument(
         "--bucket",
@@ -58,8 +61,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--name",
-        default="flights.csv",
-        help="S3 object name (default: flights.csv)",
+        default=None,
+        help="S3 object name (default: derived from input + format)",
     )
     parser.add_argument(
         "--region",
@@ -106,6 +109,20 @@ def upload(s3_client, input_path: Path, bucket: str, key: str) -> None:
     s3_client.upload_file(str(input_path), bucket, key)
 
 
+def normalize_output_name(name: str) -> str:
+    if name.lower().endswith(".parquet"):
+        return name
+    if name.lower().endswith(".csv"):
+        return name[:-4] + ".parquet"
+    return name + ".parquet"
+
+
+def convert_input_to_parquet(input_path: Path, dest: Path) -> Path:
+    df = pd.read_parquet(input_path) if input_path.suffix.lower() == ".parquet" else pd.read_csv(input_path)
+    df.to_parquet(dest, index=False)
+    return dest
+
+
 def main() -> int:
     load_env_file()
     args = parse_args()
@@ -120,8 +137,13 @@ def main() -> int:
         print(f"Input file not found: {input_path}", file=sys.stderr)
         return 2
 
+    if args.name:
+        output_name = normalize_output_name(args.name)
+    else:
+        output_name = normalize_output_name(f"{input_path.stem}.parquet")
+
     prefix = args.prefix.strip("/") if args.prefix else ""
-    key = f"{prefix}/{args.name}" if prefix else args.name
+    key = f"{prefix}/{output_name}" if prefix else output_name
     s3_uri = f"s3://{args.bucket}/{key}"
 
     if args.dry_run:
@@ -154,8 +176,14 @@ def main() -> int:
 
     # ── Upload ─────────────────────────────────────────────────────────────────
     s3 = session.client("s3")
+    tmp_dir = None
+    upload_path = input_path
     try:
-        upload(s3, input_path, args.bucket, key)
+        if input_path.suffix.lower() != ".parquet":
+            tmp_dir = tempfile.TemporaryDirectory()
+            upload_path = convert_input_to_parquet(input_path, Path(tmp_dir.name) / output_name)
+
+        upload(s3, upload_path, args.bucket, key)
     except FileNotFoundError:
         print(f"Input file disappeared before upload: {input_path}", file=sys.stderr)
         return 2
@@ -191,8 +219,11 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
+    finally:
+        if tmp_dir is not None:
+            tmp_dir.cleanup()
 
-    print(f"Uploaded {input_path} -> {s3_uri}")
+    print(f"Uploaded {upload_path} -> {s3_uri}")
     return 0
 
 

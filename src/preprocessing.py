@@ -81,19 +81,21 @@ def parse_args() -> argparse.Namespace:
         help="S3 refined prefix (default: env S3_REFINED_PREFIX or 'refined')",
     )
     parser.add_argument(
-        "--flights-file",
-        default="flights.csv",
-        help="Flights CSV filename in raw prefix (default: flights.csv)",
+    "--flights-file",
+    default="flights.csv",
+    help="Flights filename in raw prefix (default: flights.csv)",
     )
+
     parser.add_argument(
         "--airports-file",
         default="airports.csv",
-        help="Airports CSV filename in raw prefix (default: airports.csv)",
+        help="Airports filename in raw prefix (default: airports.csv)",
     )
+
     parser.add_argument(
         "--airlines-file",
         default="airlines.csv",
-        help="Airlines CSV filename in raw prefix (default: airlines.csv)",
+        help="Airlines filename in raw prefix (default: airlines.csv)",
     )
     parser.add_argument(
         "--region",
@@ -166,7 +168,7 @@ def s3_download(s3_client, bucket: str, key: str, dest: Path) -> None:
         if code in {"NoSuchKey", "404"}:
             print(
                 f"Missing object in S3: s3://{bucket}/{key}\n"
-                "Check that the file name and prefix are correct (raw/flights.csv, raw/airports.csv, raw/airlines.csv).",
+                "Check that the file name and prefix are correct (e.g., raw/flights.parquet).",
                 file=sys.stderr,
             )
         else:
@@ -200,6 +202,13 @@ def s3_upload(s3_client, path: Path, bucket: str, key: str) -> None:
             case _:
                 print(f"S3 error [{code}]: {exc}", file=sys.stderr)
         raise
+
+
+def read_tabular(path: Path) -> pd.DataFrame:
+    suffix = path.suffix.lower()
+    if suffix == ".parquet":
+        return pd.read_parquet(path)
+    return pd.read_csv(path)
 
 
 # ---------------------------------------------------------------------------
@@ -242,15 +251,14 @@ def build_holiday_set(dates: Iterable[pd.Timestamp]) -> set[pd.Timestamp]:
 # ---------------------------------------------------------------------------
 
 def stratified_split(
-    df: pd.DataFrame,
-    target_col: str,
-    test_size: float,
-    seed: int,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Reproducible stratified split by *target_col*."""
-    # Sort for stable ordering across pandas versions
+    df,
+    target_col,
+    test_size,
+    seed
+    ):
     df = df.sort_values(target_col).reset_index(drop=True)
     rng = np.random.default_rng(seed)
+
     train_idx, test_idx = [], []
     for _, group in df.groupby(target_col):
         indices = group.index.to_numpy().copy()
@@ -258,8 +266,8 @@ def stratified_split(
         split = int(len(indices) * (1 - test_size))
         train_idx.extend(indices[:split])
         test_idx.extend(indices[split:])
-    return df.loc[train_idx].copy(), df.loc[test_idx].copy()
 
+    return df.loc[train_idx], df.loc[test_idx]
 
 def add_target_encodings(
     train_df: pd.DataFrame,
@@ -360,13 +368,13 @@ def main() -> int:
     airports_key = f"{raw_prefix}/{args.airports_file}"
     airlines_key = f"{raw_prefix}/{args.airlines_file}"
 
-    out_processed_key = f"{processed_prefix}/flights_processed.csv"
-    out_train_key = f"{processed_prefix}/train.csv"
-    out_test_key = f"{processed_prefix}/test.csv"
-    out_profiles_key = f"{refined_prefix}/airport_profiles.csv"
-    out_refined_processed_key = f"{refined_prefix}/flights_processed.csv"
-    out_refined_train_key = f"{refined_prefix}/train.csv"
-    out_refined_test_key = f"{refined_prefix}/test.csv"
+    out_processed_key = f"{processed_prefix}/flights_processed.parquet"
+    out_train_key = f"{processed_prefix}/train.parquet"
+    out_test_key = f"{processed_prefix}/test.parquet"
+    out_profiles_key = f"{refined_prefix}/airport_profiles.parquet"
+    out_refined_processed_key = f"{refined_prefix}/flights_processed.parquet"
+    out_refined_train_key = f"{refined_prefix}/train.parquet"
+    out_refined_test_key = f"{refined_prefix}/test.parquet"
 
     if args.dry_run:
         print("Planned S3 reads:")
@@ -416,14 +424,18 @@ def main() -> int:
     tmp_out = Path(".tmp_preprocessing_out")
     try:
         print("\n[1/5] Downloading raw files from S3...")
-        s3_download(s3, args.bucket, flights_key,  tmp_in / "flights.csv")
-        s3_download(s3, args.bucket, airports_key, tmp_in / "airports.csv")
-        s3_download(s3, args.bucket, airlines_key, tmp_in / "airlines.csv")
+        flights_path = tmp_in / args.flights_file
+        airports_path = tmp_in / args.airports_file
+        airlines_path = tmp_in / args.airlines_file
 
-        # ── Load CSVs ──────────────────────────────────────────────────────
-        flights  = pd.read_csv(tmp_in / "flights.csv")
-        airports = pd.read_csv(tmp_in / "airports.csv")
-        airlines = pd.read_csv(tmp_in / "airlines.csv")
+        s3_download(s3, args.bucket, flights_key, flights_path)
+        s3_download(s3, args.bucket, airports_key, airports_path)
+        s3_download(s3, args.bucket, airlines_key, airlines_path)
+
+        # ── Load datasets ─────────────────────────────────────────────────
+        flights = read_tabular(flights_path)
+        airports = read_tabular(airports_path)
+        airlines = read_tabular(airlines_path)
         print(f"  Loaded {len(flights):,} flight rows, {len(airports):,} airports, {len(airlines):,} airlines.")
 
         if args.sample:
@@ -481,9 +493,13 @@ def main() -> int:
         holiday_set = build_holiday_set(flight_dates.dropna())
         flights["IS_HOLIDAY"] = flight_dates.dt.normalize().isin(holiday_set).astype(int)
 
-        flights["ROUTE"]       = flights["ORIGIN_AIRPORT"].astype(str) + "_" + flights["DESTINATION_AIRPORT"].astype(str)
-        flights["IS_DELAYED"]  = (flights["ARRIVAL_DELAY"] > 15).astype(int)
-        flights["AIRLINE_DOW"] = flights["AIRLINE"].astype(str) + "_" + flights["DAY_OF_WEEK"].astype(str)
+        # garantir tipos consistentes para parquet
+        for col in ["ORIGIN_AIRPORT", "DESTINATION_AIRPORT", "AIRLINE"]:
+            flights[col] = flights[col].astype("string")
+
+        flights["ROUTE"] = flights["ORIGIN_AIRPORT"] + "-" + flights["DESTINATION_AIRPORT"]
+        flights["AIRLINE_DOW"] = flights["AIRLINE"] + "_" + flights["DAY_OF_WEEK"].astype(str)
+        flights["IS_DELAYED"] = (flights["ARRIVAL_DELAY"] > 15).astype(int)
 
         delay_rate = flights["IS_DELAYED"].mean()
         print(f"  Overall delay rate: {delay_rate:.1%}")
@@ -507,15 +523,15 @@ def main() -> int:
 
         # ── Save locally ───────────────────────────────────────────────────
         tmp_out.mkdir(parents=True, exist_ok=True)
-        processed_path = tmp_out / "flights_processed.csv"
-        train_path     = tmp_out / "train.csv"
-        test_path      = tmp_out / "test.csv"
-        profiles_path  = tmp_out / "airport_profiles.csv"
+        processed_path = tmp_out / "flights_processed.parquet"
+        train_path     = tmp_out / "train.parquet"
+        test_path      = tmp_out / "test.parquet"
+        profiles_path  = tmp_out / "airport_profiles.parquet"
 
-        flights.to_csv(processed_path, index=False)
-        train_df.to_csv(train_path, index=False)
-        test_df.to_csv(test_path, index=False)
-        profiles.to_csv(profiles_path, index=False)
+        flights.to_parquet(processed_path, index=False)
+        train_df.to_parquet(train_path, index=False)
+        test_df.to_parquet(test_path, index=False)
+        profiles.to_parquet(profiles_path, index=False)
 
         # ── Upload ─────────────────────────────────────────────────────────
         print("\n[5/5] Uploading processed files to S3...")

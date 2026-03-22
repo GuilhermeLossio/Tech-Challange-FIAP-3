@@ -325,6 +325,7 @@ DASHBOARD_COLS = {
     "AIRLINE": "airline",
     "ORIGIN_STATE": "origin_state",
 }
+PARTITIONED_OUTPUT_TABLE = "flights_processed"
 
 
 def build_dashboard_frame(flights: pd.DataFrame) -> pd.DataFrame:
@@ -332,6 +333,20 @@ def build_dashboard_frame(flights: pd.DataFrame) -> pd.DataFrame:
     if missing:
         raise ValueError(f"Missing columns for dashboard dataset: {', '.join(missing)}")
     return flights[list(DASHBOARD_COLS)].rename(columns=DASHBOARD_COLS).copy()
+
+
+def resolve_partition_sync_table(table_name: str | None, warn: bool = True) -> str:
+    """Return the Athena table that should receive partition sync."""
+    requested = (table_name or "").strip() or PARTITIONED_OUTPUT_TABLE
+    if requested != PARTITIONED_OUTPUT_TABLE:
+        if warn:
+            print(
+                f"Warning: ATHENA_TABLE='{requested}' is not the partitioned output table. "
+                f"Syncing '{PARTITIONED_OUTPUT_TABLE}' instead.",
+                file=sys.stderr,
+            )
+        return PARTITIONED_OUTPUT_TABLE
+    return requested
 
 
 def write_partitioned_dataset_to_s3(
@@ -357,8 +372,17 @@ def write_partitioned_dataset_to_s3(
         raise SystemExit(2)
 
     if lowercase:
+        # Keep non-partition columns unchanged and force only partition keys
+        # to lowercase (e.g., YEAR/MONTH -> year/month in S3 paths).
         df = df.copy()
-        df.columns = [c.lower() for c in df.columns]
+        rename_map = {col: col.lower() for col in partition_cols if col in df.columns}
+        if len(rename_map) != len(partition_cols):
+            missing = [col for col in partition_cols if col not in df.columns]
+            raise ValueError(
+                "Missing partition columns for lowercase normalization: "
+                + ", ".join(missing)
+            )
+        df = df.rename(columns=rename_map)
         partition_cols = [c.lower() for c in partition_cols]
 
     table = pa.Table.from_pandas(df, preserve_index=False)
@@ -625,6 +649,7 @@ def build_airport_profiles(df: pd.DataFrame, airports: pd.DataFrame) -> pd.DataF
 def main() -> int:
     load_env_file()
     args = parse_args()
+    partition_sync_table = resolve_partition_sync_table(args.athena_table, warn=not args.dry_run)
 
     # ── Validate config ────────────────────────────────────────────────────
     if not args.bucket:
@@ -678,6 +703,7 @@ def main() -> int:
             print("Planned Athena registration:")
             print(f"  database: {args.athena_database}")
             print(f"  results:  s3://{args.bucket}/{args.athena_results_prefix.strip('/')}/")
+            print(f"  partition sync table: {partition_sync_table}")
         return 0
 
     # ── Build session & validate credentials ──────────────────────────────
@@ -848,7 +874,7 @@ def main() -> int:
                 region=args.region,
                 session=session,
                 partition_cols=["YEAR", "MONTH"],
-                lowercase=False,
+                lowercase=True,
             )
         if not args.skip_dashboard:
             dash_df = build_dashboard_frame(flights)
@@ -904,12 +930,13 @@ def main() -> int:
                     processed_prefix=processed_prefix,
                     refined_prefix=refined_prefix,
                 )
+                print(f"  Syncing partitions for: {partition_sync_table}")
                 sync_athena_partitions(
                     session=session,
                     bucket=args.bucket,
                     results_prefix=args.athena_results_prefix,
                     database=args.athena_database,
-                    table=args.athena_table,
+                    table=partition_sync_table,
                 )
             except (RuntimeError, TimeoutError) as exc:
                 print(f"\nAthena error: {exc}", file=sys.stderr)

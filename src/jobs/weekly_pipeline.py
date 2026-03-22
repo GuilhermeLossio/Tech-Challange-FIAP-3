@@ -14,10 +14,10 @@ SRC_DIR = Path(__file__).resolve().parents[1]
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from model import default_s3_uri, load_env_file  # noqa: E402
+from model import default_s3_uri, load_env_file
 
-import generate_future_flights  # noqa: E402
-import weekly_predict  # noqa: E402
+import generate_future_flights
+import weekly_predict
 
 
 def parse_args() -> argparse.Namespace:
@@ -84,6 +84,31 @@ def parse_args() -> argparse.Namespace:
         "--profile",
         default=os.getenv("AWS_PROFILE"),
         help="AWS profile to use (default: env AWS_PROFILE).",
+    )
+    parser.add_argument(
+        "--skip-athena-publish",
+        action="store_true",
+        help="Skip publishing weekly predictions to Athena.",
+    )
+    parser.add_argument(
+        "--predictions-athena-table",
+        default=os.getenv("ATHENA_PREDICTIONS_TABLE", "weekly_predictions"),
+        help="Athena table for weekly predictions (default: weekly_predictions).",
+    )
+    parser.add_argument(
+        "--predictions-athena-prefix",
+        default=os.getenv("S3_PREDICTIONS_ATHENA_PREFIX"),
+        help="S3 prefix for partitioned weekly predictions dataset used by Athena.",
+    )
+    parser.add_argument(
+        "--athena-database",
+        default=os.getenv("ATHENA_DATABASE", "flight_advisor"),
+        help="Athena database for weekly predictions publish and validation.",
+    )
+    parser.add_argument(
+        "--athena-results-prefix",
+        default=os.getenv("S3_ATHENA_RESULTS_PREFIX", "athena-results"),
+        help="S3 prefix for Athena query results.",
     )
     return parser.parse_args()
 
@@ -203,6 +228,16 @@ def main() -> int:
         pred_argv.extend(["--region", args.region])
     if args.profile:
         pred_argv.extend(["--profile", args.profile])
+    if args.skip_athena_publish:
+        pred_argv.append("--skip-athena-publish")
+    if args.predictions_athena_table:
+        pred_argv.extend(["--predictions-athena-table", args.predictions_athena_table])
+    if args.predictions_athena_prefix:
+        pred_argv.extend(["--predictions-athena-prefix", args.predictions_athena_prefix])
+    if args.athena_database:
+        pred_argv.extend(["--athena-database", args.athena_database])
+    if args.athena_results_prefix:
+        pred_argv.extend(["--athena-results-prefix", args.athena_results_prefix])
 
     print("Running weekly predictions...")
     return run_module(weekly_predict, pred_argv)

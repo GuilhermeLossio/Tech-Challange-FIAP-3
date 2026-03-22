@@ -3,6 +3,7 @@
 
 Optionally validates last week's predictions against actual outcomes
 fetched from Athena, computing accuracy metrics and saving a report to S3.
+Also publishes weekly predictions to a partitioned Athena table by default.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
 import pandas as pd
+from botocore.exceptions import ClientError
 
 # Ensure src/ is on the import path when running from src/jobs
 SRC_DIR = Path(__file__).resolve().parents[1]
@@ -57,6 +59,7 @@ RATE_COLS = [
     "ROUTE_DELAY_RATE",
     "CARRIER_DELAY_RATE_DOW",
 ]
+PREDICTIONS_PARTITION_COLS = ("year", "month")
 
 # Athena query poll settings
 _ATHENA_POLL_INTERVAL = 2.0   # seconds between status checks
@@ -122,6 +125,22 @@ def parse_args() -> argparse.Namespace:
         default=os.getenv("AWS_PROFILE"),
         help="AWS profile to use (default: env AWS_PROFILE).",
     )
+    parser.add_argument(
+        "--skip-athena-publish",
+        action="store_true",
+        help="Skip publishing weekly predictions to Athena.",
+    )
+    parser.add_argument(
+        "--predictions-athena-table",
+        default=os.getenv("ATHENA_PREDICTIONS_TABLE", "weekly_predictions"),
+        help="Athena table name for weekly predictions (default: weekly_predictions).",
+    )
+    parser.add_argument(
+        "--predictions-athena-prefix",
+        default=os.getenv("S3_PREDICTIONS_ATHENA_PREFIX"),
+        help="S3 prefix for partitioned weekly predictions dataset used by Athena. "
+             "Default: <predictions-prefix>/weekly_predictions",
+    )
 
     # ── Validation flags ───────────────────────────────────────────────────
     parser.add_argument(
@@ -132,7 +151,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--athena-database",
         default=os.getenv("ATHENA_DATABASE", "flight_advisor"),
-        help="Athena database to query actuals from (default: flight_advisor).",
+        help="Athena database for validation queries and predictions publish "
+             "(default: flight_advisor).",
     )
     parser.add_argument(
         "--athena-table",
@@ -180,6 +200,11 @@ def default_paths(args: argparse.Namespace) -> argparse.Namespace:
         tag = (args.week_start or date.today().isoformat()).replace("-", "")
         args.output = default_s3_uri(args.bucket, args.predictions_prefix, f"weekly_predictions_{tag}.parquet")
 
+    if args.predictions_athena_prefix is None:
+        args.predictions_athena_prefix = f"{args.predictions_prefix.strip('/')}/weekly_predictions"
+    else:
+        args.predictions_athena_prefix = args.predictions_athena_prefix.strip("/")
+
     if args.validate and args.validation_output is None:
         if not args.bucket:
             raise ValueError("Missing --validation-output and S3_BUCKET.")
@@ -189,6 +214,23 @@ def default_paths(args: argparse.Namespace) -> argparse.Namespace:
         )
 
     return args
+
+
+def resolve_publish_bucket(args: argparse.Namespace) -> str | None:
+    bucket = (args.bucket or "").strip()
+    if bucket:
+        return bucket
+
+    for uri in (args.output, args.input, args.rates_source, args.model):
+        if not uri or not is_s3_uri(uri):
+            continue
+        try:
+            parsed_bucket, _ = parse_s3_uri(uri)
+        except ValueError:
+            continue
+        if parsed_bucket:
+            return parsed_bucket
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -364,6 +406,164 @@ def write_output(df: pd.DataFrame, output: str, s3, tmp_dir: Path) -> str:
     return str(path)
 
 
+def athena_type_from_dtype(dtype) -> str:
+    if pd.api.types.is_bool_dtype(dtype):
+        return "BOOLEAN"
+    if pd.api.types.is_integer_dtype(dtype):
+        return "BIGINT"
+    if pd.api.types.is_float_dtype(dtype):
+        return "DOUBLE"
+    if pd.api.types.is_datetime64_any_dtype(dtype):
+        return "TIMESTAMP"
+    return "STRING"
+
+
+def build_predictions_partition_frame(df: pd.DataFrame) -> pd.DataFrame:
+    if "YEAR" not in df.columns or "MONTH" not in df.columns:
+        raise ValueError(
+            "Predictions dataset must include YEAR and MONTH columns to publish partitioned Athena data."
+        )
+
+    out = df.copy()
+    out["year"] = pd.to_numeric(out["YEAR"], errors="coerce")
+    out["month"] = pd.to_numeric(out["MONTH"], errors="coerce")
+    out = out.dropna(subset=["year", "month"])
+    if out.empty:
+        raise ValueError("Predictions dataset became empty after dropping rows without YEAR/MONTH.")
+
+    out["year"] = out["year"].astype(int)
+    out["month"] = out["month"].astype(int)
+    out = out.drop(columns=["YEAR", "MONTH"], errors="ignore")
+    return out
+
+
+def build_athena_columns(df: pd.DataFrame) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+    cols = [(col, athena_type_from_dtype(df[col].dtype)) for col in df.columns]
+    partition_cols = [(col, athena_type_from_dtype(df[col].dtype)) for col in PREDICTIONS_PARTITION_COLS]
+    return cols, partition_cols
+
+
+def write_partitioned_predictions_to_s3(
+    df: pd.DataFrame,
+    bucket: str,
+    prefix: str,
+    region: str,
+    session,
+) -> None:
+    try:
+        import pyarrow as pa
+        import pyarrow.dataset as ds
+        import pyarrow.fs as pafs
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "pyarrow is required to publish predictions as partitioned Athena data."
+        ) from exc
+
+    table = pa.Table.from_pandas(df, preserve_index=False)
+    creds = session.get_credentials()
+    frozen = creds.get_frozen_credentials() if creds else None
+    fs = pafs.S3FileSystem(
+        access_key=frozen.access_key if frozen else None,
+        secret_key=frozen.secret_key if frozen else None,
+        session_token=frozen.token if frozen else None,
+        region=region,
+    )
+
+    file_format = ds.ParquetFileFormat()
+    write_options = file_format.make_write_options(compression="snappy")
+    ds.write_dataset(
+        table,
+        base_dir=f"{bucket}/{prefix.strip('/')}",
+        format=file_format,
+        filesystem=fs,
+        partitioning=list(PREDICTIONS_PARTITION_COLS),
+        partitioning_flavor="hive",
+        file_options=write_options,
+        existing_data_behavior="delete_matching",
+    )
+
+
+def sync_prediction_partitions(
+    athena_client,
+    database: str,
+    table: str,
+    results_location: str,
+    df: pd.DataFrame,         # <-- adicione o df para saber as partições
+    bucket: str,
+    prefix: str,
+) -> None:
+    years_months = (
+        df[["year", "month"]]
+        .drop_duplicates()
+        .itertuples(index=False)
+    )
+
+    for row in years_months:
+        partition_location = (
+            f"s3://{bucket}/{prefix.strip('/')}/"
+            f"year={row.year}/month={row.month}/"
+        )
+        sql = (
+            f"ALTER TABLE {database}.{table} "
+            f"ADD IF NOT EXISTS PARTITION (year={row.year}, month={row.month}) "
+            f"LOCATION '{partition_location}'"
+        )
+        try:
+            _run_athena_query(athena_client, sql, results_location, database=database)
+            print(f"  Partition registered: year={row.year}, month={row.month}")
+        except RuntimeError as exc:
+            print(f"  Warning: could not register partition ({exc})", file=sys.stderr)
+
+
+def publish_predictions_to_athena(df: pd.DataFrame, args, session) -> str:
+    from aws import athena_client as athena
+
+    publish_df = build_predictions_partition_frame(df)
+    athena_prefix = args.predictions_athena_prefix.strip("/")
+    write_partitioned_predictions_to_s3(
+        publish_df,
+        bucket=args.bucket,
+        prefix=athena_prefix,
+        region=args.region,
+        session=session,
+    )
+
+    athena_cli = session.client("athena", region_name=args.region)
+    results_location = f"s3://{args.bucket}/{args.athena_results_prefix.strip('/')}/"
+    table_location = f"s3://{args.bucket}/{athena_prefix}/"
+    columns, partition_cols = build_athena_columns(publish_df)
+
+    _run_athena_query(
+        athena_cli,
+        athena.build_create_database_ddl(args.athena_database),
+        results_location,
+    )
+    _run_athena_query(
+        athena_cli,
+        athena.build_create_table_ddl(
+            args.athena_database,
+            args.predictions_athena_table,
+            columns,
+            table_location,
+            file_format="parquet",
+            partition_cols=partition_cols,
+        ),
+        results_location,
+        database=args.athena_database,
+    )
+    
+    sync_prediction_partitions(
+        athena_cli,
+        database=args.athena_database,
+        table=args.predictions_athena_table,
+        results_location=results_location,
+        df=publish_df,
+        bucket=args.bucket,
+        prefix=athena_prefix,
+    )
+    return table_location
+
+
 def load_metadata(args, model_path: Path, s3, tmp_dir: Path) -> dict | None:
     candidates: List[Path] = []
 
@@ -412,19 +612,29 @@ def _run_athena_query(
     athena_client,
     sql: str,
     results_location: str,
-    database: str,
+    database: str | None = None,
 ) -> str:
     """Submit *sql* to Athena and block until it completes. Returns QueryExecutionId."""
-    response = athena_client.start_query_execution(
-        QueryString=sql,
-        QueryExecutionContext={"Database": database},
-        ResultConfiguration={"OutputLocation": results_location},
-    )
+    kwargs = {
+        "QueryString": sql,
+        "ResultConfiguration": {"OutputLocation": results_location},
+    }
+    if database:
+        kwargs["QueryExecutionContext"] = {"Database": database}
+    try:
+        response = athena_client.start_query_execution(**kwargs)
+    except ClientError as exc:
+        code = exc.response.get("Error", {}).get("Code", "Unknown")
+        raise RuntimeError(f"Athena start_query_execution failed [{code}]: {exc}") from exc
     exec_id = response["QueryExecutionId"]
 
     elapsed = 0.0
     while elapsed < _ATHENA_TIMEOUT:
-        status = athena_client.get_query_execution(QueryExecutionId=exec_id)
+        try:
+            status = athena_client.get_query_execution(QueryExecutionId=exec_id)
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code", "Unknown")
+            raise RuntimeError(f"Athena get_query_execution failed [{code}]: {exc}") from exc
         state  = status["QueryExecution"]["Status"]["State"]
         if state == "SUCCEEDED":
             return exec_id
@@ -591,6 +801,17 @@ def main() -> int:
         print(str(exc), file=sys.stderr)
         return 2
 
+    publish_bucket = resolve_publish_bucket(args)
+    publish_predictions_athena = bool(publish_bucket) and not args.skip_athena_publish
+    if publish_predictions_athena and not args.bucket:
+        args.bucket = publish_bucket
+        print(f"Athena publish bucket resolved from S3 URI: {args.bucket}")
+    if not publish_predictions_athena and not args.skip_athena_publish:
+        print(
+            "Athena publish skipped: missing S3 bucket (--bucket or S3_BUCKET).",
+            file=sys.stderr,
+        )
+
     needs_s3 = any(
         is_s3_uri(value)
         for value in (args.model, args.meta, args.input, args.rates_source, args.output)
@@ -598,14 +819,14 @@ def main() -> int:
     )
     s3      = build_s3_client(args.region, args.profile) if needs_s3 else None
     session = None
-    if args.validate:
+    if args.validate or publish_predictions_athena:
         import boto3
         session = (
             boto3.Session(profile_name=args.profile, region_name=args.region)
             if args.profile
             else boto3.Session(region_name=args.region)
         )
-        if s3 is None:
+        if s3 is None and needs_s3:
             s3 = session.client("s3")
 
     import tempfile
@@ -670,6 +891,18 @@ def main() -> int:
         # ── Save predictions ───────────────────────────────────────────────
         final_output = write_output(output_df, args.output, s3, tmp_dir)
         print(f"Saved weekly predictions ({len(output_df):,} rows) to: {final_output}")
+
+        if publish_predictions_athena:
+            print(
+                "Publishing predictions to Athena table "
+                f"{args.athena_database}.{args.predictions_athena_table}..."
+            )
+            try:
+                table_location = publish_predictions_to_athena(output_df, args, session)
+            except (RuntimeError, TimeoutError, ValueError) as exc:
+                print(f"Athena publish error: {exc}", file=sys.stderr)
+                return 1
+            print(f"Published predictions dataset to: {table_location}")
 
         # ── Validation against Athena actuals ──────────────────────────────
         if args.validate:

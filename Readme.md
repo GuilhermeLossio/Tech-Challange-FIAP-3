@@ -310,10 +310,13 @@ Optional but recommended for AWS/S3:
 - `S3_DASHBOARD_PREFIX` — dashboard dataset prefix (default: `processed/flights_dashboard`)
 - `S3_MODEL_PREFIX` — model artifacts prefix (default: `models`)
 - `S3_EXPLAIN_PREFIX` — SHAP outputs prefix (default: `explain`)
+- `S3_PREDICTIONS_PREFIX` — weekly predictions prefix (default: `predictions`)
 - `S3_ATHENA_RESULTS_PREFIX` — Athena query results prefix (default: `athena-results`)
+- `S3_PREDICTIONS_ATHENA_PREFIX` — Athena dataset prefix for predictions (default: `<S3_PREDICTIONS_PREFIX>/weekly_predictions`)
 - `S3_TABLE_LAYOUT` — S3 layout for Athena tables (`folder` recommended)
 - `ATHENA_DATABASE` — Athena database name (default: `flight_advisor`)
 - `ATHENA_TABLE` — table to sync partitions (default: `flights_processed`)
+- `ATHENA_PREDICTIONS_TABLE` — Athena table for weekly predictions (default: `weekly_predictions`)
 - `AWS_REGION` and `AWS_PROFILE` — AWS credentials resolution
 
 ### Optional: S3 + Athena pipeline
@@ -397,6 +400,27 @@ python dashboard/build_dashboard_dataset.py \
 Legacy option: `dashboard/parquet_writer.py` can still build the partitioned dataset from a local
 `data/flights_processed.parquet`, but preprocessing already produces the S3 partitions.
 
+#### Step 5 — Weekly predictions published to Athena
+
+```bash
+# One command: generate future flights + predict
+python src/jobs/weekly_pipeline.py --start-date 2026-03-23 --week-days 7 --rows 50000
+```
+
+This writes:
+- `s3://$S3_BUCKET/$S3_PREDICTIONS_PREFIX/weekly_predictions_YYYYMMDD.parquet` (artifact file)
+- `s3://$S3_BUCKET/$S3_PREDICTIONS_ATHENA_PREFIX/year=.../month=.../` (partitioned dataset)
+
+And registers/syncs:
+- `$ATHENA_DATABASE.$ATHENA_PREDICTIONS_TABLE` (Parquet, partitioned by `year`, `month`)
+
+Notes:
+- Athena publish runs by default when a bucket is available (`--bucket` / `S3_BUCKET`, or inferred from S3 input/output URIs).
+- To disable publish for a run, use:
+
+```bash
+python src/jobs/weekly_pipeline.py --skip-athena-publish ...
+```
 #### AWS credentials diagnostics
 
 ```bash

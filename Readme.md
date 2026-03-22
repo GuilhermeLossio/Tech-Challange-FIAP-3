@@ -220,6 +220,29 @@ User ──► FastAPI ──► ML Model (prob: 71%, risk: HIGH)
 ```
 flight-advisor/
 │
+├── src/
+│   ├── api/
+│   │   ├── main.py                  # FastAPI + Jinja2 + endpoints JSON
+│   │   ├── routers/
+│   │   │   ├── views.py             # Rotas que retornam HTML (Jinja2)
+│   │   │   ├── predictions.py       # Endpoints JSON
+│   │   │   ├── advisor.py           # Endpoints RAG/chat
+│   │   │   └── insights.py          # SHAP, anomalias
+│   │   └── schemas.py
+│   │
+│   ├── templates/                   # Jinja2 templates
+│   │   ├── base.html                # Layout base, Bootstrap CDN, navbar
+│   │   ├── dashboard.html
+│   │   ├── predictions.html
+│   │   └── advisor.html             # Chat RAG
+│   │
+│   └── static/
+│       ├── css/
+│       │   └── custom.css
+│       └── js/
+│           ├── charts.js            # Chart.js
+│           └── advisor.js           # fetch para os endpoints JSON
+│
 ├── data/
 │   ├── raw/                    # Raw data (not versioned)
 │   ├── processed/              # Processed data
@@ -231,25 +254,6 @@ flight-advisor/
 │   ├── 03_supervised_models.ipynb      # Supervised ML + SHAP
 │   ├── 04_unsupervised_models.ipynb    # Clustering + PCA
 │   └── 05_anomaly_detection.ipynb      # Anomaly Detection
-│
-├── src/
-│   ├── preprocessing.py        # Cleaning and transformation pipeline
-│   ├── model.py                # Model inference and serialization
-│   ├── trainer.py              # Training loop and model export
-│   ├── explainer.py            # SHAP values and visualizations
-│   ├── rag/
-│   │   ├── indexer.py          # Document and vector store generation
-│   │   ├── retriever.py        # Semantic search in FAISS
-│   │   └── advisor.py          # ML + RAG + Qwen 3 orchestrator
-│   ├── aws/
-│   │   ├── uploader.py         # Upload models and data to S3
-│   │   ├── refiner.py          # Cloud refinement orchestration
-│   │   └── athena_client.py    # Athena query abstraction
-│   ├── jobs/
-│   │   ├── weekly_predict.py   # Weekly prediction job
-│   │   └── scheduler.py        # Job scheduling (cron / trigger)
-│   └── api/
-│       └── main.py             # FastAPI endpoints
 │
 ├── dashboard/
 │   ├── app.py                  # Dash dashboard

@@ -223,7 +223,7 @@ _base_path = normalize_base_path(os.getenv("DASH_BASE_PATH", "/"))
 app = Dash(
     __name__,
     external_stylesheets=[
-        "https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap"
+        "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
     ],
     requests_pathname_prefix=_base_path,
     routes_pathname_prefix=_base_path,
@@ -594,22 +594,22 @@ def query_monthly_line_athena(years, months, airlines, states):
 # ---------------------------------------------------------------------------
 # Figure styling helpers
 # ---------------------------------------------------------------------------
-_PLOT_BG   = "#fafaf8"
-_PAPER_BG  = "#fafaf8"
-_FONT_COLOR = "#2b2b2b"
-_GRID_COLOR = "#e8e4dc"
-_ACCENT    = "#c47c2b"
+_PLOT_BG   = "#ffffff"
+_PAPER_BG  = "#ffffff"
+_FONT_COLOR = "#111111"
+_GRID_COLOR = "#e5e7eb"
+_ACCENT    = "#111111"
 
 
 def _style_fig(fig, **layout_kwargs):
     fig.update_layout(
         paper_bgcolor=_PAPER_BG,
         plot_bgcolor=_PLOT_BG,
-        font=dict(family="DM Sans, sans-serif", color=_FONT_COLOR),
-        title_font=dict(size=14, weight=600),
+        font=dict(family="IBM Plex Sans, sans-serif", color=_FONT_COLOR),
+        title_font=dict(size=14),
         xaxis=dict(gridcolor=_GRID_COLOR, linecolor=_GRID_COLOR),
         yaxis=dict(gridcolor=_GRID_COLOR, linecolor=_GRID_COLOR),
-        margin=dict(l=40, r=20, t=48, b=40),
+        margin=dict(l=36, r=16, t=44, b=36),
         **layout_kwargs,
     )
     fig.update_traces(marker_color=_ACCENT)
@@ -660,29 +660,33 @@ def default_month_selection(months: List[int]) -> List[int]:
 
 _CARD = {
     "background": "#ffffff",
-    "padding": "16px 20px",
-    "borderRadius": "14px",
-    "boxShadow": "0 1px 4px rgba(0,0,0,0.06)",
+    "padding": "14px 16px",
+    "borderRadius": "10px",
+    "border": "1px solid #e5e7eb",
 }
 
 _KPI_LABEL = {
-    "fontSize": "11px", "color": "#888", "textTransform": "uppercase",
-    "letterSpacing": "0.06em", "marginBottom": "6px",
+    "fontSize": "11px", "color": "#6b7280", "marginBottom": "6px",
 }
 _KPI_VALUE = {
-    "fontSize": "26px", "fontWeight": "600", "color": "#2b2b2b",
-    "fontFamily": "'DM Mono', monospace",
+    "fontSize": "24px", "fontWeight": "600", "color": "#111111",
+    "fontFamily": "'IBM Plex Mono', monospace",
 }
 _ERROR_BANNER = {
-    "background": "#fff1f0",
-    "border": "1px solid #ffccc7",
-    "color": "#a8071a",
+    "background": "#fff5f5",
+    "border": "1px solid #fecaca",
+    "color": "#991b1b",
     "padding": "10px 12px",
     "borderRadius": "8px",
-    "fontFamily": "'DM Mono', monospace",
+    "fontFamily": "'IBM Plex Mono', monospace",
     "fontSize": "11px",
-    "marginBottom": "16px",
+    "marginBottom": "12px",
     "display": "none",
+}
+_FILTER_STYLE = {
+    "borderRadius": "8px",
+    "border": "1px solid #d1d5db",
+    "fontSize": "13px",
 }
 
 data_source_label = (
@@ -693,11 +697,11 @@ data_source_label = (
 
 app.layout = html.Div(
     style={
-        "fontFamily": "'DM Sans', sans-serif",
-        "background": "linear-gradient(160deg, #f5f2ec 0%, #faf8f4 100%)",
+        "fontFamily": "'IBM Plex Sans', sans-serif",
+        "background": "#f5f5f4",
         "minHeight": "100vh",
-        "padding": "28px 24px",
-        "color": "#2b2b2b",
+        "padding": "20px 16px",
+        "color": "#111111",
     },
     children=[
         # ── store: holds filter options fetched lazily ──────────────────────
@@ -708,29 +712,31 @@ app.layout = html.Div(
         dcc.Interval(id="athena-error-poll", interval=3000, n_intervals=0),
 
         html.Div(
-            style={"maxWidth": "1280px", "margin": "0 auto"},
+            style={"maxWidth": "1120px", "margin": "0 auto"},
             children=[
 
                 # ── Header ─────────────────────────────────────────────────
                 html.Div(
-                    style={"display": "flex", "justifyContent": "space-between",
-                           "alignItems": "flex-end", "marginBottom": "24px"},
+                    style={
+                        "display": "flex",
+                        "justifyContent": "space-between",
+                        "alignItems": "flex-start",
+                        "flexWrap": "wrap",
+                        "gap": "8px",
+                        "marginBottom": "14px",
+                    },
                     children=[
-                        html.Div([
-                            html.H1("Flight Advisor",
-                                    style={"margin": "0", "fontSize": "28px",
-                                           "fontWeight": "600", "letterSpacing": "-0.02em"}),
-                            html.P("Delay risk overview · powered by real-time data",
-                                   style={"margin": "4px 0 0", "color": "#888", "fontSize": "13px"}),
-                        ]),
+                        html.H1(
+                            "Flight Advisor",
+                            style={"margin": "0", "fontSize": "24px", "fontWeight": "600"},
+                        ),
                         html.Div(
                             style={
-                                "fontFamily": "'DM Mono', monospace", "fontSize": "11px",
-                                "textTransform": "uppercase", "letterSpacing": "0.1em",
-                                "color": "#c47c2b", "border": "1px solid #e8d9c0",
-                                "padding": "4px 10px", "borderRadius": "6px",
+                                "fontFamily": "'IBM Plex Mono', monospace",
+                                "fontSize": "11px",
+                                "color": "#6b7280",
                             },
-                            children="Dashboard",
+                            children=f"Source: {data_source_label}",
                         ),
                     ],
                 ),
@@ -743,8 +749,8 @@ app.layout = html.Div(
                     children=html.Div(
                         style={
                             "display": "grid",
-                            "gridTemplateColumns": "repeat(auto-fit, minmax(200px, 1fr))",
-                            "gap": "12px", "marginBottom": "20px",
+                            "gridTemplateColumns": "repeat(auto-fit, minmax(180px, 1fr))",
+                            "gap": "10px", "marginBottom": "14px",
                         },
                         children=[
                             html.Div(style=_CARD, children=[
@@ -775,18 +781,18 @@ app.layout = html.Div(
                     children=html.Div(
                         style={
                             "display": "grid",
-                            "gridTemplateColumns": "repeat(auto-fit, minmax(200px, 1fr))",
-                            "gap": "12px", "marginBottom": "20px",
+                            "gridTemplateColumns": "repeat(auto-fit, minmax(210px, 1fr))",
+                            "gap": "10px", "marginBottom": "14px",
                         },
                         children=[
                             dcc.Dropdown(id="filter-year",    options=[], value=[], multi=True,
-                                         placeholder="Filter by year",    style={"borderRadius": "10px"}),
+                                         placeholder="Filter by year",    style=_FILTER_STYLE),
                             dcc.Dropdown(id="filter-airline", options=[], value=[], multi=True,
-                                         placeholder="Filter by airline", style={"borderRadius": "10px"}),
+                                         placeholder="Filter by airline", style=_FILTER_STYLE),
                             dcc.Dropdown(id="filter-month",   options=[], value=[], multi=True,
-                                         placeholder="Filter by month",   style={"borderRadius": "10px"}),
+                                         placeholder="Filter by month",   style=_FILTER_STYLE),
                             dcc.Dropdown(id="filter-state",   options=[], value=[], multi=True,
-                                         placeholder="Filter by origin state", style={"borderRadius": "10px"}),
+                                         placeholder="Filter by origin state", style=_FILTER_STYLE),
                         ],
                     ),
                 ),
@@ -796,7 +802,7 @@ app.layout = html.Div(
                     type="dot",
                     color=_ACCENT,
                     children=html.Div(
-                        style={"display": "grid", "gridTemplateColumns": "1fr 1fr", "gap": "16px"},
+                        style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(320px, 1fr))", "gap": "10px"},
                         children=[
                             html.Div(style=_CARD, children=dcc.Graph(
                                 id="chart-airline", config={"displayModeBar": False})),
@@ -808,10 +814,9 @@ app.layout = html.Div(
 
                 # ── Footer ─────────────────────────────────────────────────
                 html.Div(
-                    style={"marginTop": "20px", "color": "#aaa", "fontSize": "11px",
-                           "fontFamily": "'DM Mono', monospace"},
+                    style={"marginTop": "14px", "color": "#6b7280", "fontSize": "11px",
+                           "fontFamily": "'IBM Plex Mono', monospace"},
                     children=(
-                        f"Data source: {data_source_label} · "
                         "Set DASH_SOURCE or DASH_USE_ATHENA=0 to override."
                     ),
                 ),

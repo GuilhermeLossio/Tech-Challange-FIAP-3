@@ -1,0 +1,539 @@
+{% extends "base.html" %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="stylesheet" href="{{ url_for('static', filename='css/flight.css') }}" />
+{% endblock %}
+
+{% block content %}
+<div class="flight-page">
+  <div class="fp-wrap">
+
+    <!-- ════ SIDEBAR ════ -->
+    <aside class="fp-sidebar">
+      <div class="sb-top">
+        <div class="sb-label">Country</div>
+        <div class="sb-search" id="fp-csw">
+          <span class="sb-ico">⌕</span>
+          <input type="text" id="fp-ci" placeholder="Search country…" autocomplete="off" />
+          <div class="sb-drop" id="fp-cdd"></div>
+        </div>
+      </div>
+
+      <div class="sb-country" id="fp-ch">
+        <div class="sb-cname" id="fp-cn">—</div>
+        <div class="sb-cmeta" id="fp-cm">—</div>
+      </div>
+
+      <div class="sb-airports" id="fp-al">
+        <div class="sb-msg">
+          <span class="sb-msg-ico">🌍</span>
+          Search a country above<br>or click the map
+        </div>
+      </div>
+    </aside>
+
+    <!-- ════ MAP ════ -->
+    <div class="fp-map">
+      <div id="fp-map"></div>
+      <div class="fp-map-hint" id="fp-mh">Click a country to explore airports</div>
+    </div>
+
+    <!-- ════ FLIGHT PANEL ════ -->
+    <div class="fp-dep" id="fp-dep">
+      <div class="fp-state">
+        <span class="fp-state-ico">✈</span>
+        Select an airport to view flights
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+
+{% block page_scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function () {
+  const $   = id => document.getElementById(id);
+  const esc = s  => encodeURIComponent(s || '');
+
+  async function apiFetch(url) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  }
+
+  /* ── state ── */
+  const S = {
+    countries: [], airports: [], depCache: {},
+    _deps: [], _liveFlights: null,
+    selCountry: null, selIata: null,
+    markerLayer: null, countryLayers: {},
+    activeTab: 'happening',
+    activeChip: 'all',
+    destCountries: [],
+  };
+
+  /* ══════════════════════════════════════
+     MAP INIT
+  ══════════════════════════════════════ */
+  const map = L.map('fp-map', { center:[20,0], zoom:2, zoomControl:true });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution:'© OpenStreetMap contributors © CARTO',
+    subdomains:'abcd', maxZoom:14,
+  }).addTo(map);
+  S.markerLayer = L.layerGroup().addTo(map);
+
+  fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
+    .then(r => r.json())
+    .then(geo => {
+      L.geoJSON(geo, {
+        style: { fillColor:'transparent', color:'#1e3050', weight:.5, fillOpacity:0 },
+        onEachFeature(feat, layer) {
+          const name = feat.properties.ADMIN || feat.properties.name;
+          S.countryLayers[name.toLowerCase()] = layer;
+          layer.on('mouseover', () => {
+            if (S.selCountry?.toLowerCase() !== name.toLowerCase())
+              layer.setStyle({ fillColor:'#00b4ff', fillOpacity:.06, color:'#00b4ff', weight:1 });
+          });
+          layer.on('mouseout', () => {
+            if (S.selCountry?.toLowerCase() !== name.toLowerCase())
+              layer.setStyle({ fillColor:'transparent', fillOpacity:0, color:'#1e3050', weight:.5 });
+          });
+          layer.on('click', () => pickCountry(name));
+        },
+      }).addTo(map);
+    }).catch(() => {});
+
+  function glowCountry(name) {
+    Object.values(S.countryLayers).forEach(l =>
+      l.setStyle({ fillColor:'transparent', fillOpacity:0, color:'#1e3050', weight:.5 })
+    );
+    if (!name) return;
+    const l = S.countryLayers[name.toLowerCase()];
+    if (!l) return;
+    l.setStyle({ fillColor:'#00b4ff', fillOpacity:.1, color:'#00b4ff', weight:1.5 });
+    try { map.flyToBounds(l.getBounds(), { duration:.75, padding:[40,40] }); } catch {}
+  }
+
+  function pinIcon(iata) {
+    return L.divIcon({
+      className: '',
+      html: `<div class="fp-pin-wrap"><div class="fp-pin-dot"></div><div class="fp-pin-lbl">${iata}</div></div>`,
+      iconSize:[40,24], iconAnchor:[5,5],
+    });
+  }
+
+  function popupHtml(ap) {
+    const loc = [ap.city, ap.state, ap.country].filter(Boolean).join(', ');
+    return `<div>
+      <div class="fp-pu-iata">${ap.iata_code}</div>
+      <div class="fp-pu-name">${ap.airport_name || '—'}</div>
+      <div class="fp-pu-loc">${loc}</div>
+      <button class="fp-pu-btn" onclick="window._fpPickAirport('${ap.iata_code}')">VIEW FLIGHTS →</button>
+    </div>`;
+  }
+
+  function placeMarkers(airports) {
+    S.markerLayer.clearLayers();
+    airports.forEach(ap => {
+      if (ap.latitude == null || ap.longitude == null) return;
+      const lat = parseFloat(ap.latitude), lng = parseFloat(ap.longitude);
+      if (isNaN(lat) || isNaN(lng)) return;
+      const m = L.marker([lat,lng], { icon:pinIcon(ap.iata_code) }).addTo(S.markerLayer);
+      m.on('click', () => pickAirport(ap.iata_code));
+      m.bindPopup(popupHtml(ap), { maxWidth:220 });
+    });
+  }
+
+  window._fpPickAirport = iata => pickAirport(iata);
+
+  /* ══════════════════════════════════════
+     COUNTRY SEARCH
+  ══════════════════════════════════════ */
+  const ci = $('fp-ci'), cdd = $('fp-cdd');
+
+  function renderDrop(items) {
+    if (!items.length) { cdd.classList.remove('open'); return; }
+    cdd.innerHTML = items.slice(0,80).map(c =>
+      `<div class="sb-drop-item" data-c="${c.country}">
+         <span>${c.country}</span><span class="sb-cnt">${c.airport_count}</span>
+       </div>`
+    ).join('');
+    cdd.classList.add('open');
+    cdd.querySelectorAll('.sb-drop-item').forEach(el =>
+      el.addEventListener('click', () => { pickCountry(el.dataset.c); cdd.classList.remove('open'); })
+    );
+  }
+
+  ci.addEventListener('input', () => {
+    const q = ci.value.trim().toLowerCase();
+    if (!q) { cdd.classList.remove('open'); return; }
+    renderDrop(S.countries.filter(c => c.country.toLowerCase().includes(q)));
+  });
+  ci.addEventListener('focus', () => { if (ci.value.trim()) ci.dispatchEvent(new Event('input')); });
+  document.addEventListener('click', e => {
+    if (!$('fp-csw').contains(e.target)) cdd.classList.remove('open');
+  });
+
+  /* ══════════════════════════════════════
+     PICK COUNTRY
+  ══════════════════════════════════════ */
+  async function pickCountry(name) {
+    if (!name) return;
+    S.selCountry = name; ci.value = name; cdd.classList.remove('open');
+    $('fp-ch').classList.add('show');
+    $('fp-cn').textContent = name;
+    $('fp-cm').textContent = 'Loading airports…';
+    $('fp-al').innerHTML = `<div class="sb-msg"><span class="fp-spinner"></span></div>`;
+    glowCountry(name);
+    try {
+      const data = await apiFetch(`/api/flight/airports?country=${esc(name)}&limit=500`);
+      S.airports = data.airports || [];
+    } catch { S.airports = []; }
+    $('fp-cm').textContent = `${S.airports.length} airport${S.airports.length !== 1 ? 's' : ''}`;
+    renderAirportList(S.airports);
+    placeMarkers(S.airports);
+    $('fp-mh').textContent = S.airports.length
+      ? 'Click a pin or list item to view flights'
+      : 'No airports found for this country';
+  }
+
+  /* ══════════════════════════════════════
+     AIRPORT LIST
+  ══════════════════════════════════════ */
+  function renderAirportList(airports) {
+    const wrap = $('fp-al');
+    if (!airports.length) {
+      wrap.innerHTML = `<div class="sb-msg"><span class="sb-msg-ico">🛫</span>No airports found</div>`;
+      return;
+    }
+    wrap.innerHTML = airports.map(ap => {
+      const loc = [ap.city, ap.state].filter(Boolean).join(', ');
+      return `<div class="ap-row" id="apr-${ap.iata_code}" data-iata="${ap.iata_code}">
+        <div class="ap-iata">${ap.iata_code}</div>
+        <div class="ap-info">
+          <div class="ap-name">${ap.airport_name || '—'}</div>
+          <div class="ap-city">${loc || ap.country || ''}</div>
+        </div>
+      </div>`;
+    }).join('');
+    wrap.querySelectorAll('.ap-row').forEach(el =>
+      el.addEventListener('click', () => pickAirport(el.dataset.iata))
+    );
+  }
+
+  /* ══════════════════════════════════════
+     PICK AIRPORT
+  ══════════════════════════════════════ */
+  async function pickAirport(iata) {
+    document.querySelectorAll('.ap-row').forEach(el =>
+      el.classList.toggle('sel', el.dataset.iata === iata)
+    );
+    const item = $(`apr-${iata}`);
+    if (item) item.scrollIntoView({ behavior:'smooth', block:'nearest' });
+
+    S.selIata    = iata;
+    S.activeChip = 'all';
+    S.activeTab  = 'happening';
+    S._liveFlights = null;
+
+    const ap = S.airports.find(a => a.iata_code === iata);
+
+    /* Loading shell */
+    $('fp-dep').innerHTML = `
+      <div style="padding:1rem 1.25rem .75rem;border-bottom:1px solid var(--color-border);
+                  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;">
+        <div style="display:flex;align-items:baseline;gap:.6rem;">
+          <span class="dep-iata">${iata}</span>
+          <span style="font-size:1rem;font-weight:700;color:var(--color-text-hi)">${ap?.airport_name || ''}</span>
+        </div>
+      </div>
+      <div class="fp-state"><span class="fp-spinner"></span><br><br>Loading…</div>`;
+
+    /* Fetch departures */
+    let depData;
+    if (S.depCache[iata]) {
+      depData = S.depCache[iata];
+    } else {
+      try {
+        depData = await apiFetch(`/api/flight/departures?airport=${esc(iata)}&limit=80`);
+        S.depCache[iata] = depData;
+      } catch {
+        $('fp-dep').innerHTML = `<div class="fp-state"><span class="fp-state-ico">⚠</span>Failed to load data for ${iata}</div>`;
+        return;
+      }
+    }
+
+    S._deps = depData.departures || [];
+    buildDestCountries(S._deps);
+    renderFlightPanel(iata, ap);
+
+    /* Async: fetch OpenSky */
+    fetchOpenSky(iata, ap);
+  }
+
+  /* ══════════════════════════════════════
+     DEST COUNTRY CHIPS
+  ══════════════════════════════════════ */
+  function iataToCountry(iata) {
+    return S.airports.find(a => a.iata_code === iata)?.country || null;
+  }
+
+  function buildDestCountries(deps) {
+    const seen = new Set();
+    deps.forEach(d => {
+      const c = iataToCountry(d.destination_airport);
+      if (c) seen.add(c);
+    });
+    S.destCountries = [...seen].sort();
+  }
+
+  /* ══════════════════════════════════════
+     RENDER FULL PANEL
+  ══════════════════════════════════════ */
+  function renderFlightPanel(iata, ap) {
+    const loc = ap ? [ap.city, ap.state, ap.country].filter(Boolean).join(', ') : '';
+    const chipsHtml = S.destCountries.map(c =>
+      `<button class="fp-chip" data-chip="${c}" onclick="window._fpChip('${c.replace(/'/g,"\\'")}')">${c}</button>`
+    ).join('');
+
+    $('fp-dep').innerHTML = `
+      <!-- header -->
+      <div style="padding:1rem 1.25rem .75rem;border-bottom:1px solid var(--color-border);flex-shrink:0;
+                  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;">
+        <div style="display:flex;align-items:baseline;gap:.6rem;">
+          <span class="dep-iata">${iata}</span>
+          <span style="font-size:1rem;font-weight:700;color:var(--color-text-hi)">${ap?.airport_name || ''}</span>
+        </div>
+        ${loc ? `<span style="font-family:var(--fn-mono);font-size:.55rem;color:var(--color-muted)">${loc}</span>` : ''}
+      </div>
+
+      <!-- tabs -->
+      <div class="fp-tabs">
+        <div class="fp-tab active" data-tab="happening" onclick="window._fpTab('happening')">
+          <span class="fp-tab-live-dot"></span>
+          Flights Happening
+          <span class="fp-tab-badge" id="tab-badge-happening">…</span>
+        </div>
+        <div class="fp-tab" data-tab="buy" onclick="window._fpTab('buy')">
+          <span class="fp-tab-dot"></span>
+          Flights to Buy
+          <span class="fp-tab-badge" id="tab-badge-buy">${S._deps.length}</span>
+        </div>
+      </div>
+
+      <!-- country filter chips -->
+      <div class="fp-filter-bar">
+        <span class="fp-filter-label">Destination</span>
+        <button class="fp-chip fp-chip-all active" data-chip="all" onclick="window._fpChip('all')">All</button>
+        ${chipsHtml}
+      </div>
+
+      <!-- tab panes -->
+      <div class="fp-tab-content">
+        <div class="fp-tab-pane active" id="pane-happening">
+          <div class="fp-state"><span class="fp-spinner"></span><br><br>Fetching live flights…</div>
+        </div>
+        <div class="fp-tab-pane" id="pane-buy">
+          ${renderBuyContent(S._deps, 'all')}
+        </div>
+      </div>`;
+  }
+
+  /* ══════════════════════════════════════
+     TAB SWITCH
+  ══════════════════════════════════════ */
+  window._fpTab = function(tab) {
+    S.activeTab = tab;
+    document.querySelectorAll('.fp-tab').forEach(el =>
+      el.classList.toggle('active', el.dataset.tab === tab)
+    );
+    document.querySelectorAll('.fp-tab-pane').forEach(el =>
+      el.classList.toggle('active', el.id === `pane-${tab}`)
+    );
+  };
+
+  /* ══════════════════════════════════════
+     CHIP FILTER
+  ══════════════════════════════════════ */
+  window._fpChip = function(chip) {
+    S.activeChip = chip;
+    document.querySelectorAll('.fp-chip').forEach(el =>
+      el.classList.toggle('active', el.dataset.chip === chip)
+    );
+    const buyPane = $('pane-buy');
+    if (buyPane) buyPane.innerHTML = renderBuyContent(S._deps, chip);
+    if (S._liveFlights !== null) renderHappeningContent(S._liveFlights);
+  };
+
+  /* ══════════════════════════════════════
+     OPENSKY — live flights
+  ══════════════════════════════════════ */
+  async function fetchOpenSky(iata, ap) {
+    const lat = ap?.latitude  ? parseFloat(ap.latitude)  : null;
+    const lng = ap?.longitude ? parseFloat(ap.longitude) : null;
+    let flights = [];
+
+    if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
+      const d = 8;
+      const url = `https://opensky-network.org/api/states/all` +
+        `?lamin=${(lat-d).toFixed(2)}&lamax=${(lat+d).toFixed(2)}` +
+        `&lomin=${(lng-d).toFixed(2)}&lomax=${(lng+d).toFixed(2)}`;
+      try {
+        const r = await fetch(url);
+        if (r.ok) {
+          const data = await r.json();
+          flights = (data.states || [])
+            .map(s => ({
+              callsign:       (s[1] || '').trim(),
+              origin_country: s[2] || '—',
+              lat:            s[6],
+              lng:            s[5],
+              altitude:       s[7] != null ? Math.round(s[7]) + ' m' : '—',
+              velocity:       s[9] != null ? Math.round(s[9]) + ' m/s' : '—',
+              on_ground:      s[8],
+            }))
+            .filter(f => f.callsign && !f.on_ground);
+        }
+      } catch {}
+    }
+
+    S._liveFlights = flights;
+    renderHappeningContent(flights);
+  }
+
+  /* ══════════════════════════════════════
+     RENDER: HAPPENING
+  ══════════════════════════════════════ */
+  function renderHappeningContent(flights) {
+    const pane = $('pane-happening');
+    if (!pane) return;
+
+    /* For happening, filter by origin_country matching chip
+       (chip = destination country from departures data)
+       — best available with OpenSky free tier              */
+    const filtered = S.activeChip === 'all'
+      ? flights
+      : flights.filter(f => f.origin_country === S.activeChip);
+
+    const badge = $('tab-badge-happening');
+    if (badge) badge.textContent = filtered.length;
+
+    if (!filtered.length) {
+      pane.innerHTML = `<div class="fp-state">
+        <span class="fp-state-ico">📡</span>
+        No live flights found${S.activeChip !== 'all' ? ' for ' + S.activeChip : ''}<br>
+        <span style="font-size:.6rem;opacity:.5;margin-top:.3rem;display:block">
+          OpenSky free tier — coverage may be limited
+        </span>
+      </div>`;
+      return;
+    }
+
+    pane.innerHTML = `<div class="fph-grid">${
+      filtered.slice(0,48).map(f => `
+        <div class="fph-card">
+          <div class="fph-route">
+            <span class="fph-callsign">${f.callsign}</span>
+            <div class="fph-arrow">
+              <div class="fph-arrow-line"></div>✈
+            </div>
+            <div class="fph-status"><span class="fph-status-dot"></span>LIVE</div>
+          </div>
+          <div class="fph-meta">
+            <span class="fph-pill hi">${f.origin_country}</span>
+            <span class="fph-pill">Alt ${f.altitude}</span>
+            <span class="fph-pill">Vel ${f.velocity}</span>
+            ${f.lat != null ? `<span class="fph-pill">${f.lat.toFixed(2)}° ${f.lng.toFixed(2)}°</span>` : ''}
+          </div>
+        </div>`
+      ).join('')
+    }</div>`;
+  }
+
+  /* ══════════════════════════════════════
+     RENDER: BUY
+  ══════════════════════════════════════ */
+  function renderBuyContent(deps, chip) {
+    const origin = S.selIata || '';
+    const filtered = chip === 'all'
+      ? deps
+      : deps.filter(d => iataToCountry(d.destination_airport) === chip);
+
+    const badge = $('tab-badge-buy');
+    if (badge) badge.textContent = filtered.length;
+
+    if (!filtered.length) return `<div class="fp-state">
+      <span class="fp-state-ico">🎫</span>
+      No routes found${chip !== 'all' ? ' for ' + chip : ''}
+    </div>`;
+
+    /* deduplicate by destination */
+    const seen = new Set();
+    const unique = filtered.filter(d => {
+      if (!d.destination_airport || seen.has(d.destination_airport)) return false;
+      seen.add(d.destination_airport); return true;
+    });
+
+    const today = new Date().toISOString().slice(0,10);
+
+    return `<div class="fpb-grid">${
+      unique.slice(0,30).map(d => {
+        const dest     = d.destination_airport || '—';
+        const destAp   = S.airports.find(a => a.iata_code === dest);
+        const destName = destAp?.airport_name || dest;
+        const country  = destAp?.country || '';
+        const date     = d.flight_date || today;
+        const dateSlug = date.replace(/-/g,'');
+        const dateMon  = date.slice(0,7).replace('-','');
+
+        const gfLink = `https://www.google.com/flights?hl=en#flt=${origin}.${dest}.${dateSlug}`;
+        const kyLink = `https://www.kayak.com/flights/${origin}-${dest}/${date}`;
+        const skLink = `https://www.skyscanner.com/transport/flights/${origin.toLowerCase()}/${dest.toLowerCase()}/${dateMon}`;
+
+        return `<div class="fpb-card">
+          <div class="fpb-route">
+            <div>
+              <div style="display:flex;align-items:center;gap:.45rem;margin-bottom:.15rem;">
+                <span class="fpb-iata">${origin}</span>
+                <span style="color:var(--color-muted)">→</span>
+                <span class="fpb-iata">${dest}</span>
+              </div>
+              <div class="fpb-dest-name">${destName}</div>
+              ${country ? `<div class="fpb-country">${country}${d.flight_date ? ' · ' + d.flight_date : ''}</div>` : ''}
+            </div>
+          </div>
+          <div class="fpb-links">
+            <a class="fpb-btn fpb-btn-gf" href="${gfLink}" target="_blank" rel="noreferrer">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              Google Flights
+            </a>
+            <a class="fpb-btn fpb-btn-ky" href="${kyLink}" target="_blank" rel="noreferrer">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M21 3L3 10.5l7 2.5 2.5 7L21 3z"/></svg>
+              Kayak
+            </a>
+            <a class="fpb-btn fpb-btn-sk" href="${skLink}" target="_blank" rel="noreferrer">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+              Skyscanner
+            </a>
+          </div>
+        </div>`;
+      }).join('')
+    }</div>`;
+  }
+
+  /* ══════════════════════════════════════
+     BOOT
+  ══════════════════════════════════════ */
+  apiFetch('/api/flight/countries').then(d => { S.countries = d.countries || []; }).catch(() => {});
+})();
+</script>
+{% endblock %}

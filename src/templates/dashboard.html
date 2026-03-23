@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_cockpit.css') }}" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+{% endblock %}
+
+{% block content %}
+<div class="api-strip">
+  <label>Backend URL</label>
+  <input type="text" id="api-base" value="http://127.0.0.1:8000" placeholder="http://127.0.0.1:8000" />
+  <button class="btn-lookup btn-lookup-small" onclick="checkApiHealth()">Conectar</button>
+  <span id="api-health-chip" class="status-chip">desconectado</span>
+</div>
+
+<main>
+  <div class="left-panel">
+    <div class="panel-section">
+      <div class="section-label">Buscar voo real</div>
+      <div class="flight-lookup-wrap suggestions-host">
+        <div class="flight-lookup">
+          <input
+            type="text"
+            id="flight-number-input"
+            placeholder="GLO1234 / TAM3141"
+            maxlength="8"
+            onkeydown="if(event.key==='Enter')lookupFlight()"
+          />
+          <button class="btn-lookup" id="btn-lookup" onclick="lookupFlight()">Buscar</button>
+        </div>
+        <div id="flight-suggestions" class="suggestions-list"></div>
+      </div>
+      <div class="flight-info-card" id="flight-info-card">
+        <div class="flight-route">
+          <div class="iata-big" id="fc-origin">-</div>
+          <div class="route-arrow"><div class="route-line"></div>✈<div class="route-line"></div></div>
+          <div class="iata-big" id="fc-dest">-</div>
+        </div>
+        <div class="flight-meta">
+          <div><div class="meta-key">Voo</div><div class="meta-val accent" id="fc-callsign">-</div></div>
+          <div><div class="meta-key">Altitude</div><div class="meta-val" id="fc-alt">-</div></div>
+          <div><div class="meta-key">Velocidade</div><div class="meta-val" id="fc-vel">-</div></div>
+          <div><div class="meta-key">Pais</div><div class="meta-val" id="fc-country">-</div></div>
+        </div>
+      </div>
+      <div id="lookup-status" class="lookup-status"></div>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-label">Parametros do voo</div>
+      <div class="form-grid">
+        <div class="field"><label>Origem (IATA)</label><input type="text" id="f-origin" maxlength="3" placeholder="GRU" /></div>
+        <div class="field"><label>Destino (IATA)</label><input type="text" id="f-dest" maxlength="3" placeholder="CGH" /></div>
+        <div class="field"><label>Companhia (IATA)</label><input type="text" id="f-airline" maxlength="3" placeholder="LA" /></div>
+        <div class="field"><label>Partida (HHMM)</label><input type="number" id="f-dep" min="0" max="2359" placeholder="1430" /></div>
+        <div class="field"><label>Data do voo</label><input type="date" id="f-date" /></div>
+        <div class="field"><label>Distancia (mi)</label><input type="number" id="f-dist" min="0" placeholder="Automatico" /></div>
+      </div>
+      <button class="btn-analyze" id="btn-analyze" onclick="runAnalysis()">
+        ANALISAR RISCO DE ATRASO
+      </button>
+    </div>
+  </div>
+
+  <div class="right-panel">
+    <div class="result-bar" id="result-bar">
+      <div class="risk-badge" id="risk-badge">-</div>
+      <div class="prob-display">
+        <div class="prob-num" id="prob-num">-</div>
+        <div class="prob-pct">% chance de atraso</div>
+      </div>
+      <div class="advice-inline" id="advice-inline">Execute uma analise para ver recomendacoes.</div>
+    </div>
+
+    <div class="charts-area">
+      <div class="chart-panel map-panel">
+        <div id="live-map"></div>
+      </div>
+
+      <div class="chart-panel">
+        <div class="chart-title"><span class="chart-title-dot chart-dot-risk"></span>Fatores de Risco</div>
+        <div class="chart-wrap" id="radar-wrap">
+          <div class="empty-state">
+            <div class="empty-icon">📡</div>
+            <div class="empty-text">Aguardando analise</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-panel">
+        <div class="chart-title"><span class="chart-title-dot chart-dot-hour"></span>Probabilidade por Horario</div>
+        <div class="chart-wrap"><canvas id="chart-hourly"></canvas></div>
+      </div>
+
+      <div class="chart-panel">
+        <div class="chart-title"><span class="chart-title-dot chart-dot-airline"></span>Comparativo de Companhias</div>
+        <div class="chart-wrap" id="carrier-wrap">
+          <div class="empty-state">
+            <div class="empty-icon">🏢</div>
+            <div class="empty-text">Insira origem e destino</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="table-area">
+  <div class="chart-panel">
+    <div class="chart-title">Voos reais programados</div>
+    <div class="chart-wrap" id="weekly-predictions-wrap">
+      <div class="empty-state">
+        <div class="empty-icon">📅</div>
+        <div class="empty-text">Carregando lista de voos...</div>
+      </div>
+      <table id="weekly-predictions-table" class="data-table hidden">
+        <thead><tr></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{{ url_for('static', filename='js/dashboard_cockpit.js') }}"></script>
+{% endblock %}

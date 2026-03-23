@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero compact">
+  <p class="eyebrow">Advisor</p>
+  <h1>Natural-language operational guidance</h1>
+  <p>Ask for recommendation context and interpretability in one request.</p>
+</section>
+
+<section class="grid">
+  <article class="panel">
+    <h2>Advisor Query</h2>
+    <form id="advisor-form" class="form-grid">
+      <label>Origin Airport
+        <input name="origin_airport" value="JFK" required />
+      </label>
+      <label>Destination Airport
+        <input name="destination_airport" value="LAX" required />
+      </label>
+      <label>Airline
+        <input name="airline" value="DL" required />
+      </label>
+      <label>Scheduled Departure (HHMM)
+        <input name="scheduled_departure" type="number" min="0" max="2359" value="1800" required />
+      </label>
+      <label>Month
+        <input name="month" type="number" min="1" max="12" value="11" />
+      </label>
+      <label>Day Of Week
+        <input name="day_of_week" type="number" min="1" max="7" value="5" />
+      </label>
+      <label>Question
+        <textarea name="question" rows="4" placeholder="Is there a better time to fly this route?"></textarea>
+      </label>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Ask Advisor</button>
+      </div>
+    </form>
+  </article>
+
+  <article class="panel">
+    <h2>Advisor Response</h2>
+    <div id="advisor-result" class="result-card empty">
+      Submit your question to get risk level, top factors and recommendation text.
+    </div>
+  </article>
+</section>
+{% endblock %}

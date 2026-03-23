@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero compact">
+  <p class="eyebrow">Predict</p>
+  <h1>Single-flight delay estimate</h1>
+  <p>Fill in route details and calculate delay probability with model-based factors.</p>
+</section>
+
+<section class="grid">
+  <article class="panel">
+    <h2>Flight Input</h2>
+    <form id="prediction-form" class="form-grid">
+      <label>Origin Airport
+        <input name="origin_airport" value="JFK" required />
+      </label>
+      <label>Destination Airport
+        <input name="destination_airport" value="LAX" required />
+      </label>
+      <label>Airline
+        <input name="airline" value="DL" required />
+      </label>
+      <label>Scheduled Departure (HHMM)
+        <input name="scheduled_departure" type="number" min="0" max="2359" value="1800" required />
+      </label>
+      <label>Month
+        <input name="month" type="number" min="1" max="12" value="11" />
+      </label>
+      <label>Day Of Week
+        <input name="day_of_week" type="number" min="1" max="7" value="5" />
+      </label>
+      <label>Distance (miles)
+        <input name="distance" type="number" step="0.1" min="0" />
+      </label>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Calculate</button>
+      </div>
+    </form>
+  </article>
+
+  <article class="panel">
+    <h2>Prediction Result</h2>
+    <div id="prediction-result" class="result-card empty">
+      Submit a flight to view probability, risk level and top factors.
+    </div>
+  </article>
+</section>
+{% endblock %}

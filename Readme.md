@@ -11,7 +11,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Qwen%203-FFD21E?style=flat-square&logo=huggingface&logoColor=black)](https://huggingface.co)
-[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Flask](https://img.shields.io/badge/Flask-000000?style=flat-square&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 [![Dash](https://img.shields.io/badge/Dash-FF4B4B?style=flat-square&logo=Dash&logoColor=white)](https://dash.ploty.com)
 [![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](https://langchain.com)
 [![XGBoost](https://img.shields.io/badge/XGBoost-189ABB?style=flat-square)](https://xgboost.readthedocs.io)
@@ -71,7 +71,7 @@ The project combines:
 
 ```bash
 # Start the API
-uvicorn src.api.main:app --reload
+python src/api/main.py
 
 # Start the dashboard
 python dashboard/app.py
@@ -124,7 +124,7 @@ curl -X POST "http://localhost:8000/advise" \
 │ │ XGBoost  │ │  │  Embeddings    │  │  └────────┬─────────┘ │
 │ │ Logistic │ │  └───────┬────────┘  │           │           │
 │ └────┬─────┘ │          │           │  ┌──────────────────┐ │
-│      │       │  ┌───────▼────────┐  │  │   FastAPI        │ │
+│      │       │  ┌───────▼────────┐  │  │   Flask          │ │
 │ ┌──────────┐ │  │   Qwen 3       │  │  │   REST API       │ │
 │ │  SHAP    │→│  │ HF Spaces      │→ │  └──────────────────┘ │
 │ │Explainer │ │  │ (open-source)  │  │                       │
@@ -141,7 +141,7 @@ curl -X POST "http://localhost:8000/advise" \
 ### Query Flow
 
 ```
-User ──► FastAPI ──► ML Model (prob: 71%, risk: HIGH)
+User ──► Flask ──► ML Model (prob: 71%, risk: HIGH)
                 │
                 ├──► SHAP Explainer (top factors)
                 │
@@ -188,10 +188,10 @@ User ──► FastAPI ──► ML Model (prob: 71%, risk: HIGH)
 - Qwen 3 LLM hosted on Hugging Face Spaces (open-source, free)
 - Natural language responses with actionable recommendations
 
-### 📡 REST API (FastAPI)
+### 📡 REST API (Flask)
 - `/advise` endpoint for a complete query (ML + RAG + LLM)
 - `/predict` endpoint for isolated prediction
-- Automatic documentation via Swagger UI (`/docs`)
+- Simple API route listing
 
 📈 Interactive Dashboard
 - Filters by airline, route, period
@@ -210,7 +210,7 @@ User ──► FastAPI ──► ML Model (prob: 71%, risk: HIGH)
 | **RAG** | LangChain + FAISS | Indexing and semantic retrieval |
 | **LLM** | Qwen 3 (Hugging Face Spaces) | Generation of natural language responses |
 | **Embeddings** | sentence-transformers | Local embeddings with no API cost |
-| **API** | FastAPI | REST endpoints for integration |
+| **API** | Flask | REST endpoints for integration |
 | **Dashboard** | Dash | Interactive interface |
 | **Visualization** | Plotly, Seaborn, Matplotlib | Charts and geographical maps |
 | **Data** | Pandas, NumPy | Manipulation and analysis |
@@ -222,14 +222,14 @@ flight-advisor/
 │
 ├── src/
 │   ├── api/
-│   │   ├── main.py                  # FastAPI + Jinja2 + endpoints JSON
-│   │   ├── routers/
-│   │   │   ├── views.py             # Rotas que retornam HTML (Jinja2)
-│   │   │   ├── predictions.py       # Endpoints JSON
-│   │   │   ├── advisor.py           # Endpoints RAG/chat
-│   │   │   └── insights.py          # SHAP, anomalias
-│   │   └── schemas.py
-│   │
+│   │   ├── main.py                  # Flask + Jinja2 + endpoints JSON
+│   │   └── services/
+│   
+│── services/  
+│   ├── model.py
+│   ├── features.py
+│   ├── airports.py
+│   ├── data_sources.py
 │   ├── templates/                   # Jinja2 templates
 │   │   ├── base.html                # Layout base, Bootstrap CDN, navbar
 │   │   ├── dashboard.html
@@ -484,8 +484,8 @@ python src/rag/indexer.py
 ### 8. Start the API
 
 ```bash
-uvicorn src.api.main:app --reload
-# Access: http://localhost:8000/docs
+python src/api/main.py
+# Access: http://localhost:8000/
 ```
 
 ### 9. Start the dashboard

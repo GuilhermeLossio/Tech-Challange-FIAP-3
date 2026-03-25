@@ -52,6 +52,7 @@ def mount_dash_app(flask_app: Flask) -> None:
     try:
         from werkzeug.middleware.dispatcher import DispatcherMiddleware
         os.environ.setdefault("DASH_BASE_PATH", "/dashboard/")
+        os.environ.setdefault("DASH_ROUTES_PATH", "/")
         from dashboard.app import app as dash_app
     except Exception as exc:
         print(f"Dash not mounted: {exc}", file=sys.stderr)

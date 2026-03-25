@@ -79,13 +79,36 @@
   /* ── state ── */
   const S = {
     countries: [], airports: [], depCache: {},
+    airportIndex: {},
     _deps: [], _liveFlights: null, flightMarkerLayer: null, selectedAirportLayer: null,
     selCountry: null, selIata: null,
     markerLayer: null, countryLayers: {},
     activeTab: 'happening',
     activeChip: 'all',
     destCountries: [],
+    countryRequestId: 0,
+    airportRequestId: 0,
   };
+
+  function rememberAirports(airports) {
+    (airports || []).forEach((ap) => {
+      const iata = String(ap?.iata_code || '').trim().toUpperCase();
+      if (iata) S.airportIndex[iata] = ap;
+    });
+  }
+
+  function getAirportByIata(iata) {
+    const code = String(iata || '').trim().toUpperCase();
+    return S.airports.find(a => a.iata_code === code) || S.airportIndex[code] || null;
+  }
+
+  function isCurrentCountryRequest(requestId, country) {
+    return requestId === S.countryRequestId && S.selCountry === country;
+  }
+
+  function isCurrentAirportRequest(requestId, iata) {
+    return requestId === S.airportRequestId && S.selIata === iata;
+  }
 
   /* ══════════════════════════════════════
      MAP INIT
@@ -223,18 +246,37 @@
   ══════════════════════════════════════ */
   async function pickCountry(name) {
     if (!name) return;
+    const requestId = ++S.countryRequestId;
+    ++S.airportRequestId;
     if (S.flightMarkerLayer) S.flightMarkerLayer.clearLayers();
     if (S.selectedAirportLayer) S.selectedAirportLayer.clearLayers();
-    S.selCountry = name; ci.value = name; cdd.classList.remove('open');
+    S.selCountry = name;
+    S.selIata = null;
+    S.airports = [];
+    S._deps = [];
+    S._liveFlights = null;
+    S.destCountries = [];
+    ci.value = name;
+    cdd.classList.remove('open');
     $('fp-ch').classList.add('show');
     $('fp-cn').textContent = name;
     $('fp-cm').textContent = 'Loading airports…';
     $('fp-al').innerHTML = `<div class="sb-msg"><span class="fp-spinner"></span></div>`;
+    $('fp-dep').innerHTML = `<div class="fp-state">
+      <span class="fp-state-ico">✈</span>
+      Select an airport to view flights
+    </div>`;
     glowCountry(name);
     try {
       const data = await apiFetch(`/api/flight/airports?country=${esc(name)}&limit=500`);
+      if (!isCurrentCountryRequest(requestId, name)) return;
       S.airports = data.airports || [];
-    } catch { S.airports = []; }
+      rememberAirports(S.airports);
+    } catch {
+      if (!isCurrentCountryRequest(requestId, name)) return;
+      S.airports = [];
+    }
+    if (!isCurrentCountryRequest(requestId, name)) return;
     $('fp-cm').textContent = `${S.airports.length} airport${S.airports.length !== 1 ? 's' : ''}`;
     renderAirportList(S.airports);
     placeMarkers(S.airports);
@@ -271,21 +313,24 @@
      PICK AIRPORT
   ══════════════════════════════════════ */
   async function pickAirport(iata) {
+    const code = String(iata || '').trim().toUpperCase();
+    if (!code) return;
+    const requestId = ++S.airportRequestId;
     if (S.flightMarkerLayer) S.flightMarkerLayer.clearLayers();
     if (S.selectedAirportLayer) S.selectedAirportLayer.clearLayers();
 
     document.querySelectorAll('.ap-row').forEach(el =>
-      el.classList.toggle('sel', el.dataset.iata === iata)
+      el.classList.toggle('sel', el.dataset.iata === code)
     );
-    const item = $(`apr-${iata}`);
+    const item = $(`apr-${code}`);
     if (item) item.scrollIntoView({ behavior:'smooth', block:'nearest' });
 
-    S.selIata    = iata;
+    S.selIata    = code;
     S.activeChip = 'all';
     S.activeTab  = 'happening';
     S._liveFlights = null;
 
-    const ap = S.airports.find(a => a.iata_code === iata);
+    const ap = getAirportByIata(code);
     focusAirportMap(ap);
 
     /* Loading shell */
@@ -293,7 +338,7 @@
       <div style="padding:1rem 1.25rem .75rem;border-bottom:1px solid var(--color-border);
                   display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;">
         <div style="display:flex;align-items:baseline;gap:.6rem;">
-          <span class="dep-iata">${iata}</span>
+          <span class="dep-iata">${code}</span>
           <span style="font-size:1rem;font-weight:700;color:var(--color-text-hi)">${ap?.airport_name || ''}</span>
         </div>
       </div>
@@ -301,31 +346,34 @@
 
     /* Fetch departures */
     let depData;
-    if (S.depCache[iata]) {
-      depData = S.depCache[iata];
+    if (S.depCache[code]) {
+      depData = S.depCache[code];
     } else {
       try {
-        depData = await apiFetch(`/api/flight/departures?airport=${esc(iata)}&limit=80`);
-        S.depCache[iata] = depData;
+        depData = await apiFetch(`/api/flight/departures?airport=${esc(code)}&limit=80`);
+        if (!isCurrentAirportRequest(requestId, code)) return;
+        S.depCache[code] = depData;
       } catch {
-        $('fp-dep').innerHTML = `<div class="fp-state"><span class="fp-state-ico">⚠</span>Failed to load data for ${iata}</div>`;
+        if (!isCurrentAirportRequest(requestId, code)) return;
+        $('fp-dep').innerHTML = `<div class="fp-state"><span class="fp-state-ico">⚠</span>Failed to load data for ${code}</div>`;
         return;
       }
     }
+    if (!isCurrentAirportRequest(requestId, code)) return;
 
     S._deps = depData.departures || [];
     buildDestCountries(S._deps);
-    renderFlightPanel(iata, ap);
+    renderFlightPanel(code, ap);
 
     /* Async: fetch OpenSky */
-    fetchOpenSky(iata, ap);
+    fetchOpenSky(code, ap, requestId);
   }
 
   /* ══════════════════════════════════════
      DEST COUNTRY CHIPS
   ══════════════════════════════════════ */
   function iataToCountry(iata) {
-    return S.airports.find(a => a.iata_code === iata)?.country || null;
+    return getAirportByIata(iata)?.country || null;
   }
 
   function buildDestCountries(deps) {
@@ -451,7 +499,7 @@
     });
   }
 
-  async function fetchOpenSky(iata, ap) {
+  async function fetchOpenSky(iata, ap, requestId = S.airportRequestId) {
     const lat = ap?.latitude ? parseFloat(ap.latitude) : null;
     const lng = ap?.longitude ? parseFloat(ap.longitude) : null;
     let flights = [];
@@ -466,8 +514,10 @@
         const r = await fetch(url);
         const data = await r.json();
         if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
+        if (!isCurrentAirportRequest(requestId, iata)) return;
         flights = (data.flights || []).filter(f => f.callsign || f.icao24);
       } catch (err) {
+        if (!isCurrentAirportRequest(requestId, iata)) return;
         const pane = $('pane-happening');
         if (pane) {
           pane.innerHTML = `<div class="fp-state">
@@ -481,6 +531,7 @@
       }
     }
 
+    if (!isCurrentAirportRequest(requestId, iata)) return;
     S._liveFlights = flights;
     renderHappeningContent(flights);
     placeFlightMarkers(flights);
@@ -565,7 +616,7 @@
     return `<div class="fpb-grid">${
       unique.slice(0,30).map(d => {
         const dest     = d.destination_airport || '—';
-        const destAp   = S.airports.find(a => a.iata_code === dest);
+        const destAp   = getAirportByIata(dest);
         const destName = destAp?.airport_name || dest;
         const country  = destAp?.country || '';
         const date     = d.flight_date || today;

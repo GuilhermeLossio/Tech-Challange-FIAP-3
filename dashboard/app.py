@@ -17,8 +17,8 @@ Performance improvements applied
   chart is recomputed.
 * **Background pre-warm thread** (DASH_PREWARM=1) unchanged — still available.
 * **Column selection helper** centralises the list of columns read from Parquet.
-
-FIX: resolve_data_source now defaults to flights_processed.parquet instead of .csv
+* **Training-first defaults** — the mounted dashboard now opens on the training split
+  from S3/Athena unless explicitly overridden.
 """
 
 from __future__ import annotations
@@ -62,14 +62,13 @@ load_env_file()
 # ---------------------------------------------------------------------------
 
 def resolve_data_source() -> Optional[str]:
-    source = os.getenv("DASH_SOURCE")
-    if source:
-        return source
+    for env_key in ("DASH_SOURCE", "RATES_SOURCE"):
+        source = os.getenv(env_key)
+        if source:
+            return source
     bucket = os.getenv("S3_BUCKET") or os.getenv("S3_Bucket")
-    processed_prefix = os.getenv("S3_PROCESSED_PREFIX")
-    refined_prefix = os.getenv("S3_REFINED_PREFIX")
-    data_prefix = processed_prefix or refined_prefix or "processed"
-    filename = os.getenv("DASH_FILENAME", "flights_processed.parquet")  # FIX: era .csv
+    data_prefix = os.getenv("DASH_PREFIX") or os.getenv("S3_PROCESSED_PREFIX") or "processed"
+    filename = os.getenv("DASH_FILENAME", "train.parquet")
     if bucket:
         return default_s3_uri(bucket, data_prefix, filename)
     return None
@@ -85,8 +84,8 @@ def athena_config() -> dict:
     bucket = os.getenv("S3_BUCKET") or os.getenv("S3_Bucket")
     return {
         "bucket": bucket,
-        "database": os.getenv("ATHENA_DATABASE", "flight_advisor"),
-        "table": os.getenv("ATHENA_TABLE", "flights_processed"),
+        "database": os.getenv("DASH_ATHENA_DATABASE") or os.getenv("ATHENA_DATABASE", "flight_advisor"),
+        "table": os.getenv("DASH_ATHENA_TABLE") or os.getenv("ATHENA_TABLE", "train"),
         "results_prefix": os.getenv("S3_ATHENA_RESULTS_PREFIX", "athena-results"),
         "region": os.getenv("AWS_REGION", "us-east-1"),
         "profile": os.getenv("AWS_PROFILE"),
@@ -219,6 +218,7 @@ def normalize_base_path(path: str) -> str:
 USE_ATHENA = athena_enabled()
 
 _base_path = normalize_base_path(os.getenv("DASH_BASE_PATH", "/"))
+_routes_path = normalize_base_path(os.getenv("DASH_ROUTES_PATH", _base_path))
 
 app = Dash(
     __name__,
@@ -226,7 +226,7 @@ app = Dash(
         "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
     ],
     requests_pathname_prefix=_base_path,
-    routes_pathname_prefix=_base_path,
+    routes_pathname_prefix=_routes_path,
     suppress_callback_exceptions=True,
 )
 
@@ -239,6 +239,9 @@ CACHE_CONFIG: dict = {
     "CACHE_TYPE": os.getenv("CACHE_TYPE", "SimpleCache"),
     "CACHE_DEFAULT_TIMEOUT": int(os.getenv("CACHE_TIMEOUT", "3600")),
 }
+ATHENA_QUERY_CACHE_TIMEOUT = int(
+    os.getenv("DASH_ATHENA_CACHE_TIMEOUT", os.getenv("CACHE_TIMEOUT", "3600"))
+)
 if os.getenv("CACHE_REDIS_URL"):
     CACHE_CONFIG["CACHE_TYPE"] = "RedisCache"
     CACHE_CONFIG["CACHE_REDIS_URL"] = os.getenv("CACHE_REDIS_URL")
@@ -454,13 +457,17 @@ def filter_df(
     return filtered
 
 
+def normalize_filter_key(values) -> tuple:
+    return tuple(sorted(set(values or [])))
+
+
 # ---------------------------------------------------------------------------
 # Chart helpers (local df)
 # ---------------------------------------------------------------------------
 
 def build_airline_bar(df: pd.DataFrame):
     if df.empty or "arrival_delay" not in df.columns:
-        return _empty_bar("Average delay by airline")
+        return _empty_bar("Training delay by airline")
     col = get_airline_column(df)
     grouped = (
         df.groupby(col)["arrival_delay"].mean()
@@ -468,15 +475,15 @@ def build_airline_bar(df: pd.DataFrame):
         .head(20)
         .reset_index()
     )
-    fig = px.bar(grouped, x=col, y="arrival_delay", title="Average delay by airline (top 20)")
+    fig = px.bar(grouped, x=col, y="arrival_delay", title="Training delay by airline (top 20)")
     return _style_fig(fig, xaxis_title="", yaxis_title="Avg delay (min)")
 
 
 def build_monthly_line(df: pd.DataFrame):
     if df.empty or "arrival_delay" not in df.columns:
-        return _empty_line("Monthly delay trend")
+        return _empty_line("Training monthly delay trend")
     grouped = df.groupby("month")["arrival_delay"].mean().reset_index()
-    fig = px.line(grouped, x="month", y="arrival_delay", markers=True, title="Monthly delay trend")
+    fig = px.line(grouped, x="month", y="arrival_delay", markers=True, title="Training monthly delay trend")
     return _style_fig(fig, xaxis_title="Month", yaxis_title="Avg delay (min)")
 
 
@@ -484,7 +491,8 @@ def build_monthly_line(df: pd.DataFrame):
 # Chart helpers (Athena)
 # ---------------------------------------------------------------------------
 
-def query_kpis_athena(years, months, airlines, states) -> dict:
+@cache.memoize(timeout=ATHENA_QUERY_CACHE_TIMEOUT)
+def _query_kpis_athena_cached(years: tuple, months: tuple, airlines: tuple, states: tuple) -> dict:
     cfg = athena_config()
     where = build_where(years, months, airlines, states)
     sql = f"""
@@ -495,14 +503,10 @@ def query_kpis_athena(years, months, airlines, states) -> dict:
         FROM "{cfg['database']}"."{cfg['table']}"
         {where}
     """
-    try:
-        df = run_query(
-            sql, cfg["database"], cfg["bucket"], cfg["results_prefix"],
-            cfg["region"], cfg["profile"], max_rows=1,
-        )
-    except RuntimeError as exc:
-        log_athena_error("query_kpis_athena", exc)
-        return {"total": "0", "delay_rate": "—", "avg_delay": "—"}
+    df = run_query(
+        sql, cfg["database"], cfg["bucket"], cfg["results_prefix"],
+        cfg["region"], cfg["profile"], max_rows=1,
+    )
     if df.empty:
         return {"total": "0", "delay_rate": "—", "avg_delay": "—"}
     total = int(df["total_flights"].iloc[0]) if "total_flights" in df else 0
@@ -515,7 +519,21 @@ def query_kpis_athena(years, months, airlines, states) -> dict:
     }
 
 
-def query_worst_airline_athena(years, months, airlines, states) -> str:
+def query_kpis_athena(years, months, airlines, states) -> dict:
+    try:
+        return _query_kpis_athena_cached(
+            normalize_filter_key(years),
+            normalize_filter_key(months),
+            normalize_filter_key(airlines),
+            normalize_filter_key(states),
+        )
+    except RuntimeError as exc:
+        log_athena_error("query_kpis_athena", exc)
+        return {"total": "0", "delay_rate": "—", "avg_delay": "—"}
+
+
+@cache.memoize(timeout=ATHENA_QUERY_CACHE_TIMEOUT)
+def _query_worst_airline_athena_cached(years: tuple, months: tuple, airlines: tuple, states: tuple) -> str:
     cfg = athena_config()
     where = build_where(years, months, airlines, states)
     sql = f"""
@@ -527,23 +545,38 @@ def query_worst_airline_athena(years, months, airlines, states) -> str:
         ORDER BY avg_delay DESC
         LIMIT 1
     """
-    try:
-        df = run_query(
-            sql, cfg["database"], cfg["bucket"], cfg["results_prefix"],
-            cfg["region"], cfg["profile"], max_rows=1,
-        )
-    except RuntimeError as exc:
-        log_athena_error("query_worst_airline_athena", exc)
-        return "—"
+    df = run_query(
+        sql, cfg["database"], cfg["bucket"], cfg["results_prefix"],
+        cfg["region"], cfg["profile"], max_rows=1,
+    )
     if df.empty or "airline" not in df:
         return "—"
     return str(df["airline"].iloc[0])
 
 
-def query_airline_bar_athena(years, months, airlines, states):
+def query_worst_airline_athena(years, months, airlines, states) -> str:
+    try:
+        return _query_worst_airline_athena_cached(
+            normalize_filter_key(years),
+            normalize_filter_key(months),
+            normalize_filter_key(airlines),
+            normalize_filter_key(states),
+        )
+    except RuntimeError as exc:
+        log_athena_error("query_worst_airline_athena", exc)
+        return "—"
+
+
+@cache.memoize(timeout=ATHENA_QUERY_CACHE_TIMEOUT)
+def _query_airline_bar_athena_cached(
+    years: tuple,
+    months: tuple,
+    airlines: tuple,
+    states: tuple,
+    top_n: int,
+) -> pd.DataFrame:
     cfg = athena_config()
     where = build_where(years, months, airlines, states)
-    top_n = int(os.getenv("DASH_TOP_N", "20"))
     sql = f"""
         SELECT COALESCE(airline_name, airline) AS airline,
                AVG(arrival_delay) AS avg_delay
@@ -553,21 +586,33 @@ def query_airline_bar_athena(years, months, airlines, states):
         ORDER BY avg_delay DESC
         LIMIT {top_n}
     """
+    return run_query(
+        sql, cfg["database"], cfg["bucket"], cfg["results_prefix"],
+        cfg["region"], cfg["profile"],
+    )
+
+
+def query_airline_bar_athena(years, months, airlines, states):
+    top_n = int(os.getenv("DASH_TOP_N", "20"))
     try:
-        df = run_query(
-            sql, cfg["database"], cfg["bucket"], cfg["results_prefix"],
-            cfg["region"], cfg["profile"],
+        df = _query_airline_bar_athena_cached(
+            normalize_filter_key(years),
+            normalize_filter_key(months),
+            normalize_filter_key(airlines),
+            normalize_filter_key(states),
+            top_n,
         )
     except RuntimeError as exc:
         log_athena_error("query_airline_bar_athena", exc)
-        return _empty_bar("Average delay by airline")
+        return _empty_bar("Training delay by airline")
     if df.empty:
-        return _empty_bar("Average delay by airline")
-    fig = px.bar(df, x="airline", y="avg_delay", title=f"Average delay by airline (top {top_n})")
+        return _empty_bar("Training delay by airline")
+    fig = px.bar(df, x="airline", y="avg_delay", title=f"Training delay by airline (top {top_n})")
     return _style_fig(fig, xaxis_title="", yaxis_title="Avg delay (min)")
 
 
-def query_monthly_line_athena(years, months, airlines, states):
+@cache.memoize(timeout=ATHENA_QUERY_CACHE_TIMEOUT)
+def _query_monthly_line_athena_cached(years: tuple, months: tuple, airlines: tuple, states: tuple) -> pd.DataFrame:
     cfg = athena_config()
     where = build_where(years, months, airlines, states)
     sql = f"""
@@ -577,17 +622,26 @@ def query_monthly_line_athena(years, months, airlines, states):
         GROUP BY month
         ORDER BY month
     """
+    return run_query(
+        sql, cfg["database"], cfg["bucket"], cfg["results_prefix"],
+        cfg["region"], cfg["profile"],
+    )
+
+
+def query_monthly_line_athena(years, months, airlines, states):
     try:
-        df = run_query(
-            sql, cfg["database"], cfg["bucket"], cfg["results_prefix"],
-            cfg["region"], cfg["profile"],
+        df = _query_monthly_line_athena_cached(
+            normalize_filter_key(years),
+            normalize_filter_key(months),
+            normalize_filter_key(airlines),
+            normalize_filter_key(states),
         )
     except RuntimeError as exc:
         log_athena_error("query_monthly_line_athena", exc)
-        return _empty_line("Monthly delay trend")
+        return _empty_line("Training monthly delay trend")
     if df.empty:
-        return _empty_line("Monthly delay trend")
-    fig = px.line(df, x="month", y="avg_delay", markers=True, title="Monthly delay trend")
+        return _empty_line("Training monthly delay trend")
+    fig = px.line(df, x="month", y="avg_delay", markers=True, title="Training monthly delay trend")
     return _style_fig(fig, xaxis_title="Month", yaxis_title="Avg delay (min)")
 
 
@@ -688,12 +742,47 @@ _FILTER_STYLE = {
     "border": "1px solid #d1d5db",
     "fontSize": "13px",
 }
+_HERO_CARD = {
+    "background": "linear-gradient(135deg, #0f172a 0%, #1d4ed8 58%, #0f766e 100%)",
+    "borderRadius": "18px",
+    "padding": "22px 24px",
+    "color": "#f8fafc",
+    "boxShadow": "0 18px 40px rgba(15, 23, 42, 0.18)",
+    "marginBottom": "14px",
+}
+_HERO_EYEBROW = {
+    "fontFamily": "'IBM Plex Mono', monospace",
+    "fontSize": "11px",
+    "letterSpacing": "0.12em",
+    "textTransform": "uppercase",
+    "color": "rgba(248,250,252,0.78)",
+    "marginBottom": "8px",
+}
+_HERO_SUBTITLE = {
+    "fontSize": "14px",
+    "lineHeight": "1.6",
+    "maxWidth": "720px",
+    "color": "rgba(248,250,252,0.88)",
+    "marginTop": "8px",
+}
+_HERO_CHIP = {
+    "display": "inline-flex",
+    "alignItems": "center",
+    "padding": "6px 10px",
+    "borderRadius": "999px",
+    "border": "1px solid rgba(248,250,252,0.2)",
+    "background": "rgba(248,250,252,0.1)",
+    "fontFamily": "'IBM Plex Mono', monospace",
+    "fontSize": "11px",
+    "color": "#f8fafc",
+}
 
 data_source_label = (
     f"Athena {athena_config()['database']}.{athena_config()['table']}"
     if USE_ATHENA
     else (resolve_data_source() or "not configured")
 )
+data_mode_label = "Athena over S3 training partitions" if USE_ATHENA else "Direct Parquet from S3"
 
 app.layout = html.Div(
     style={
@@ -717,24 +806,47 @@ app.layout = html.Div(
 
                 # ── Header ─────────────────────────────────────────────────
                 html.Div(
-                    style={
-                        "display": "flex",
-                        "justifyContent": "space-between",
-                        "alignItems": "flex-start",
-                        "flexWrap": "wrap",
-                        "gap": "8px",
-                        "marginBottom": "14px",
-                    },
+                    style=_HERO_CARD,
                     children=[
-                        html.H1(
-                            "Flight Advisor",
-                            style={"margin": "0", "fontSize": "24px", "fontWeight": "600"},
+                        html.Div(
+                            style={
+                                "display": "flex",
+                                "justifyContent": "space-between",
+                                "alignItems": "flex-start",
+                                "flexWrap": "wrap",
+                                "gap": "14px",
+                            },
+                            children=[
+                                html.Div(
+                                    children=[
+                                        html.Div("Flight Advisor Analytics", style=_HERO_EYEBROW),
+                                        html.H1(
+                                            "Training Dashboard",
+                                            style={"margin": "0", "fontSize": "30px", "fontWeight": "600"},
+                                        ),
+                                        html.Div(
+                                            "Dash mounted at /dashboard/ with the training split as the default source. "
+                                            "Use it to inspect delay behavior before serving model outputs to the styled app.",
+                                            style=_HERO_SUBTITLE,
+                                        ),
+                                    ],
+                                ),
+                                html.Div(
+                                    style={"display": "flex", "flexWrap": "wrap", "gap": "8px"},
+                                    children=[
+                                        html.Div("Mounted at /dashboard/", style=_HERO_CHIP),
+                                        html.Div(data_mode_label, style=_HERO_CHIP),
+                                    ],
+                                ),
+                            ],
                         ),
                         html.Div(
                             style={
                                 "fontFamily": "'IBM Plex Mono', monospace",
                                 "fontSize": "11px",
-                                "color": "#6b7280",
+                                "color": "rgba(248,250,252,0.76)",
+                                "marginTop": "16px",
+                                "wordBreak": "break-all",
                             },
                             children=f"Source: {data_source_label}",
                         ),
@@ -754,11 +866,11 @@ app.layout = html.Div(
                         },
                         children=[
                             html.Div(style=_CARD, children=[
-                                html.Div("Total flights", style=_KPI_LABEL),
+                                html.Div("Training rows", style=_KPI_LABEL),
                                 html.Div(id="kpi-total", style=_KPI_VALUE, children="—"),
                             ]),
                             html.Div(style=_CARD, children=[
-                                html.Div("Delayed flights", style=_KPI_LABEL),
+                                html.Div("Delay rate", style=_KPI_LABEL),
                                 html.Div(id="kpi-delay-rate", style=_KPI_VALUE, children="—"),
                             ]),
                             html.Div(style=_CARD, children=[
@@ -817,7 +929,8 @@ app.layout = html.Div(
                     style={"marginTop": "14px", "color": "#6b7280", "fontSize": "11px",
                            "fontFamily": "'IBM Plex Mono', monospace"},
                     children=(
-                        "Set DASH_SOURCE or DASH_USE_ATHENA=0 to override."
+                        "Defaults: RATES_SOURCE -> s3://$S3_BUCKET/$S3_PROCESSED_PREFIX/train.parquet. "
+                        "Override with DASH_SOURCE, DASH_PREFIX, DASH_FILENAME, DASH_USE_ATHENA, or DASH_ATHENA_TABLE."
                     ),
                 ),
             ],
@@ -950,7 +1063,7 @@ _AIRLINE_INPUTS = {"filter-year.value", "filter-airline.value", "filter-month.va
 )
 def update_charts(years_sel, airlines_sel, months_sel, states_sel, options_data):
     if not options_data:
-        return _empty_bar("Average delay by airline"), _empty_line("Monthly delay trend")
+        return _empty_bar("Training delay by airline"), _empty_line("Training monthly delay trend")
     if USE_ATHENA:
         clear_athena_error()
 

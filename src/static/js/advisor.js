@@ -22,25 +22,99 @@ function buildPayload(form) {
 
 function riskClass(riskLevel) {
   const level = String(riskLevel || "").toUpperCase();
-  if (level === "LOW") return "risk-low";
-  if (level === "MEDIUM") return "risk-medium";
-  return "risk-high";
+  if (level === "LOW") return "LOW";
+  if (level === "MEDIUM") return "MEDIUM";
+  return "HIGH";
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function renderFactors(data) {
+  const factors = Array.isArray(data.top_factors) ? data.top_factors : [];
+  if (!factors.length) return "";
+
+  const items = factors
+    .map((factor) => `
+      <li>
+        <strong>${escapeHtml(factor.feature)}</strong>
+        <span class="mono">${escapeHtml(factor.impact)}</span>
+      </li>
+    `)
+    .join("");
+
+  return `
+    <section class="advisor-section">
+      <h3>Top factors</h3>
+      <ul class="factor-list">${items}</ul>
+    </section>
+  `;
+}
+
+function renderSuggestedFlights(data) {
+  const flights = Array.isArray(data.suggested_flights) ? data.suggested_flights : [];
+  if (!flights.length) return "";
+
+  const cards = flights
+    .map((flight) => {
+      const flightCode = [flight.airline, flight.flight_number].filter(Boolean).join("") || "Route option";
+      const route = [flight.origin_airport, flight.destination_airport].filter(Boolean).join(" -> ");
+      const schedule = [flight.flight_date_br || flight.flight_date, flight.scheduled_departure].filter(Boolean).join(" | ");
+      const risk = flight.risk_level
+        ? `<span class="risk-badge ${riskClass(flight.risk_level)}">${escapeHtml(flight.risk_level)}</span>`
+        : "";
+      const probability = Number.isFinite(Number(flight.delay_probability))
+        ? `<span class="advisor-flight-prob">${(Number(flight.delay_probability) * 100).toFixed(1)}% predicted risk</span>`
+        : "";
+
+      return `
+        <article class="advisor-flight-card">
+          <div class="advisor-flight-head">
+            <strong>${escapeHtml(flightCode)}</strong>
+            ${risk}
+          </div>
+          <div class="advisor-flight-meta">${escapeHtml(route || "Alternative route")}</div>
+          <div class="advisor-flight-meta">${escapeHtml(schedule || "Scheduled flight")}</div>
+          ${probability}
+        </article>
+      `;
+    })
+    .join("");
+
+  return `
+    <section class="advisor-section">
+      <h3>Lower-risk scheduled options</h3>
+      <div class="advisor-flight-grid">${cards}</div>
+    </section>
+  `;
 }
 
 function renderResponse(target, data) {
-  const factors = Array.isArray(data.top_factors) ? data.top_factors : [];
-  const factorsHtml = factors
-    .map((factor) => `<li><strong>${factor.feature}</strong> <span class="mono">${factor.impact}</span></li>`)
-    .join("");
+  const adviceSource = String(data.advice_source || "heuristic");
+  const adviceClass = adviceSource === "nvidia_nemotron" ? "ok" : "warning";
+  const adviceLabel = adviceSource === "nvidia_nemotron" ? "Nemotron" : "Local fallback";
+  const delayProbability = Number(data.delay_probability);
+  const probabilityText = Number.isFinite(delayProbability) ? (delayProbability * 100).toFixed(1) : "0.0";
 
   target.classList.remove("empty", "error");
   target.innerHTML = `
-    <div class="result-header">
-      <strong>${(Number(data.delay_probability) * 100).toFixed(1)}%</strong>
-      <span class="badge ${riskClass(data.risk_level)}">${data.risk_level}</span>
+    <div class="result-bar">
+      <div class="prob-display">
+        <strong class="prob-num">${probabilityText}</strong>
+        <span class="prob-pct">% delay risk</span>
+      </div>
+      <span class="risk-badge ${riskClass(data.risk_level)}">${escapeHtml(data.risk_level || "HIGH")}</span>
+      <span class="status-chip ${adviceClass}">${escapeHtml(adviceLabel)}</span>
+      <div class="advice-inline">${escapeHtml(data.advice || "")}</div>
     </div>
-    <p>${data.advice || ""}</p>
-    ${factorsHtml ? `<ul class="factor-list">${factorsHtml}</ul>` : ""}
+    ${renderFactors(data)}
+    ${renderSuggestedFlights(data)}
   `;
 }
 

@@ -23,6 +23,10 @@ from model import (  # noqa: E402
     download_s3_object, is_s3_uri, load_csv_any, load_env_file,
     load_model_any, parse_s3_uri,
 )
+from api.services.nemotron_service import (  # noqa: E402
+    generate_nemotron_advice,
+    should_use_nemotron,
+)
 
 load_env_file()
 app = Flask(__name__, template_folder=str(SRC_DIR / "templates"),
@@ -89,11 +93,27 @@ class Factor(BaseModel):
     impact: str
 
 
+class SuggestedFlight(BaseModel):
+    flight_date: str | None = None
+    flight_date_br: str | None = None
+    airline: str | None = None
+    flight_number: str | None = None
+    flight_code: str | None = None
+    origin_airport: str | None = None
+    destination_airport: str | None = None
+    scheduled_departure: str | None = None
+    delay_probability: float | None = None
+    risk_level: str | None = None
+
+
 class AdviseResponse(BaseModel):
     delay_probability: float
     risk_level: str
     top_factors: List[Factor]
     advice: str
+    advice_source: str = "heuristic"
+    advice_model: str | None = None
+    suggested_flights: List[SuggestedFlight] = Field(default_factory=list)
 
 
 class PredictRequest(BaseModel):
@@ -222,9 +242,18 @@ def compute_top_factors(df: pd.DataFrame, global_rate: float, top_k: int = 3) ->
 def risk_level(p: float) -> str:
     return "HIGH" if p >= 0.7 else "MEDIUM" if p >= 0.4 else "LOW"
 
-def advice_text(prob: float, level: str, top_factors: List[Factor]) -> str:
-    base = f"This flight has a {level} risk of delay ({prob:.0%})."
-    return f"{base} The strongest signal is {top_factors[0].feature} ({top_factors[0].impact})." if top_factors else base
+def advice_text(prob: float, level: str, top_factors: List[Factor],
+                suggested_flights: List[SuggestedFlight] | None = None) -> str:
+    parts = [f"This flight has a {level} risk of delay ({prob:.0%})."]
+    if top_factors:
+        parts.append(f"The strongest signal is {top_factors[0].feature} ({top_factors[0].impact}).")
+    if suggested_flights:
+        best = suggested_flights[0]
+        option = best.flight_code or best.airline or "another scheduled flight"
+        when = f" at {best.scheduled_departure}" if best.scheduled_departure else ""
+        risk = f" with {best.delay_probability:.0%} predicted delay risk" if best.delay_probability is not None else ""
+        parts.append(f"A lower-risk option in the current schedule is {option}{when}{risk}.")
+    return " ".join(parts)
 
 def resolve_uri(env_key: str, default: str | None) -> str | None:
     v = os.getenv(env_key)
@@ -615,6 +644,138 @@ def predict_dataframe(df, pipeline, meta, threshold):
 def dataframe_json_records(df: pd.DataFrame) -> list[dict]:
     return [] if df.empty else json.loads(df.where(pd.notna(df), None).to_json(orient="records", date_format="iso"))
 
+
+def build_suggested_flights(payload: AdviseRequest, pipeline: Any, meta: dict | None,
+                            limit: int = 3) -> list[SuggestedFlight]:
+    if os.getenv("ADVISOR_SUGGESTIONS_ENABLED", "1") != "1":
+        return []
+    try:
+        flights_df, _ = load_upcoming_flights_frame()
+    except Exception:
+        return []
+    if flights_df.empty:
+        return []
+
+    attempts = [
+        PredictRequest(
+            origin_airport=payload.origin_airport,
+            destination_airport=payload.destination_airport,
+            flight_date=payload.flight_date,
+            year=payload.year,
+            month=payload.month,
+            day=payload.day,
+            day_of_week=payload.day_of_week,
+            limit=max(limit * 20, 50),
+        ),
+        PredictRequest(
+            origin_airport=payload.origin_airport,
+            destination_airport=payload.destination_airport,
+            limit=max(limit * 20, 50),
+        ),
+    ]
+
+    dep_col = find_column_name(flights_df, "SCHEDULED_DEPARTURE")
+    airline_col = find_column_name(flights_df, "AIRLINE")
+    fn_col = find_column_name(flights_df, "FLIGHT_NUMBER")
+    suggestions: list[SuggestedFlight] = []
+    seen: set[tuple[str | None, str | None, str | None, str | None]] = set()
+
+    for filters in attempts:
+        try:
+            filtered = apply_predict_filters(flights_df, filters)
+        except ValueError:
+            continue
+        if filtered.empty:
+            continue
+
+        filtered = filtered.copy()
+        if airline_col and dep_col:
+            same_airline = filtered[airline_col].astype(str).str.strip().str.upper() == payload.airline
+            same_departure = pd.to_numeric(filtered[dep_col], errors="coerce") == int(payload.scheduled_departure)
+            filtered = filtered[~(same_airline & same_departure)]
+        if filtered.empty:
+            continue
+
+        try:
+            ranked = predict_dataframe(filtered.copy(), pipeline, meta, threshold=0.5)
+        except Exception:
+            return []
+
+        parsed_dates, ranked = _parse_dates_col(ranked)
+        ranked = ranked.copy()
+        if parsed_dates is not None:
+            ranked["_flight_date"] = parsed_dates
+        ranked["_dep_sort"] = ranked[dep_col].map(departure_sort_key) if dep_col else 9999
+        ranked["_same_airline"] = (
+            ranked[airline_col].astype(str).str.strip().str.upper() == payload.airline
+            if airline_col else False
+        )
+
+        sort_cols = ["delay_probability", "_same_airline", "_dep_sort"]
+        ascending = [True, False, True]
+        if "_flight_date" in ranked.columns:
+            sort_cols.insert(1, "_flight_date")
+            ascending.insert(1, True)
+        ranked = ranked.sort_values(sort_cols, ascending=ascending, na_position="last")
+
+        for _, row in ranked.iterrows():
+            flight_date_iso = None
+            if "_flight_date" in row and pd.notna(row["_flight_date"]):
+                flight_date_iso = row["_flight_date"].isoformat()
+            airline = optional_text(row[airline_col]).upper() if airline_col and pd.notna(row[airline_col]) else None
+            flight_number = format_flight_number(row[fn_col]) if fn_col and pd.notna(row[fn_col]) else None
+            departure = format_scheduled_departure(row[dep_col]) if dep_col and pd.notna(row[dep_col]) else None
+            dedupe_key = (flight_date_iso, airline, flight_number, departure)
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+
+            prob = float(row["delay_probability"]) if pd.notna(row.get("delay_probability")) else None
+            suggestions.append(SuggestedFlight(
+                flight_date=flight_date_iso,
+                flight_date_br=format_date_br(flight_date_iso),
+                airline=airline,
+                flight_number=flight_number,
+                flight_code=f"{airline}{flight_number}" if airline and flight_number else (flight_number or airline),
+                origin_airport=payload.origin_airport,
+                destination_airport=payload.destination_airport,
+                scheduled_departure=departure,
+                delay_probability=prob,
+                risk_level=risk_level(prob) if prob is not None else None,
+            ))
+            if len(suggestions) >= limit:
+                return suggestions
+
+    return suggestions
+
+
+def build_advice_context(payload: AdviseRequest, probability: float, level: str,
+                         top_factors: List[Factor], fallback_advice: str,
+                         suggested_flights: List[SuggestedFlight]) -> dict[str, Any]:
+    return {
+        "question": payload.question or "No explicit question provided.",
+        "requested_flight": {
+            "origin_airport": payload.origin_airport,
+            "destination_airport": payload.destination_airport,
+            "airline": payload.airline,
+            "scheduled_departure": int(payload.scheduled_departure),
+            "flight_date": payload.flight_date,
+            "year": payload.year,
+            "month": payload.month,
+            "day": payload.day,
+            "day_of_week": payload.day_of_week,
+            "distance_miles": payload.distance,
+        },
+        "delay_assessment": {
+            "delay_probability": round(probability, 4),
+            "risk_level": level,
+            "top_factors": [factor.model_dump() for factor in top_factors],
+        },
+        "suggested_flights": [flight.model_dump(exclude_none=True) for flight in suggested_flights],
+        "fallback_advice": fallback_advice,
+    }
+
+
 def list_route_index() -> list[dict]:
     return sorted([
         {"path": r.rule, "methods": sorted(m for m in r.methods if m not in {"HEAD","OPTIONS"}), "name": r.endpoint}
@@ -803,9 +964,34 @@ def advise():
         if missing: return jsonify({"detail":f"Missing columns required by the model: {', '.join(missing)}"}), 400
         X = coerce_feature_types(df[required], meta["features"].get("numeric",[]), meta["features"].get("categorical",[]))
     prob = float(pipeline.predict_proba(X)[:, 1][0])
-    level = risk_level(prob); top = compute_top_factors(df, global_rate)
-    return jsonify(AdviseResponse(delay_probability=prob, risk_level=level, top_factors=top,
-                                  advice=advice_text(prob, level, top)).model_dump())
+    level = risk_level(prob)
+    top = compute_top_factors(df, global_rate)
+    suggested_flights = build_suggested_flights(payload, pipeline, meta, limit=3)
+    fallback_advice = advice_text(prob, level, top, suggested_flights)
+
+    advice = fallback_advice
+    advice_source = "heuristic"
+    advice_model = None
+    if should_use_nemotron(payload.question):
+        try:
+            llm_result = generate_nemotron_advice(build_advice_context(
+                payload, prob, level, top, fallback_advice, suggested_flights
+            ))
+            advice = llm_result.content
+            advice_source = llm_result.provider
+            advice_model = llm_result.model
+        except RuntimeError as exc:
+            app.logger.warning("Falling back to heuristic advisor text: %s", exc)
+
+    return jsonify(AdviseResponse(
+        delay_probability=prob,
+        risk_level=level,
+        top_factors=top,
+        advice=advice,
+        advice_source=advice_source,
+        advice_model=advice_model,
+        suggested_flights=suggested_flights,
+    ).model_dump())
 
 @app.route("/predict", methods=["POST","OPTIONS"])
 def predict():

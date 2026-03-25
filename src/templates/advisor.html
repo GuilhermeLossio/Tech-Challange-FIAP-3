@@ -1,10 +1,14 @@
 {% extends "base.html" %}
 
+{% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/advisor_ai.css') }}" />
+{% endblock %}
+
 {% block content %}
 <section class="hero compact">
   <p class="eyebrow">Advisor</p>
   <h1>Natural-language operational guidance</h1>
-  <p>Ask for recommendation context and interpretability in one request.</p>
+  <p>Ask for route guidance, delay context and lower-risk alternatives in one request.</p>
 </section>
 
 <section class="grid">
@@ -41,7 +45,7 @@
   <article class="panel">
     <h2>Advisor Response</h2>
     <div id="advisor-result" class="result-card empty">
-      Submit your question to get risk level, top factors and recommendation text.
+      Submit your question to get delay risk, AI recommendation and lower-risk scheduled options.
     </div>
   </article>
 </section>

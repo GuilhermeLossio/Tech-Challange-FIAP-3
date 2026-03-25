@@ -69,6 +69,59 @@
   const $   = id => document.getElementById(id);
   const esc = s  => encodeURIComponent(s || '');
   const hasValidCoords = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng);
+  const AIRPORT_COORDS_FALLBACK = {
+    GRU: [-23.4356, -46.4731], CGH: [-23.6261, -46.6556], GIG: [-22.8099, -43.2505],
+    SDU: [-22.9175, -43.1631], BSB: [-15.8711, -47.9186], CNF: [-19.6244, -43.9719],
+    SSA: [-12.9108, -38.3225], FOR: [-3.7762, -38.5323], REC: [-8.1265, -34.9236],
+    POA: [-29.9944, -51.1713], CWB: [-25.5285, -49.1758], FLN: [-27.6703, -48.5525],
+    VCP: [-23.0074, -47.1344], NAT: [-5.9114, -35.2477], MCZ: [-9.5108, -35.7917],
+    JPA: [-7.1455, -34.9503], THE: [-5.06, -42.8235], AJU: [-10.984, -37.0731],
+    MAO: [-3.0386, -60.0498], BEL: [-1.3793, -48.4762], MCP: [4.0, -52.0],
+    LDB: [-23.3336, -51.1302], IGU: [-25.5963, -54.4872], PVH: [-8.7093, -63.9023],
+    MIA: [25.7959, -80.287], JFK: [40.6413, -73.7781], LAX: [33.9428, -118.4108],
+    LHR: [51.4775, -0.4614], CDG: [49.0097, 2.5479], AMS: [52.3086, 4.7639],
+    MAD: [40.4936, -3.5668], FCO: [41.8003, 12.2389], FRA: [50.0379, 8.5622],
+    SCL: [-33.3928, -70.7856], EZE: [-34.8222, -58.5358], BOG: [4.7016, -74.1469],
+    LIM: [-12.0219, -77.1143], MXP: [45.6306, 8.7231], MAN: [53.3619, -2.273],
+  };
+
+  function toFiniteCoord(value) {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+    const text = String(value ?? '').trim();
+    if (!text) return null;
+    const num = Number.parseFloat(text);
+    return Number.isFinite(num) ? num : null;
+  }
+
+  function getFallbackCoords(iata) {
+    const code = String(iata || '').trim().toUpperCase();
+    const coords = AIRPORT_COORDS_FALLBACK[code];
+    if (!coords) return null;
+    const [lat, lng] = coords;
+    return hasValidCoords(lat, lng) ? { latitude: lat, longitude: lng } : null;
+  }
+
+  function enrichAirportRecord(airport, fallbackIata = null) {
+    const enriched = airport ? { ...airport } : {};
+    const code = String(enriched.iata_code || fallbackIata || '').trim().toUpperCase();
+    if (!code) return enriched;
+    enriched.iata_code = code;
+
+    const latitude = toFiniteCoord(enriched.latitude);
+    const longitude = toFiniteCoord(enriched.longitude);
+    if (hasValidCoords(latitude, longitude)) {
+      enriched.latitude = latitude;
+      enriched.longitude = longitude;
+      return enriched;
+    }
+
+    const fallback = getFallbackCoords(code);
+    if (fallback) {
+      enriched.latitude = fallback.latitude;
+      enriched.longitude = fallback.longitude;
+    }
+    return enriched;
+  }
 
   async function apiFetch(url) {
     const r = await fetch(url);
@@ -92,14 +145,16 @@
 
   function rememberAirports(airports) {
     (airports || []).forEach((ap) => {
-      const iata = String(ap?.iata_code || '').trim().toUpperCase();
-      if (iata) S.airportIndex[iata] = ap;
+      const enriched = enrichAirportRecord(ap);
+      const iata = String(enriched?.iata_code || '').trim().toUpperCase();
+      if (iata) S.airportIndex[iata] = enriched;
     });
   }
 
   function getAirportByIata(iata) {
     const code = String(iata || '').trim().toUpperCase();
-    return S.airports.find(a => a.iata_code === code) || S.airportIndex[code] || null;
+    const airport = S.airports.find(a => a.iata_code === code) || S.airportIndex[code] || null;
+    return airport ? enrichAirportRecord(airport, code) : null;
   }
 
   function isCurrentCountryRequest(requestId, country) {
@@ -149,7 +204,10 @@
     const l = S.countryLayers[name.toLowerCase()];
     if (!l) return;
     l.setStyle({ fillColor:'#00b4ff', fillOpacity:.1, color:'#00b4ff', weight:1.5 });
-    try { map.flyToBounds(l.getBounds(), { duration:.75, padding:[40,40] }); } catch {}
+    try {
+      map.stop();
+      map.flyToBounds(l.getBounds(), { duration:.75, padding:[40,40] });
+    } catch {}
   }
 
   function pinIcon(iata) {
@@ -175,12 +233,11 @@
   function placeMarkers(airports) {
     S.markerLayer.clearLayers();
     airports.forEach(ap => {
-      if (ap.latitude == null || ap.longitude == null) return;
-      const lat = parseFloat(ap.latitude), lng = parseFloat(ap.longitude);
-      if (isNaN(lat) || isNaN(lng)) return;
-      const m = L.marker([lat,lng], { icon:pinIcon(ap.iata_code) }).addTo(S.markerLayer);
-      m.on('click', () => pickAirport(ap.iata_code));
-      m.bindPopup(popupHtml(ap), { maxWidth:220 });
+      const airport = enrichAirportRecord(ap);
+      if (!hasValidCoords(airport.latitude, airport.longitude)) return;
+      const m = L.marker([airport.latitude, airport.longitude], { icon:pinIcon(airport.iata_code) }).addTo(S.markerLayer);
+      m.on('click', () => pickAirport(airport.iata_code));
+      m.bindPopup(popupHtml(airport), { maxWidth:220 });
     });
   }
 
@@ -190,8 +247,8 @@
     }
     S.selectedAirportLayer.clearLayers();
 
-    const lat = Number(ap?.latitude);
-    const lng = Number(ap?.longitude);
+    const lat = toFiniteCoord(ap?.latitude);
+    const lng = toFiniteCoord(ap?.longitude);
     if (!hasValidCoords(lat, lng)) return null;
 
     return L.circleMarker([lat, lng], {
@@ -205,9 +262,18 @@
 
   function focusAirportMap(ap, flights = []) {
     const airportMarker = highlightSelectedAirport(ap);
-    if (!airportMarker) return;
+    if (!airportMarker) {
+      const layer = S.countryLayers[S.selCountry?.toLowerCase()];
+      if (!layer) return;
+      try {
+        map.stop();
+        map.flyToBounds(layer.getBounds(), { duration:0.75, padding:[50,50] });
+      } catch {}
+      return;
+    }
 
     const targetZoom = flights.length ? 6 : 8;
+    map.stop();
     map.flyTo(airportMarker.getLatLng(), targetZoom, { duration: 0.75 });
   }
 
@@ -270,7 +336,7 @@
     try {
       const data = await apiFetch(`/api/flight/airports?country=${esc(name)}&limit=500`);
       if (!isCurrentCountryRequest(requestId, name)) return;
-      S.airports = data.airports || [];
+      S.airports = (data.airports || []).map((ap) => enrichAirportRecord(ap));
       rememberAirports(S.airports);
     } catch {
       if (!isCurrentCountryRequest(requestId, name)) return;
@@ -500,8 +566,9 @@
   }
 
   async function fetchOpenSky(iata, ap, requestId = S.airportRequestId) {
-    const lat = ap?.latitude ? parseFloat(ap.latitude) : null;
-    const lng = ap?.longitude ? parseFloat(ap.longitude) : null;
+    const airport = enrichAirportRecord(ap, iata);
+    const lat = toFiniteCoord(airport?.latitude);
+    const lng = toFiniteCoord(airport?.longitude);
     let flights = [];
 
     if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
@@ -535,7 +602,7 @@
     S._liveFlights = flights;
     renderHappeningContent(flights);
     placeFlightMarkers(flights);
-    focusAirportMap(ap, flights);
+    focusAirportMap(airport, flights);
   }
 
   /* ══════════════════════════════════════

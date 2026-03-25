@@ -15,16 +15,6 @@
       <div class="logo-mark">✈</div>
       <div class="logo-name">Flight<span>Advisor</span></div>
     </div>
-    <div class="header-search suggestions-host">
-      <span class="search-icon">🔍</span>
-      <input
-        type="text"
-        id="quick-search"
-        placeholder="Buscar voo, rota ou aeroporto..."
-        onkeydown="if(event.key==='Enter')quickSearch()"
-      />
-      <div id="quick-search-suggestions" class="suggestions-list"></div>
-    </div>
     <div class="header-pills">
       <div class="pill live"><span class="live-dot"></span>OpenSky Live</div>
       <div class="pill" id="api-status-pill">API ●</div>
@@ -41,8 +31,6 @@
     {% block content %}{% endblock %}
   </main>
 
-  <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/advisor.js') }}"></script>
   {% block page_scripts %}{% endblock %}
 </body>
 </html>

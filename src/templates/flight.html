@@ -1,8 +1,18 @@
 {% extends "base.html" %}
 
 {% block head_extra %}
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.min.css') }}" />
 <link rel="stylesheet" href="{{ url_for('static', filename='css/flight.css') }}" />
+<style>
+  .flight-marker-icon {
+    font-size: 24px;
+    text-align: center;
+    line-height: 24px;
+    color: #ffc107;
+    text-shadow: 0 0 4px rgba(0,0,0,0.8);
+    transform: rotate(var(--flight-rotation, 0deg));
+  }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -53,11 +63,12 @@
 
 
 {% block page_scripts %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.min.js') }}"></script>
 <script>
 (function () {
   const $   = id => document.getElementById(id);
   const esc = s  => encodeURIComponent(s || '');
+  const hasValidCoords = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng);
 
   async function apiFetch(url) {
     const r = await fetch(url);
@@ -68,7 +79,7 @@
   /* ── state ── */
   const S = {
     countries: [], airports: [], depCache: {},
-    _deps: [], _liveFlights: null,
+    _deps: [], _liveFlights: null, flightMarkerLayer: null, selectedAirportLayer: null,
     selCountry: null, selIata: null,
     markerLayer: null, countryLayers: {},
     activeTab: 'happening',
@@ -120,9 +131,11 @@
 
   function pinIcon(iata) {
     return L.divIcon({
-      className: '',
+      className: 'fp-pin-icon',
       html: `<div class="fp-pin-wrap"><div class="fp-pin-dot"></div><div class="fp-pin-lbl">${iata}</div></div>`,
-      iconSize:[40,24], iconAnchor:[5,5],
+      iconSize:[40,24],
+      iconAnchor:[20,7],
+      popupAnchor:[0,-8],
     });
   }
 
@@ -146,6 +159,33 @@
       m.on('click', () => pickAirport(ap.iata_code));
       m.bindPopup(popupHtml(ap), { maxWidth:220 });
     });
+  }
+
+  function highlightSelectedAirport(ap) {
+    if (!S.selectedAirportLayer) {
+      S.selectedAirportLayer = L.layerGroup().addTo(map);
+    }
+    S.selectedAirportLayer.clearLayers();
+
+    const lat = Number(ap?.latitude);
+    const lng = Number(ap?.longitude);
+    if (!hasValidCoords(lat, lng)) return null;
+
+    return L.circleMarker([lat, lng], {
+      radius: 8,
+      color: '#ffffff',
+      weight: 2,
+      fillColor: '#00d4ff',
+      fillOpacity: 0.95,
+    }).addTo(S.selectedAirportLayer);
+  }
+
+  function focusAirportMap(ap, flights = []) {
+    const airportMarker = highlightSelectedAirport(ap);
+    if (!airportMarker) return;
+
+    const targetZoom = flights.length ? 6 : 8;
+    map.flyTo(airportMarker.getLatLng(), targetZoom, { duration: 0.75 });
   }
 
   window._fpPickAirport = iata => pickAirport(iata);
@@ -183,6 +223,8 @@
   ══════════════════════════════════════ */
   async function pickCountry(name) {
     if (!name) return;
+    if (S.flightMarkerLayer) S.flightMarkerLayer.clearLayers();
+    if (S.selectedAirportLayer) S.selectedAirportLayer.clearLayers();
     S.selCountry = name; ci.value = name; cdd.classList.remove('open');
     $('fp-ch').classList.add('show');
     $('fp-cn').textContent = name;
@@ -229,6 +271,9 @@
      PICK AIRPORT
   ══════════════════════════════════════ */
   async function pickAirport(iata) {
+    if (S.flightMarkerLayer) S.flightMarkerLayer.clearLayers();
+    if (S.selectedAirportLayer) S.selectedAirportLayer.clearLayers();
+
     document.querySelectorAll('.ap-row').forEach(el =>
       el.classList.toggle('sel', el.dataset.iata === iata)
     );
@@ -241,6 +286,7 @@
     S._liveFlights = null;
 
     const ap = S.airports.find(a => a.iata_code === iata);
+    focusAirportMap(ap);
 
     /* Loading shell */
     $('fp-dep').innerHTML = `
@@ -372,37 +418,73 @@
   /* ══════════════════════════════════════
      OPENSKY — live flights
   ══════════════════════════════════════ */
+  function placeFlightMarkers(flights) {
+    if (!S.flightMarkerLayer) {
+      S.flightMarkerLayer = L.layerGroup().addTo(map);
+    }
+    S.flightMarkerLayer.clearLayers();
+
+    flights.forEach(f => {
+      const lat = Number(f.latitude ?? f.lat);
+      const lng = Number(f.longitude ?? f.lng);
+      if (!hasValidCoords(lat, lng)) return;
+
+      const heading = Number(f.heading ?? f.true_track ?? 0);
+      const rotation = heading ? (heading - 45) : 0; // emoji is ~45deg
+      const markerColor = f.on_ground ? '#4ff7a0' : '#ffc107';
+      const displayCode = f.callsign || f.icao24 || 'Unknown';
+      const statusLabel = f.on_ground ? 'On ground' : 'Airborne';
+      const icon = L.divIcon({
+        className: '',
+        html: `<div class="flight-marker-icon" style="--flight-rotation: ${rotation}deg;color:${markerColor}">&#9992;&#65039;</div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      });
+
+      const marker = L.marker([lat, lng], { icon }).addTo(S.flightMarkerLayer);
+      const popup = `<b>${displayCode}</b><br>
+        Status: ${statusLabel}<br>
+        Country: ${f.origin_country || '-'}<br>
+        Altitude: ${f.altitude_ft != null ? Math.round(f.altitude_ft) + ' ft' : '-'}<br>
+        Velocity: ${f.speed_kmh != null ? Math.round(f.speed_kmh) + ' km/h' : '-'}`;
+      marker.bindPopup(popup);
+    });
+  }
+
   async function fetchOpenSky(iata, ap) {
-    const lat = ap?.latitude  ? parseFloat(ap.latitude)  : null;
+    const lat = ap?.latitude ? parseFloat(ap.latitude) : null;
     const lng = ap?.longitude ? parseFloat(ap.longitude) : null;
     let flights = [];
 
     if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
       const d = 8;
-      const url = `https://opensky-network.org/api/states/all` +
-        `?lamin=${(lat-d).toFixed(2)}&lamax=${(lat+d).toFixed(2)}` +
-        `&lomin=${(lng-d).toFixed(2)}&lomax=${(lng+d).toFixed(2)}`;
+      const url = `/api/live_flights` +
+        `?lamin=${(lat - d).toFixed(2)}&lamax=${(lat + d).toFixed(2)}` +
+        `&lomin=${(lng - d).toFixed(2)}&lomax=${(lng + d).toFixed(2)}` +
+        `&limit=120&include_ground=1`;
       try {
         const r = await fetch(url);
-        if (r.ok) {
-          const data = await r.json();
-          flights = (data.states || [])
-            .map(s => ({
-              callsign:       (s[1] || '').trim(),
-              origin_country: s[2] || '—',
-              lat:            s[6],
-              lng:            s[5],
-              altitude:       s[7] != null ? Math.round(s[7]) + ' m' : '—',
-              velocity:       s[9] != null ? Math.round(s[9]) + ' m/s' : '—',
-              on_ground:      s[8],
-            }))
-            .filter(f => f.callsign && !f.on_ground);
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
+        flights = (data.flights || []).filter(f => f.callsign || f.icao24);
+      } catch (err) {
+        const pane = $('pane-happening');
+        if (pane) {
+          pane.innerHTML = `<div class="fp-state">
+            <span class="fp-state-ico">&#9888;</span>
+            Failed to load live flights for ${iata}<br>
+            <span style="font-size:.6rem;opacity:.65;margin-top:.3rem;display:block">
+              ${(err && err.message) ? err.message : 'Unexpected error'}
+            </span>
+          </div>`;
         }
-      } catch {}
+      }
     }
 
     S._liveFlights = flights;
     renderHappeningContent(flights);
+    placeFlightMarkers(flights);
+    focusAirportMap(ap, flights);
   }
 
   /* ══════════════════════════════════════
@@ -414,7 +496,7 @@
 
     /* For happening, filter by origin_country matching chip
        (chip = destination country from departures data)
-       — best available with OpenSky free tier              */
+       - best available with OpenSky free tier */
     const filtered = S.activeChip === 'all'
       ? flights
       : flights.filter(f => f.origin_country === S.activeChip);
@@ -424,10 +506,10 @@
 
     if (!filtered.length) {
       pane.innerHTML = `<div class="fp-state">
-        <span class="fp-state-ico">📡</span>
+        <span class="fp-state-ico">&#128225;</span>
         No live flights found${S.activeChip !== 'all' ? ' for ' + S.activeChip : ''}<br>
         <span style="font-size:.6rem;opacity:.5;margin-top:.3rem;display:block">
-          OpenSky free tier — coverage may be limited
+          OpenSky coverage may be limited
         </span>
       </div>`;
       return;
@@ -437,17 +519,17 @@
       filtered.slice(0,48).map(f => `
         <div class="fph-card">
           <div class="fph-route">
-            <span class="fph-callsign">${f.callsign}</span>
+            <span class="fph-callsign">${f.callsign || f.icao24 || 'Unknown'}</span>
             <div class="fph-arrow">
-              <div class="fph-arrow-line"></div>✈
+              <div class="fph-arrow-line"></div>&#9992;
             </div>
-            <div class="fph-status"><span class="fph-status-dot"></span>LIVE</div>
+            <div class="fph-status"><span class="fph-status-dot"></span>${f.on_ground ? 'GROUND' : 'LIVE'}</div>
           </div>
           <div class="fph-meta">
-            <span class="fph-pill hi">${f.origin_country}</span>
-            <span class="fph-pill">Alt ${f.altitude}</span>
-            <span class="fph-pill">Vel ${f.velocity}</span>
-            ${f.lat != null ? `<span class="fph-pill">${f.lat.toFixed(2)}° ${f.lng.toFixed(2)}°</span>` : ''}
+            <span class="fph-pill hi">${f.origin_country || '-'}</span>
+            <span class="fph-pill">Alt ${f.altitude_ft != null ? Math.round(f.altitude_ft) + ' ft' : '-'}</span>
+            <span class="fph-pill">Vel ${f.speed_kmh != null ? Math.round(f.speed_kmh) + ' km/h' : '-'}</span>
+            ${hasValidCoords(Number(f.latitude), Number(f.longitude)) ? `<span class="fph-pill">${Number(f.latitude).toFixed(2)}&deg; ${Number(f.longitude).toFixed(2)}&deg;</span>` : ''}
           </div>
         </div>`
       ).join('')

@@ -2,24 +2,390 @@
 
 {% block head_extra %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_cockpit.css') }}" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+
+<style>
+  /* ── Reset & tokens ─────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0b0e14;
+    --surface:   #111520;
+    --surface2:  #171d2e;
+    --border:    rgba(255,255,255,.07);
+    --accent:    #4f8ef7;
+    --accent2:   #f7c94f;
+    --danger:    #f7604f;
+    --ok:        #4ff7a0;
+    --text:      #e8eaf0;
+    --muted:     #6b7280;
+    --mono:      'Space Mono', monospace;
+    --sans:      'DM Sans', sans-serif;
+    --radius:    10px;
+    --shadow:    0 4px 24px rgba(0,0,0,.45);
+  }
+
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+
+  /* ── API strip ──────────────────────────────────────── */
+  .api-strip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    font-family: var(--mono);
+  }
+  .api-strip label { color: var(--muted); }
+  .api-strip input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 4px 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    width: 200px;
+  }
+  .status-chip {
+    padding: 3px 10px;
+    border-radius: 99px;
+    font-size: 11px;
+    background: rgba(247,96,79,.15);
+    color: var(--danger);
+    border: 1px solid rgba(247,96,79,.3);
+  }
+  .status-chip.connected {
+    background: rgba(79,247,160,.12);
+    color: var(--ok);
+    border-color: rgba(79,247,160,.3);
+  }
+
+  /* ── Page shell ─────────────────────────────────────── */
+  .page-wrap {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      "sidebar  result"
+      "sidebar  charts"
+      "table    table";
+    gap: 16px;
+    padding: 16px 24px 24px;
+    min-height: calc(100vh - 41px);
+  }
+
+  /* ── Sidebar ─────────────────────────────────────────── */
+  .sidebar {
+    grid-area: sidebar;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+  }
+  .card-title {
+    font-size: 10px;
+    font-family: var(--mono);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  /* Flight lookup */
+  .flight-lookup { display: flex; gap: 8px; }
+  .flight-lookup input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text);
+    padding: 8px 12px;
+    font-family: var(--mono);
+    font-size: 14px;
+    transition: border-color .2s;
+  }
+  .flight-lookup input:focus { outline: none; border-color: var(--accent); }
+
+  .btn-lookup {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    padding: 8px 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: opacity .15s;
+    white-space: nowrap;
+  }
+  .btn-lookup:hover { opacity: .85; }
+
+  .suggestions-list {
+    position: relative;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    margin-top: 6px;
+    overflow: hidden;
+  }
+  .suggestions-list:empty { display: none; }
+
+  /* Flight info card */
+  .flight-info-card {
+    margin-top: 14px;
+    padding: 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .flight-route {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .iata-big {
+    font-family: var(--mono);
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: .05em;
+  }
+  .route-arrow {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--muted);
+    font-size: 18px;
+    flex: 1;
+    justify-content: center;
+  }
+  .route-line { height: 1px; flex: 1; background: var(--border); }
+  .flight-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .meta-key { font-size: 10px; color: var(--muted); font-family: var(--mono); text-transform: uppercase; }
+  .meta-val { font-size: 13px; font-weight: 500; margin-top: 2px; }
+  .meta-val.accent { color: var(--accent); font-family: var(--mono); }
+
+  .lookup-status { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px; }
+
+  /* Form grid */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .field label { font-size: 10px; font-family: var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); display: block; margin-bottom: 5px; }
+  .field input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text);
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: var(--sans);
+    transition: border-color .2s;
+  }
+  .field input:focus { outline: none; border-color: var(--accent); }
+
+  .btn-analyze {
+    width: 100%;
+    margin-top: 14px;
+    padding: 12px;
+    background: linear-gradient(135deg, var(--accent), #2563eb);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    cursor: pointer;
+    transition: opacity .15s, transform .1s;
+  }
+  .btn-analyze:hover { opacity: .9; transform: translateY(-1px); }
+  .btn-analyze:active { transform: translateY(0); }
+
+  /* ── Result bar ──────────────────────────────────────── */
+  .result-bar {
+    grid-area: result;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 22px;
+  }
+  .risk-badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 6px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid var(--border);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .prob-display { display: flex; align-items: baseline; gap: 4px; }
+  .prob-num { font-family: var(--mono); font-size: 36px; font-weight: 700; color: var(--accent2); line-height: 1; }
+  .prob-pct { font-size: 12px; color: var(--muted); }
+  .advice-inline { font-size: 13px; color: var(--muted); line-height: 1.5; flex: 1; }
+
+  /* ── Charts grid ─────────────────────────────────────── */
+  .charts-grid {
+    grid-area: charts;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 260px 240px;
+    gap: 14px;
+  }
+
+  /* Map spans full left column */
+  .chart-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .chart-panel.map-panel { grid-row: 1 / 3; }
+
+  .chart-panel-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px 0;
+    font-size: 11px;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot-risk   { background: #f7604f; }
+  .dot-hour   { background: #4f8ef7; }
+  .dot-airline{ background: #f7c94f; }
+  .dot-map    { background: #4ff7a0; }
+
+  .chart-inner {
+    flex: 1;
+    position: relative;
+    padding: 10px 14px 14px;
+    min-height: 0;
+  }
+  #live-map { width: 100%; height: 100%; border-radius: 0 0 var(--radius) var(--radius); }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 8px;
+    color: var(--muted);
+  }
+  .empty-icon { font-size: 28px; opacity: .5; }
+  .empty-text { font-size: 12px; font-family: var(--mono); }
+
+  canvas { max-width: 100%; max-height: 100%; }
+
+  /* ── Table area ──────────────────────────────────────── */
+  .table-area {
+    grid-area: table;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .table-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--muted);
+  }
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .data-table thead tr th {
+    padding: 10px 16px;
+    text-align: left;
+    font-size: 10px;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .data-table tbody tr { border-bottom: 1px solid var(--border); transition: background .15s; }
+  .data-table tbody tr:hover { background: var(--surface2); }
+  .data-table tbody td { padding: 10px 16px; }
+  .hidden { display: none !important; }
+
+  /* ── Responsive ──────────────────────────────────────── */
+  @media (max-width: 1024px) {
+    .page-wrap {
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "result"
+        "sidebar"
+        "charts"
+        "table";
+    }
+    .charts-grid {
+      grid-template-columns: 1fr;
+      grid-template-rows: 280px 220px 220px 220px;
+    }
+    .chart-panel.map-panel { grid-row: auto; }
+  }
+</style>
 {% endblock %}
 
 {% block content %}
+<!-- API connectivity strip -->
 <div class="api-strip">
   <label>Backend URL</label>
-  <input type="text" id="api-base" value="http://127.0.0.1:8000" placeholder="http://127.0.0.1:8000" />
-  <button class="btn-lookup btn-lookup-small" onclick="checkApiHealth()">Conectar</button>
+  <input
+    type="text"
+    id="api-base"
+    value="{{ request.url_root[:-1] if request.url_root.endswith('/') else request.url_root }}"
+    placeholder="{{ request.url_root[:-1] if request.url_root.endswith('/') else request.url_root }}"
+  />
+  <button class="btn-lookup" onclick="checkApiHealth()">Conectar</button>
   <span id="api-health-chip" class="status-chip">desconectado</span>
 </div>
 
-<main>
-  <div class="left-panel">
-    <div class="panel-section">
-      <div class="section-label">Buscar voo real</div>
-      <div class="flight-lookup-wrap suggestions-host">
+<div class="page-wrap">
+
+  <!-- ── Sidebar: busca + parâmetros ─────────────────── -->
+  <aside class="sidebar">
+
+    <!-- Busca de voo real -->
+    <div class="card">
+      <div class="card-title">Buscar voo real</div>
+      <div class="suggestions-host">
         <div class="flight-lookup">
           <input
             type="text"
@@ -32,86 +398,112 @@
         </div>
         <div id="flight-suggestions" class="suggestions-list"></div>
       </div>
+
       <div class="flight-info-card" id="flight-info-card">
         <div class="flight-route">
           <div class="iata-big" id="fc-origin">-</div>
-          <div class="route-arrow"><div class="route-line"></div>✈<div class="route-line"></div></div>
+          <div class="route-arrow">
+            <div class="route-line"></div>✈<div class="route-line"></div>
+          </div>
           <div class="iata-big" id="fc-dest">-</div>
         </div>
         <div class="flight-meta">
           <div><div class="meta-key">Voo</div><div class="meta-val accent" id="fc-callsign">-</div></div>
           <div><div class="meta-key">Altitude</div><div class="meta-val" id="fc-alt">-</div></div>
           <div><div class="meta-key">Velocidade</div><div class="meta-val" id="fc-vel">-</div></div>
-          <div><div class="meta-key">Pais</div><div class="meta-val" id="fc-country">-</div></div>
+          <div><div class="meta-key">País</div><div class="meta-val" id="fc-country">-</div></div>
         </div>
       </div>
       <div id="lookup-status" class="lookup-status"></div>
     </div>
 
-    <div class="panel-section">
-      <div class="section-label">Parametros do voo</div>
+    <!-- Parâmetros de análise -->
+    <div class="card">
+      <div class="card-title">Parâmetros do voo</div>
       <div class="form-grid">
         <div class="field"><label>Origem (IATA)</label><input type="text" id="f-origin" maxlength="3" placeholder="GRU" /></div>
         <div class="field"><label>Destino (IATA)</label><input type="text" id="f-dest" maxlength="3" placeholder="CGH" /></div>
         <div class="field"><label>Companhia (IATA)</label><input type="text" id="f-airline" maxlength="3" placeholder="LA" /></div>
         <div class="field"><label>Partida (HHMM)</label><input type="number" id="f-dep" min="0" max="2359" placeholder="1430" /></div>
         <div class="field"><label>Data do voo</label><input type="date" id="f-date" /></div>
-        <div class="field"><label>Distancia (mi)</label><input type="number" id="f-dist" min="0" placeholder="Automatico" /></div>
+        <div class="field"><label>Distância (mi)</label><input type="number" id="f-dist" min="0" placeholder="Automático" /></div>
       </div>
       <button class="btn-analyze" id="btn-analyze" onclick="runAnalysis()">
         ANALISAR RISCO DE ATRASO
       </button>
     </div>
+
+  </aside>
+
+  <!-- ── Result bar ────────────────────────────────────── -->
+  <div class="result-bar" id="result-bar">
+    <div class="risk-badge" id="risk-badge">—</div>
+    <div class="prob-display">
+      <div class="prob-num" id="prob-num">—</div>
+      <div class="prob-pct">% chance de atraso</div>
+    </div>
+    <div class="advice-inline" id="advice-inline">Execute uma análise para ver recomendações.</div>
   </div>
 
-  <div class="right-panel">
-    <div class="result-bar" id="result-bar">
-      <div class="risk-badge" id="risk-badge">-</div>
-      <div class="prob-display">
-        <div class="prob-num" id="prob-num">-</div>
-        <div class="prob-pct">% chance de atraso</div>
-      </div>
-      <div class="advice-inline" id="advice-inline">Execute uma analise para ver recomendacoes.</div>
-    </div>
+  <!-- ── Charts 2×2 grid ──────────────────────────────── -->
+  <div class="charts-grid">
 
-    <div class="charts-area">
-      <div class="chart-panel map-panel">
+    <!-- Mapa ao vivo — ocupa coluna esquerda inteira -->
+    <div class="chart-panel map-panel">
+      <div class="chart-panel-head">
+        <span class="dot dot-map"></span>Mapa ao Vivo
+      </div>
+      <div class="chart-inner" style="padding:0;">
         <div id="live-map"></div>
       </div>
+    </div>
 
-      <div class="chart-panel">
-        <div class="chart-title"><span class="chart-title-dot chart-dot-risk"></span>Fatores de Risco</div>
-        <div class="chart-wrap" id="radar-wrap">
-          <div class="empty-state">
-            <div class="empty-icon">📡</div>
-            <div class="empty-text">Aguardando analise</div>
-          </div>
-        </div>
+    <!-- Fatores de Risco (radar) -->
+    <div class="chart-panel">
+      <div class="chart-panel-head">
+        <span class="dot dot-risk"></span>Fatores de Risco
       </div>
-
-      <div class="chart-panel">
-        <div class="chart-title"><span class="chart-title-dot chart-dot-hour"></span>Probabilidade por Horario</div>
-        <div class="chart-wrap"><canvas id="chart-hourly"></canvas></div>
-      </div>
-
-      <div class="chart-panel">
-        <div class="chart-title"><span class="chart-title-dot chart-dot-airline"></span>Comparativo de Companhias</div>
-        <div class="chart-wrap" id="carrier-wrap">
-          <div class="empty-state">
-            <div class="empty-icon">🏢</div>
-            <div class="empty-text">Insira origem e destino</div>
-          </div>
+      <div class="chart-inner" id="radar-wrap">
+        <div class="empty-state">
+          <div class="empty-icon">📡</div>
+          <div class="empty-text">Aguardando análise</div>
         </div>
       </div>
     </div>
-  </div>
-</main>
 
-<div class="table-area">
-  <div class="chart-panel">
-    <div class="chart-title">Voos reais programados</div>
-    <div class="chart-wrap" id="weekly-predictions-wrap">
-      <div class="empty-state">
+    <!-- Probabilidade por Horário -->
+    <div class="chart-panel">
+      <div class="chart-panel-head">
+        <span class="dot dot-hour"></span>Probabilidade por Horário
+      </div>
+      <div class="chart-inner">
+        <canvas id="chart-hourly"></canvas>
+      </div>
+    </div>
+
+    <!-- Comparativo de Companhias -->
+    <div class="chart-panel" style="grid-column: 1 / -1;">
+      <div class="chart-panel-head">
+        <span class="dot dot-airline"></span>Comparativo de Companhias
+      </div>
+      <div class="chart-inner" id="carrier-wrap">
+        <div class="empty-state">
+          <div class="empty-icon">🏢</div>
+          <div class="empty-text">Insira origem e destino</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Tabela de voos programados ───────────────────── -->
+  <div class="table-area">
+    <div class="table-head">
+      <span class="dot" style="background:#a78bfa"></span>
+      Voos reais programados
+    </div>
+    <div id="weekly-predictions-wrap">
+      <div class="empty-state" style="padding:32px 0;">
         <div class="empty-icon">📅</div>
         <div class="empty-text">Carregando lista de voos...</div>
       </div>
@@ -121,9 +513,10 @@
       </table>
     </div>
   </div>
-</div>
+
+</div><!-- .page-wrap -->
 {% endblock %}
 
 {% block page_scripts %}
-<script src="{{ url_for('static', filename='js/dashboard_cockpit.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard_cockpit.js') }}" defer></script>
 {% endblock %}

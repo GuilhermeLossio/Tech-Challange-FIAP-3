@@ -1,0 +1,8 @@
+{% macro chart_panel(title, content, wide=False) %}
+<div class="chart-panel {% if wide %}wide{% endif %}">
+  <div class="chart-title">{{ title }}</div>
+  <div class="chart-wrap">
+    {{ content | safe }}
+  </div>
+</div>
+{% endmacro %}

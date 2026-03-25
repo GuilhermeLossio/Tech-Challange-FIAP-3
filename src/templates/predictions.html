@@ -46,3 +46,7 @@
   </article>
 </section>
 {% endblock %}
+
+{% block page_scripts %}
+<script src="{{ url_for('static', filename='js/advisor.js') }}" defer></script>
+{% endblock %}

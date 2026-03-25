@@ -102,28 +102,6 @@ header {
 }
 .logo-name span { color: var(--accent); }
 
-/* Search */
-.header-search {
-  flex: 1; max-width: 380px; position: relative;
-}
-.header-search .search-icon {
-  position: absolute; left: .7rem; top: 50%; transform: translateY(-50%);
-  font-size: .8rem; pointer-events: none;
-}
-.header-search input {
-  width: 100%;
-  background: var(--color-surface2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--r-md);
-  color: var(--color-text-hi);
-  font-family: var(--fn-display); font-size: .85rem;
-  padding: .48rem .75rem .48rem 2.1rem;
-  outline: none;
-  transition: border-color .18s;
-}
-.header-search input:focus { border-color: var(--accent); }
-.header-search input::placeholder { color: var(--color-muted); }
-
 /* Nav pills */
 .header-pills { display: flex; align-items: center; gap: .4rem; margin-left: auto; }
 .header-pills a,
@@ -476,12 +454,10 @@ header {
 /* ── Responsive ──────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   header { padding: 0 1rem; gap: .75rem; }
-  .header-search { max-width: 200px; }
   .container { padding: 1.25rem 1rem 3rem; }
   .form-grid { grid-template-columns: 1fr; }
   .grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
-  .header-search { display: none; }
   .header-pills .pill.live { display: none; }
 }

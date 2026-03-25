@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/api_docs.css') }}" />
+{% endblock %}
+
+{% block content %}
+<section class="hero compact docs-hero">
+  <p class="eyebrow">API Docs</p>
+  <h1>Flask API Reference</h1>
+  <p>Base URL atual: <code>{{ base_url }}</code>. Os exemplos abaixo usam a sessao local e o schema exposto em <a href="{{ openapi_url }}">OpenAPI JSON</a>.</p>
+  <div class="docs-actions">
+    <a href="{{ openapi_url }}" class="btn btn-primary">OpenAPI JSON</a>
+    <a href="{{ routes_url }}" class="btn docs-btn-secondary">Route Index</a>
+  </div>
+</section>
+
+<section class="docs-summary-grid">
+  <article class="panel docs-stat">
+    <span class="section-label">Endpoints</span>
+    <strong>{{ endpoint_count }}</strong>
+    <p>Rotas documentadas para chamadas HTTP da API Flask.</p>
+  </article>
+  <article class="panel docs-stat">
+    <span class="section-label">GET</span>
+    <strong>{{ get_count }}</strong>
+    <p>Consultas de leitura, health, listagens e voos em tempo real.</p>
+  </article>
+  <article class="panel docs-stat">
+    <span class="section-label">POST</span>
+    <strong>{{ post_count }}</strong>
+    <p>Predicao, reset de sessao e interacoes do advisor.</p>
+  </article>
+</section>
+
+{% for section in doc_sections %}
+<article class="panel docs-section">
+  <div class="docs-section-head">
+    <div>
+      <p class="section-label">{{ section.tag }}</p>
+      <h2>{{ section.tag }}</h2>
+    </div>
+    <span class="status-chip ok">{{ section.endpoints|length }} endpoints</span>
+  </div>
+
+  <div class="docs-endpoints">
+    {% for endpoint in section.endpoints %}
+    <section class="docs-endpoint" id="{{ endpoint.anchor }}">
+      <div class="docs-endpoint-head">
+        <div class="docs-endpoint-title">
+          <span class="docs-method docs-method-{{ endpoint.method|lower }}">{{ endpoint.method }}</span>
+          <code class="docs-path">{{ endpoint.path }}</code>
+        </div>
+        {% if endpoint.deprecated %}
+        <span class="status-chip warning">legacy alias</span>
+        {% endif %}
+      </div>
+
+      <h3>{{ endpoint.summary }}</h3>
+      <p class="docs-copy">{{ endpoint.description }}</p>
+      <div class="docs-url-row">
+        <span class="t-chip">{{ endpoint.sample_url }}</span>
+      </div>
+
+      {% if endpoint.parameters %}
+      <div class="docs-subtitle">Parameters</div>
+      <div class="docs-table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>In</th>
+              <th>Type</th>
+              <th>Required</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for param in endpoint.parameters %}
+            <tr>
+              <td class="t-code">{{ param["name"] }}</td>
+              <td>{{ param["in"] }}</td>
+              <td>{{ param["schema"]["type"] if param["schema"]["type"] else 'object' }}</td>
+              <td>{{ 'yes' if param["required"] else 'no' }}</td>
+              <td>{{ param["description"] }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+      <div class="docs-code-grid {% if not endpoint.request_example_text %}docs-code-grid-compact{% endif %}">
+        <div class="docs-code-card">
+          <div class="docs-subtitle">cURL</div>
+          <pre><code>{{ endpoint.curl_example }}</code></pre>
+        </div>
+
+        {% if endpoint.request_example_text %}
+        <div class="docs-code-card">
+          <div class="docs-subtitle">Request JSON</div>
+          <pre><code>{{ endpoint.request_example_text }}</code></pre>
+        </div>
+        {% endif %}
+
+        <div class="docs-code-card">
+          <div class="docs-subtitle">Response 200</div>
+          <pre><code>{{ endpoint.response_example_text }}</code></pre>
+        </div>
+      </div>
+
+      {% if endpoint.error_responses %}
+      <div class="docs-subtitle">Common Errors</div>
+      <div class="docs-errors">
+        {% for error in endpoint.error_responses %}
+        <article class="docs-error-card">
+          <div class="docs-error-head">
+            <span class="status-chip error">HTTP {{ error.status }}</span>
+            <span>{{ error.description }}</span>
+          </div>
+          <pre><code>{{ error.example_text }}</code></pre>
+        </article>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </section>
+    {% endfor %}
+  </div>
+</article>
+{% endfor %}
+{% endblock %}

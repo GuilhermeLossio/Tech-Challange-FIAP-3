@@ -1,3 +1,17 @@
+const DEFAULT_DISCOVERY_PROMPTS = [
+  "Quero buscar uma viagem para um pais especifico.",
+  "Qual o melhor dia ou horario para voar com menos risco de atraso?",
+  "Qual o melhor momento para comprar a passagem?",
+];
+
+const advisorState = {
+  countries: null,
+  countriesPromise: null,
+  airportsByCountry: new Map(),
+  sessionId: null,
+  messages: [],
+};
+
 function toNumberOrNull(rawValue) {
   if (rawValue === undefined || rawValue === null) return null;
   const value = String(rawValue).trim();
@@ -6,25 +20,9 @@ function toNumberOrNull(rawValue) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function buildPayload(form) {
-  const data = new FormData(form);
-  return {
-    origin_airport: String(data.get("origin_airport") || "").trim(),
-    destination_airport: String(data.get("destination_airport") || "").trim(),
-    airline: String(data.get("airline") || "").trim(),
-    scheduled_departure: toNumberOrNull(data.get("scheduled_departure")),
-    month: toNumberOrNull(data.get("month")),
-    day_of_week: toNumberOrNull(data.get("day_of_week")),
-    distance: toNumberOrNull(data.get("distance")),
-    question: String(data.get("question") || "").trim() || null,
-  };
-}
-
-function riskClass(riskLevel) {
-  const level = String(riskLevel || "").toUpperCase();
-  if (level === "LOW") return "LOW";
-  if (level === "MEDIUM") return "MEDIUM";
-  return "HIGH";
+function toTextOrNull(rawValue) {
+  const value = String(rawValue ?? "").trim();
+  return value || null;
 }
 
 function escapeHtml(value) {
@@ -34,6 +32,59 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function normalizeErrorMessage(message) {
+  if (Array.isArray(message)) return message.map((item) => JSON.stringify(item)).join(" | ");
+  if (typeof message === "object" && message !== null) return JSON.stringify(message);
+  return String(message || "Unexpected error while calling /advise.");
+}
+
+function riskClass(riskLevel) {
+  const level = String(riskLevel || "").toUpperCase();
+  if (level === "LOW") return "LOW";
+  if (level === "MEDIUM") return "MEDIUM";
+  return "HIGH";
+}
+
+function buildPredictionPayload(form) {
+  const data = new FormData(form);
+  return {
+    origin_airport: toTextOrNull(data.get("origin_airport")),
+    destination_airport: toTextOrNull(data.get("destination_airport")),
+    airline: toTextOrNull(data.get("airline")),
+    scheduled_departure: toNumberOrNull(data.get("scheduled_departure")),
+    month: toNumberOrNull(data.get("month")),
+    day_of_week: toNumberOrNull(data.get("day_of_week")),
+    distance: toNumberOrNull(data.get("distance")),
+    question: toTextOrNull(data.get("question")),
+  };
+}
+
+function buildAdvisorPayload(form) {
+  const data = new FormData(form);
+  return {
+    origin_country: toTextOrNull(data.get("origin_country")),
+    origin_airport: toTextOrNull(data.get("origin_airport")),
+    destination_country: toTextOrNull(data.get("destination_country")),
+    destination_airport: toTextOrNull(data.get("destination_airport")),
+    airline: toTextOrNull(data.get("airline")),
+    scheduled_departure: toNumberOrNull(data.get("scheduled_departure")),
+    month: toNumberOrNull(data.get("month")),
+    day_of_week: toNumberOrNull(data.get("day_of_week")),
+    question: toTextOrNull(data.get("question")),
+  };
+}
+
+function renderPromptButtons(prompts) {
+  const items = Array.isArray(prompts) && prompts.length ? prompts : DEFAULT_DISCOVERY_PROMPTS;
+  return items
+    .map((prompt) => `
+      <button type="button" class="advisor-prompt-btn" data-advisor-prompt="${escapeHtml(prompt)}">
+        ${escapeHtml(prompt)}
+      </button>
+    `)
+    .join("");
 }
 
 function renderFactors(data) {
@@ -95,12 +146,82 @@ function renderSuggestedFlights(data) {
   `;
 }
 
-function renderResponse(target, data) {
-  const adviceSource = String(data.advice_source || "heuristic");
-  const adviceClass = adviceSource === "nvidia_nemotron" ? "ok" : "warning";
-  const adviceLabel = adviceSource === "nvidia_nemotron" ? "Nemotron" : "Local fallback";
+function renderAssistantExtras(message) {
+  const probability = Number(message.delay_probability);
+  const metrics = Number.isFinite(probability)
+    ? `
+      <div class="advisor-inline-metrics">
+        <span class="advisor-inline-prob">${(probability * 100).toFixed(1)}%</span>
+        <span class="risk-badge ${riskClass(message.risk_level)}">${escapeHtml(message.risk_level || "HIGH")}</span>
+        <span class="status-chip ${String(message.advice_source || "") === "nvidia_nemotron" ? "ok" : "warning"}">
+          ${escapeHtml(message.advice_source || "assistant")}
+        </span>
+      </div>
+    `
+    : "";
+
+  const prompts = Array.isArray(message.clarification_prompts) && message.clarification_prompts.length
+    ? `
+      <section class="advisor-section">
+        <h3>Suggested next questions</h3>
+        <div class="advisor-prompt-grid">${renderPromptButtons(message.clarification_prompts)}</div>
+      </section>
+    `
+    : "";
+
+  return `${metrics}${renderFactors(message)}${renderSuggestedFlights(message)}${prompts}`;
+}
+
+function renderAdvisorMessage(message) {
+  const role = String(message.role || "assistant");
+  const mode = message.mode ? `<span class="status-chip warning">${escapeHtml(message.mode)}</span>` : "";
+  const timestamp = message.created_at ? escapeHtml(message.created_at.replace("T", " ")) : "";
+  const extras = role === "assistant" ? renderAssistantExtras(message) : "";
+
+  return `
+    <article class="advisor-message ${role}">
+      <div class="advisor-message-bubble">
+        <div class="advisor-message-meta">
+          <span>${role === "user" ? "Cliente" : "Advisor"}</span>
+          ${timestamp ? `<span>${timestamp}</span>` : ""}
+          ${mode}
+        </div>
+        <div class="advisor-message-text">${escapeHtml(message.content || "")}</div>
+        ${extras}
+      </div>
+    </article>
+  `;
+}
+
+function renderAdvisorMessages(messages) {
+  const target = document.getElementById("advisor-messages");
+  if (!target) return;
+
+  const safeMessages = Array.isArray(messages) ? messages : [];
+  advisorState.messages = safeMessages;
+  if (!safeMessages.length) {
+    target.innerHTML = `<div class="advisor-chat-empty">No messages in this session yet.</div>`;
+    return;
+  }
+
+  target.innerHTML = safeMessages.map(renderAdvisorMessage).join("");
+  target.scrollTop = target.scrollHeight;
+}
+
+function updateAdvisorSessionMeta(sessionId) {
+  advisorState.sessionId = sessionId || null;
+  const target = document.getElementById("advisor-session-meta");
+  if (!target) return;
+  target.textContent = sessionId
+    ? `Session ${sessionId.slice(0, 12)} • messages kept while this browser session is active`
+    : "Session unavailable.";
+}
+
+function renderPredictionResponse(target, data) {
   const delayProbability = Number(data.delay_probability);
   const probabilityText = Number.isFinite(delayProbability) ? (delayProbability * 100).toFixed(1) : "0.0";
+  const adviceSource = String(data.advice_source || "heuristic");
+  const adviceClass = adviceSource === "nvidia_nemotron" ? "ok" : "warning";
 
   target.classList.remove("empty", "error");
   target.innerHTML = `
@@ -110,7 +231,7 @@ function renderResponse(target, data) {
         <span class="prob-pct">% delay risk</span>
       </div>
       <span class="risk-badge ${riskClass(data.risk_level)}">${escapeHtml(data.risk_level || "HIGH")}</span>
-      <span class="status-chip ${adviceClass}">${escapeHtml(adviceLabel)}</span>
+      <span class="status-chip ${adviceClass}">${escapeHtml(adviceSource)}</span>
       <div class="advice-inline">${escapeHtml(data.advice || "")}</div>
     </div>
     ${renderFactors(data)}
@@ -118,20 +239,192 @@ function renderResponse(target, data) {
   `;
 }
 
-function renderError(target, message) {
+function renderPredictionError(target, message) {
   target.classList.remove("empty");
   target.classList.add("error");
-  target.textContent = message || "Unexpected error while calling /advise.";
+  target.textContent = normalizeErrorMessage(message);
 }
 
-async function submitForm(form, resultEl) {
-  const payload = buildPayload(form);
+function setSelectOptions(selectEl, placeholder, items, valueFn, labelFn) {
+  if (!selectEl) return;
+  selectEl.innerHTML = "";
+
+  const firstOption = document.createElement("option");
+  firstOption.value = "";
+  firstOption.textContent = placeholder;
+  selectEl.appendChild(firstOption);
+
+  for (const item of items) {
+    const option = document.createElement("option");
+    option.value = valueFn(item);
+    option.textContent = labelFn(item);
+    selectEl.appendChild(option);
+  }
+}
+
+function buildCountryLabel(country) {
+  const count = Number(country.airport_count || 0);
+  return `${country.country} (${count})`;
+}
+
+function buildAirportLabel(airport) {
+  const parts = [];
+  if (airport.city) parts.push(airport.city);
+  if (airport.airport_name) parts.push(airport.airport_name);
+  return `${airport.iata_code} - ${parts.join(" / ") || "Aeroporto sem descricao"}`;
+}
+
+function getAdvisorLocationElements(role) {
+  return {
+    country: document.getElementById(`advisor-${role}-country`),
+    airport: document.getElementById(`advisor-${role}-airport`),
+  };
+}
+
+function setAdvisorHint(message, isError = false) {
+  const hint = document.getElementById("advisor-location-feedback");
+  if (!hint) return;
+  hint.textContent = message;
+  hint.classList.toggle("error", Boolean(isError));
+}
+
+function resetAirportSelect(selectEl, message) {
+  if (!selectEl) return;
+  selectEl.disabled = true;
+  setSelectOptions(selectEl, message, [], () => "", () => "");
+}
+
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, options);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.detail || `Request failed (${response.status}).`);
+  }
+  return data;
+}
+
+function populateCountrySelects(countries) {
+  for (const role of ["origin", "destination"]) {
+    const { country } = getAdvisorLocationElements(role);
+    if (!country) continue;
+    setSelectOptions(country, "Select a country", countries, (item) => item.country, buildCountryLabel);
+  }
+}
+
+async function ensureCountryOptions() {
+  if (advisorState.countries) {
+    populateCountrySelects(advisorState.countries);
+    return;
+  }
+
+  if (!advisorState.countriesPromise) {
+    advisorState.countriesPromise = fetchJson("/api/flight/countries")
+      .then((data) => {
+        advisorState.countries = Array.isArray(data.countries) ? data.countries : [];
+        populateCountrySelects(advisorState.countries);
+        setAdvisorHint("Select a country before the airport to avoid overloading the list.");
+      })
+      .catch((error) => {
+        setAdvisorHint(error?.message || "Failed to load country options.", true);
+      })
+      .finally(() => {
+        advisorState.countriesPromise = null;
+      });
+  }
+
+  await advisorState.countriesPromise;
+}
+
+async function loadAirportsByCountry(role, country) {
+  const { airport } = getAdvisorLocationElements(role);
+  const countryLabel = role === "origin" ? "origin" : "destination";
+  if (!airport) return;
+
+  if (!country) {
+    resetAirportSelect(airport, `Select the ${countryLabel} country first`);
+    setAdvisorHint("Select a country before the airport to avoid overloading the list.");
+    return;
+  }
+
+  resetAirportSelect(airport, "Loading airports...");
+  setAdvisorHint(`Loading ${country} airports...`);
+
+  try {
+    let airports = advisorState.airportsByCountry.get(country);
+    if (!airports) {
+      const data = await fetchJson(`/api/flight/airports?country=${encodeURIComponent(country)}&limit=500`);
+      airports = Array.isArray(data.airports) ? data.airports : [];
+      advisorState.airportsByCountry.set(country, airports);
+    }
+
+    if (!airports.length) {
+      resetAirportSelect(airport, "No airport found for this country");
+      setAdvisorHint(`No airports available for ${country}.`, true);
+      return;
+    }
+
+    airport.disabled = false;
+    setSelectOptions(airport, "Select an airport", airports, (item) => item.iata_code, buildAirportLabel);
+    setAdvisorHint(`${airports.length} airports loaded for ${country}.`);
+  } catch (error) {
+    resetAirportSelect(airport, "Failed to load airports");
+    setAdvisorHint(error?.message || "Failed to load airports.", true);
+  }
+}
+
+async function loadAdvisorHistory() {
+  try {
+    const data = await fetchJson("/api/advisor/history");
+    updateAdvisorSessionMeta(data.session_id);
+    renderAdvisorMessages(data.messages);
+  } catch (error) {
+    renderAdvisorMessages([{
+      role: "assistant",
+      content: normalizeErrorMessage(error?.message || "Failed to load chat history."),
+      created_at: new Date().toISOString(),
+      mode: "discovery",
+      clarification_prompts: DEFAULT_DISCOVERY_PROMPTS,
+    }]);
+  }
+}
+
+async function resetAdvisorSession() {
+  const button = document.getElementById("advisor-reset");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Resetting...";
+  }
+
+  try {
+    const data = await fetchJson("/api/advisor/reset", { method: "POST" });
+    updateAdvisorSessionMeta(data.session_id);
+    renderAdvisorMessages(data.messages);
+    const questionField = document.getElementById("advisor-question");
+    if (questionField) questionField.value = "";
+  } catch (error) {
+    renderAdvisorMessages([{
+      role: "assistant",
+      content: normalizeErrorMessage(error?.message || "Failed to reset chat session."),
+      created_at: new Date().toISOString(),
+      mode: "discovery",
+      clarification_prompts: DEFAULT_DISCOVERY_PROMPTS,
+    }]);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "New Session";
+    }
+  }
+}
+
+async function submitPredictionForm(form, resultEl) {
+  const payload = buildPredictionPayload(form);
   if (!payload.origin_airport || !payload.destination_airport || !payload.airline) {
-    renderError(resultEl, "Fill in origin, destination and airline.");
+    renderPredictionError(resultEl, "Fill in origin, destination and airline.");
     return;
   }
   if (payload.scheduled_departure === null) {
-    renderError(resultEl, "Scheduled departure must be a number (HHMM).");
+    renderPredictionError(resultEl, "Scheduled departure must be a number (HHMM).");
     return;
   }
 
@@ -142,40 +435,136 @@ async function submitForm(form, resultEl) {
   }
 
   try {
-    const response = await fetch("/advise", {
+    const body = await fetchJson("/advise", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      renderError(resultEl, body.detail || `Request failed (${response.status}).`);
-      return;
-    }
-    renderResponse(resultEl, body);
+    renderPredictionResponse(resultEl, body);
   } catch (error) {
-    renderError(resultEl, error?.message || "Network error.");
+    renderPredictionError(resultEl, error?.message || "Network error.");
   } finally {
     if (button) {
       button.disabled = false;
-      button.textContent = form.id === "advisor-form" ? "Ask Advisor" : "Calculate";
+      button.textContent = "Calculate";
     }
   }
 }
 
-function bindForm(formId, resultId) {
-  const form = document.getElementById(formId);
-  const result = document.getElementById(resultId);
+async function submitAdvisorForm(form) {
+  const payload = buildAdvisorPayload(form);
+  const button = form.querySelector("button[type='submit']");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Sending...";
+  }
+
+  try {
+    const body = await fetchJson("/advise", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    updateAdvisorSessionMeta(body.session_id);
+    renderAdvisorMessages(body.messages);
+    const questionField = document.getElementById("advisor-question");
+    if (questionField) {
+      questionField.value = "";
+      questionField.focus();
+    }
+  } catch (error) {
+    renderAdvisorMessages([
+      ...advisorState.messages,
+      {
+        role: "assistant",
+        content: normalizeErrorMessage(error?.message || "Network error."),
+        created_at: new Date().toISOString(),
+        mode: "discovery",
+        clarification_prompts: DEFAULT_DISCOVERY_PROMPTS,
+      },
+    ]);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Send Message";
+    }
+  }
+}
+
+function bindPredictionForm() {
+  const form = document.getElementById("prediction-form");
+  const result = document.getElementById("prediction-result");
   if (!form || !result) return;
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    submitForm(form, result);
+    submitPredictionForm(form, result);
   });
 }
 
+function bindAdvisorForm() {
+  const form = document.getElementById("advisor-form");
+  if (!form) return;
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    submitAdvisorForm(form);
+  });
+}
+
+function bindPromptButtons() {
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-advisor-prompt]");
+    if (!button) return;
+
+    const questionField = document.getElementById("advisor-question");
+    const form = document.getElementById("advisor-form");
+    const prompt = button.getAttribute("data-advisor-prompt") || "";
+    if (!questionField || !form) return;
+
+    questionField.value = prompt;
+    form.requestSubmit();
+  });
+}
+
+function bindAdvisorReset() {
+  const button = document.getElementById("advisor-reset");
+  if (!button) return;
+  button.addEventListener("click", () => {
+    resetAdvisorSession();
+  });
+}
+
+async function initAdvisorLocationSelectors() {
+  const origin = getAdvisorLocationElements("origin");
+  const destination = getAdvisorLocationElements("destination");
+  if (!origin.country || !origin.airport || !destination.country || !destination.airport) {
+    return;
+  }
+
+  await ensureCountryOptions();
+  resetAirportSelect(origin.airport, "Select the origin country first");
+  resetAirportSelect(destination.airport, "Select the destination country first");
+
+  origin.country.addEventListener("change", () => {
+    loadAirportsByCountry("origin", origin.country.value);
+  });
+
+  destination.country.addEventListener("change", () => {
+    loadAirportsByCountry("destination", destination.country.value);
+  });
+}
+
+async function initAdvisorPage() {
+  if (!document.getElementById("advisor-form")) return;
+  await initAdvisorLocationSelectors();
+  await loadAdvisorHistory();
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-  bindForm("prediction-form", "prediction-result");
-  bindForm("advisor-form", "advisor-result");
+  bindPredictionForm();
+  bindAdvisorForm();
+  bindPromptButtons();
+  bindAdvisorReset();
+  initAdvisorPage();
 });

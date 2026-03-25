@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import json, os, sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
 from typing import Any, Dict, List, Tuple
+from urllib.parse import urlencode
+from uuid import uuid4
 
 import pandas as pd
-from flask import Flask, jsonify, redirect, render_template, request, url_for
+from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
 SRC_DIR = Path(__file__).resolve().parents[1]
@@ -27,10 +29,17 @@ from api.services.nemotron_service import (  # noqa: E402
     generate_nemotron_advice,
     should_use_nemotron,
 )
+from api.views import (  # noqa: E402
+    register_advisor_views,
+    register_flight_views,
+    register_page_views,
+)
 
 load_env_file()
 app = Flask(__name__, template_folder=str(SRC_DIR / "templates"),
             static_folder=str(SRC_DIR / "static"), static_url_path="/static")
+app.secret_key = os.getenv("FLASK_SECRET_KEY") or os.getenv("SECRET_KEY") or "dev-flight-advisor-secret"
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 _raw_origins = os.getenv("CORS_ORIGINS", "")
 ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()] or ["*"]
@@ -70,10 +79,12 @@ mount_dash_app(app)
 # ── Pydantic models ──────────────────────────────────────────────────────────
 
 class AdviseRequest(BaseModel):
-    origin_airport: str = Field(..., description="Origin IATA code")
-    destination_airport: str = Field(..., description="Destination IATA code")
-    airline: str = Field(..., description="Airline IATA code")
-    scheduled_departure: int = Field(..., description="Scheduled departure time (HHMM)")
+    origin_country: str | None = Field(None, description="Origin country")
+    origin_airport: str | None = Field(None, description="Origin IATA code")
+    destination_country: str | None = Field(None, description="Destination country")
+    destination_airport: str | None = Field(None, description="Destination IATA code")
+    airline: str | None = Field(None, description="Airline IATA code")
+    scheduled_departure: int | None = Field(None, description="Scheduled departure time (HHMM)", ge=0, le=2359)
     month: int | None = Field(None, ge=1, le=12)
     day_of_week: int | None = Field(None, ge=1, le=7)
     day: int | None = Field(None, ge=1, le=31)
@@ -84,8 +95,13 @@ class AdviseRequest(BaseModel):
 
     @field_validator("origin_airport", "destination_airport", "airline")
     @classmethod
-    def normalize_codes(cls, v: str) -> str:
-        return v.strip().upper()
+    def normalize_codes(cls, v: str | None) -> str | None:
+        return v.strip().upper() or None if v else None
+
+    @field_validator("origin_country", "destination_country", "question")
+    @classmethod
+    def normalize_text_fields(cls, v: str | None) -> str | None:
+        return v.strip() or None if v else None
 
 
 class Factor(BaseModel):
@@ -106,14 +122,32 @@ class SuggestedFlight(BaseModel):
     risk_level: str | None = None
 
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+    created_at: str
+    mode: str | None = None
+    delay_probability: float | None = None
+    risk_level: str | None = None
+    advice_source: str | None = None
+    advice_model: str | None = None
+    top_factors: List[Factor] = Field(default_factory=list)
+    suggested_flights: List[SuggestedFlight] = Field(default_factory=list)
+    clarification_prompts: List[str] = Field(default_factory=list)
+
+
 class AdviseResponse(BaseModel):
-    delay_probability: float
-    risk_level: str
+    delay_probability: float | None = None
+    risk_level: str | None = None
     top_factors: List[Factor]
     advice: str
+    mode: str = "route"
     advice_source: str = "heuristic"
     advice_model: str | None = None
     suggested_flights: List[SuggestedFlight] = Field(default_factory=list)
+    clarification_prompts: List[str] = Field(default_factory=list)
+    session_id: str | None = None
+    messages: List[ChatMessage] = Field(default_factory=list)
 
 
 class PredictRequest(BaseModel):
@@ -143,6 +177,126 @@ class PredictRequest(BaseModel):
 RATE_COLS = ["ORIGIN_DELAY_RATE", "DEST_DELAY_RATE", "CARRIER_DELAY_RATE",
              "ROUTE_DELAY_RATE", "CARRIER_DELAY_RATE_DOW"]
 OPENFLIGHTS_AIRPORTS_SOURCE = "https://raw.githubusercontent.com/jpatokal/openflights/master/data/airports.dat"
+DISCOVERY_PROMPTS = [
+    "Quero buscar uma viagem para um pais especifico.",
+    "Qual o melhor dia ou horario para voar com menos risco de atraso?",
+    "Qual o melhor momento para comprar a passagem?",
+]
+ADVISOR_CHAT_DIR = ROOT_DIR / "data" / "runtime" / "advisor_sessions"
+ADVISOR_CHAT_MAX_MESSAGES = max(4, int(os.getenv("ADVISOR_CHAT_MAX_MESSAGES", "16")))
+ADVISOR_CHAT_MAX_CONTENT = max(120, int(os.getenv("ADVISOR_CHAT_MAX_CONTENT", "1200")))
+
+
+def now_iso() -> str:
+    return datetime.now().isoformat(timespec="seconds")
+
+
+def trim_chat_text(value: str | None) -> str:
+    text = (value or "").strip()
+    if len(text) <= ADVISOR_CHAT_MAX_CONTENT:
+        return text
+    return text[:ADVISOR_CHAT_MAX_CONTENT].rstrip() + "..."
+
+
+def chat_bootstrap_message() -> ChatMessage:
+    return ChatMessage(
+        role="assistant",
+        content=(
+            "Sou o Flight Advisor. Posso conversar sobre destinos, melhor dia ou horario para voar, "
+            "risco de atraso e quando vale comprar a passagem. Se quiser, use os filtros de rota como contexto opcional."
+        ),
+        created_at=now_iso(),
+        mode="discovery",
+        advice_source="system",
+        clarification_prompts=DISCOVERY_PROMPTS,
+    )
+
+
+def advisor_chat_file(session_id: str) -> Path:
+    safe_id = "".join(ch for ch in session_id if ch.isalnum() or ch in {"-", "_"})
+    return ADVISOR_CHAT_DIR / f"{safe_id}.json"
+
+
+def get_advisor_session_id() -> str:
+    current = session.get("advisor_session_id")
+    if isinstance(current, str) and current.strip():
+        return current
+    current = uuid4().hex
+    session["advisor_session_id"] = current
+    session.modified = True
+    return current
+
+
+def load_advisor_messages() -> tuple[str, list[ChatMessage]]:
+    session_id = get_advisor_session_id()
+    path = advisor_chat_file(session_id)
+    if not path.exists():
+        return session_id, [chat_bootstrap_message()]
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return session_id, [chat_bootstrap_message()]
+    if not isinstance(raw, list):
+        return session_id, [chat_bootstrap_message()]
+    messages: list[ChatMessage] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        try:
+            messages.append(ChatMessage.model_validate(item))
+        except ValidationError:
+            continue
+    return session_id, messages or [chat_bootstrap_message()]
+
+
+def persist_advisor_messages(session_id: str, messages: list[ChatMessage]) -> list[ChatMessage]:
+    ADVISOR_CHAT_DIR.mkdir(parents=True, exist_ok=True)
+    trimmed = messages[-ADVISOR_CHAT_MAX_MESSAGES:]
+    advisor_chat_file(session_id).write_text(
+        json.dumps([item.model_dump() for item in trimmed], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return trimmed
+
+
+def reset_advisor_messages() -> tuple[str, list[ChatMessage]]:
+    session_id = get_advisor_session_id()
+    messages = [chat_bootstrap_message()]
+    return session_id, persist_advisor_messages(session_id, messages)
+
+
+def message_snapshot_for_llm(messages: list[ChatMessage], limit: int = 8) -> list[dict[str, str]]:
+    snapshot: list[dict[str, str]] = []
+    for item in messages[-limit:]:
+        snapshot.append({
+            "role": item.role,
+            "content": trim_chat_text(item.content),
+        })
+    return snapshot
+
+
+def user_chat_message(content: str) -> ChatMessage:
+    return ChatMessage(
+        role="user",
+        content=trim_chat_text(content),
+        created_at=now_iso(),
+    )
+
+
+def assistant_chat_message(response: AdviseResponse) -> ChatMessage:
+    return ChatMessage(
+        role="assistant",
+        content=trim_chat_text(response.advice),
+        created_at=now_iso(),
+        mode=response.mode,
+        delay_probability=response.delay_probability,
+        risk_level=response.risk_level,
+        advice_source=response.advice_source,
+        advice_model=response.advice_model,
+        top_factors=response.top_factors,
+        suggested_flights=response.suggested_flights,
+        clarification_prompts=response.clarification_prompts,
+    )
 
 def season_from_month(m: int) -> str:
     return {12:"winter",1:"winter",2:"winter",3:"spring",4:"spring",5:"spring",
@@ -166,11 +320,18 @@ def infer_date(req: AdviseRequest) -> date:
         return date.fromisoformat(req.flight_date)
     if req.year and req.month and req.day:
         return date(req.year, req.month, req.day)
-    if req.month is None or req.day_of_week is None:
-        raise ValueError("Provide flight_date or (month + day_of_week).")
     today = date.today()
-    year = req.year or (today.year + (1 if req.month < today.month else 0))
-    first = date(year, req.month, 1)
+    if req.month is None and req.day_of_week is None and req.day is None:
+        return today
+    if req.month is None and req.day_of_week is not None:
+        return today + timedelta(days=(req.day_of_week - (today.weekday() + 1)) % 7)
+    month = req.month or today.month
+    year = req.year or (today.year + (1 if month < today.month else 0))
+    if req.day is not None:
+        return date(year, month, req.day)
+    if req.day_of_week is None:
+        return date(year, month, 1)
+    first = date(year, month, 1)
     return first + timedelta(days=(req.day_of_week - (first.weekday() + 1)) % 7)
 
 def build_route_distance_map(df: pd.DataFrame) -> Tuple[Dict[str, float], float]:
@@ -241,6 +402,239 @@ def compute_top_factors(df: pd.DataFrame, global_rate: float, top_k: int = 3) ->
 
 def risk_level(p: float) -> str:
     return "HIGH" if p >= 0.7 else "MEDIUM" if p >= 0.4 else "LOW"
+
+def has_full_route_context(req: AdviseRequest) -> bool:
+    return bool(
+        req.origin_airport and req.destination_airport and req.airline
+        and req.scheduled_departure is not None
+    )
+
+def has_any_route_context(req: AdviseRequest) -> bool:
+    return bool(
+        req.origin_airport or req.destination_airport or req.airline
+        or req.scheduled_departure is not None
+    )
+
+def missing_route_fields(req: AdviseRequest) -> list[str]:
+    missing: list[str] = []
+    if not req.origin_airport:
+        missing.append("origin airport")
+    if not req.destination_airport:
+        missing.append("destination airport")
+    if not req.airline:
+        missing.append("airline")
+    if req.scheduled_departure is None:
+        missing.append("scheduled departure")
+    return missing
+
+def detect_discovery_topic(question: str | None) -> str:
+    text = (question or "").strip().casefold()
+    if not text:
+        return "general"
+    if any(token in text for token in ("preco", "preços", "price", "fare", "tarifa", "passagem")):
+        return "price"
+    if any(token in text for token in ("pais", "country", "destino", "destination", "viagem", "trip")):
+        return "country"
+    if any(token in text for token in ("dia", "day", "horario", "time", "atraso", "delay", "melhor voo", "best flight")):
+        return "timing"
+    return "general"
+
+def build_discovery_response(req: AdviseRequest) -> AdviseResponse:
+    topic = detect_discovery_topic(req.question)
+    missing = missing_route_fields(req) if has_any_route_context(req) else []
+
+    if missing:
+        advice = (
+            "Before I analyze a specific flight, I still need "
+            + ", ".join(missing)
+            + ". If you prefer, tell me whether the customer wants a destination country, "
+              "a better day or time to fly, or guidance on when to buy the ticket."
+        )
+    elif topic == "country":
+        advice = (
+            "Start by selecting the destination country. After that, choose the airport from the dropdown "
+            "so I can narrow the route without overloading the list."
+        )
+    elif topic == "timing":
+        advice = (
+            "To compare the best day or time to fly with lower delay risk, I need at least origin airport, "
+            "destination airport, airline and scheduled departure."
+        )
+    elif topic == "price":
+        advice = (
+            "I can ask about the best moment to buy, but this project still does not have historical fare data. "
+            "For now I can only give general planning guidance, not evidence-based advice from ticket prices."
+        )
+    else:
+        advice = (
+            "Before recommending a flight, tell me what the customer is looking for. "
+            "You can ask for a trip to a specific country, the best day or time to fly, "
+            "or the best moment to buy a ticket."
+        )
+
+    return AdviseResponse(
+        top_factors=[],
+        advice=advice,
+        mode="discovery",
+        advice_source="discovery",
+        clarification_prompts=DISCOVERY_PROMPTS,
+    )
+
+def advisor_env_flag(name: str, default: str = "0") -> bool:
+    return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+def advisor_env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+def advisor_env_text(name: str, default: str) -> str:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip() or default
+
+def build_advisor_runtime_context() -> dict[str, Any]:
+    realtime_enabled = advisor_env_flag("ADVISOR_SEARCH_FLIGHTS_ENABLED", "0")
+    booking_enabled = advisor_env_flag("ADVISOR_BOOKING_ENABLED", "0")
+    fare_history_enabled = advisor_env_flag("ADVISOR_FARE_HISTORY_ENABLED", "0")
+    return {
+        "role": "Flight Advisor",
+        "defaults": {
+            "assumed_passengers": {
+                "adults": max(1, advisor_env_int("ADVISOR_DEFAULT_ADULTS", 1)),
+                "children": max(0, advisor_env_int("ADVISOR_DEFAULT_CHILDREN", 0)),
+                "infants": max(0, advisor_env_int("ADVISOR_DEFAULT_INFANTS", 0)),
+            },
+            "default_cabin_class": advisor_env_text("ADVISOR_DEFAULT_CABIN_CLASS", "economy"),
+            "missing_date_strategy": "suggest_nearby_dates_with_good_value",
+            "missing_origin_strategy": "ask_naturally_or_use_conversation_context",
+            "missing_destination_strategy": "suggest_destinations_from_profile_or_interest",
+        },
+        "tooling": {
+            "search_flights": {
+                "enabled": realtime_enabled,
+                "name": "search_flights",
+                "purpose": "Consulta voos disponiveis em tempo real.",
+                "parameters": [
+                    "origin",
+                    "destination",
+                    "departure_date",
+                    "return_date",
+                    "passengers",
+                    "cabin_class",
+                ],
+                "status": (
+                    "integrated_realtime_search"
+                    if realtime_enabled else
+                    "not_integrated_in_this_backend"
+                ),
+            },
+            "booking_flow": {
+                "enabled": booking_enabled,
+                "status": (
+                    "can_guide_purchase_steps"
+                    if booking_enabled else
+                    "informational_only_no_transaction_execution"
+                ),
+                "requires_explicit_customer_confirmation": True,
+            },
+            "fare_history": {
+                "enabled": fare_history_enabled,
+                "status": (
+                    "historical_fare_data_available"
+                    if fare_history_enabled else
+                    "no_historical_fare_dataset_available"
+                ),
+            },
+        },
+        "restrictions": {
+            "never_invent_prices_or_live_availability": True,
+            "never_confirm_purchase_without_explicit_confirmation": True,
+            "do_not_store_sensitive_data_beyond_session": True,
+        },
+    }
+
+def detect_discovery_topic_runtime(question: str | None) -> str:
+    text = (question or "").strip().casefold()
+    if not text:
+        return "general"
+    if any(token in text for token in ("preco", "precos", "price", "fare", "tarifa", "passagem")):
+        return "price"
+    if any(token in text for token in ("pais", "country", "destino", "destination", "viagem", "viajar", "trip", "lisboa")):
+        return "country"
+    if any(token in text for token in ("dia", "day", "horario", "time", "atraso", "delay", "melhor voo", "best flight")):
+        return "timing"
+    return "general"
+
+def build_discovery_response_runtime(req: AdviseRequest) -> AdviseResponse:
+    topic = detect_discovery_topic_runtime(req.question)
+    missing = missing_route_fields(req) if has_any_route_context(req) else []
+
+    if missing:
+        advice = (
+            "Antes de analisar um voo especifico, ainda preciso de "
+            + ", ".join(missing)
+            + ". Se preferir, me diga se o cliente quer um destino em um pais especifico, "
+              "o melhor dia ou horario para voar, ou orientacao sobre quando comprar a passagem."
+        )
+    elif topic == "country":
+        advice = (
+            "Posso comecar por um destino em pais especifico. Selecione o pais e depois o aeroporto no dropdown, "
+            "ou descreva o perfil da viagem para eu sugerir opcoes."
+        )
+    elif topic == "timing":
+        advice = (
+            "Consigo sugerir o melhor dia ou horario para voar, mas para comparar risco de atraso por voo eu ainda "
+            "preciso de origem, destino, companhia e horario de partida."
+        )
+    elif topic == "price":
+        advice = (
+            "Posso orientar sobre estrategia de compra, mas este projeto ainda nao tem historico de tarifas nem "
+            "uma tool `search_flights` integrada para consultar precos em tempo real."
+        )
+    else:
+        advice = (
+            "Me diga o que o cliente esta buscando. Posso ajudar com destino por pais, melhor dia ou horario para voar, "
+            "ou orientacao sobre quando vale comprar a passagem."
+        )
+
+    return AdviseResponse(
+        top_factors=[],
+        advice=advice,
+        mode="discovery",
+        advice_source="discovery",
+        clarification_prompts=DISCOVERY_PROMPTS,
+    )
+
+def build_discovery_context(req: AdviseRequest, fallback_advice: str,
+                            messages: list[ChatMessage]) -> dict[str, Any]:
+    return {
+        "mode": "discovery",
+        "question": req.question or "Nenhuma pergunta explicita foi fornecida.",
+        "partial_request": {
+            "origin_country": req.origin_country,
+            "origin_airport": req.origin_airport,
+            "destination_country": req.destination_country,
+            "destination_airport": req.destination_airport,
+            "airline": req.airline,
+            "scheduled_departure": req.scheduled_departure,
+            "flight_date": req.flight_date,
+            "year": req.year,
+            "month": req.month,
+            "day": req.day,
+            "day_of_week": req.day_of_week,
+            "distance_miles": req.distance,
+        },
+        "chat_history": message_snapshot_for_llm(messages),
+        "clarification_prompts": DISCOVERY_PROMPTS,
+        "assistant_runtime": build_advisor_runtime_context(),
+        "fallback_advice": fallback_advice,
+    }
 
 def advice_text(prob: float, level: str, top_factors: List[Factor],
                 suggested_flights: List[SuggestedFlight] | None = None) -> str:
@@ -751,11 +1145,14 @@ def build_suggested_flights(payload: AdviseRequest, pipeline: Any, meta: dict | 
 
 def build_advice_context(payload: AdviseRequest, probability: float, level: str,
                          top_factors: List[Factor], fallback_advice: str,
-                         suggested_flights: List[SuggestedFlight]) -> dict[str, Any]:
+                         suggested_flights: List[SuggestedFlight],
+                         messages: list[ChatMessage]) -> dict[str, Any]:
     return {
-        "question": payload.question or "No explicit question provided.",
+        "question": payload.question or "Nenhuma pergunta explicita foi fornecida.",
         "requested_flight": {
+            "origin_country": payload.origin_country,
             "origin_airport": payload.origin_airport,
+            "destination_country": payload.destination_country,
             "destination_airport": payload.destination_airport,
             "airline": payload.airline,
             "scheduled_departure": int(payload.scheduled_departure),
@@ -772,6 +1169,8 @@ def build_advice_context(payload: AdviseRequest, probability: float, level: str,
             "top_factors": [factor.model_dump() for factor in top_factors],
         },
         "suggested_flights": [flight.model_dump(exclude_none=True) for flight in suggested_flights],
+        "chat_history": message_snapshot_for_llm(messages),
+        "assistant_runtime": build_advisor_runtime_context(),
         "fallback_advice": fallback_advice,
     }
 
@@ -783,21 +1182,552 @@ def list_route_index() -> list[dict]:
     ], key=lambda x: x["path"])
 
 
+def build_openapi_components() -> dict[str, Any]:
+    components: dict[str, Any] = {
+        "schemas": {
+            "ErrorResponse": {
+                "type": "object",
+                "properties": {
+                    "detail": {"type": "string"},
+                },
+            },
+        },
+    }
+    for model in (Factor, SuggestedFlight, ChatMessage, AdviseRequest, AdviseResponse, PredictRequest):
+        schema = model.model_json_schema(ref_template="#/components/schemas/{model}")
+        definitions = schema.pop("$defs", {})
+        for name, value in definitions.items():
+            components["schemas"].setdefault(name, value)
+        components["schemas"][model.__name__] = schema
+    return components
+
+
+def build_api_docs_catalog() -> list[dict[str, Any]]:
+    return [
+        {
+            "tag": "Meta",
+            "method": "GET",
+            "path": "/health",
+            "summary": "Health check",
+            "description": "Verifica se a API Flask esta no ar e tenta carregar os artefatos principais do modelo.",
+            "parameters": [],
+            "response_schema": {"type": "object"},
+            "response_example": {"status": "ok"},
+            "error_responses": [
+                {"status": 500, "description": "Falha ao carregar assets.", "example": {"status": "error", "detail": "Model assets not found."}},
+            ],
+        },
+        {
+            "tag": "Meta",
+            "method": "GET",
+            "path": "/api/routes",
+            "summary": "Registered route index",
+            "description": "Lista as rotas registradas no Flask com metodos, atalhos para docs e exemplos rapidos de uso.",
+            "parameters": [],
+            "response_schema": {"type": "object"},
+            "response_example": {
+                "service": "Flight Advisor (Flask)",
+                "docs": "/docs/",
+                "redoc": "/redoc/",
+                "openapi": "/openapi.json",
+                "routes": [{"path": "/health", "methods": ["GET"], "name": "health"}],
+            },
+        },
+        {
+            "tag": "Meta",
+            "method": "GET",
+            "path": "/openapi.json",
+            "summary": "OpenAPI schema",
+            "description": "Retorna o schema OpenAPI 3.1 da API para importacao em ferramentas como Postman ou Insomnia.",
+            "parameters": [],
+            "response_schema": {"type": "object"},
+            "response_example": {"openapi": "3.1.0", "info": {"title": "Flight Advisor (Flask)", "version": "0.1.0"}},
+        },
+        {
+            "tag": "Advisor",
+            "method": "GET",
+            "path": "/api/advisor/history",
+            "summary": "Advisor chat history",
+            "description": "Recupera a sessao atual do chat do advisor, incluindo a mensagem bootstrap e as respostas anteriores.",
+            "parameters": [],
+            "response_schema": {
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string"},
+                    "messages": {"type": "array", "items": {"$ref": "#/components/schemas/ChatMessage"}},
+                },
+            },
+            "response_example": {
+                "session_id": "3b9d22b9a4974c31ad81863fa622f7d3",
+                "messages": [{
+                    "role": "assistant",
+                    "content": "Sou o Flight Advisor. Posso conversar sobre destinos, melhor dia ou horario para voar, risco de atraso e quando vale comprar a passagem.",
+                    "created_at": "2026-03-25T11:45:00",
+                    "mode": "discovery",
+                    "advice_source": "system",
+                    "clarification_prompts": [
+                        "Quero buscar uma viagem para um pais especifico.",
+                        "Qual o melhor dia ou horario para voar com menos risco de atraso?",
+                        "Qual o melhor momento para comprar a passagem?",
+                    ],
+                }],
+            },
+        },
+        {
+            "tag": "Advisor",
+            "method": "POST",
+            "path": "/api/advisor/reset",
+            "summary": "Reset advisor chat",
+            "description": "Limpa o historico salvo na sessao atual e recria a conversa a partir da mensagem inicial do advisor.",
+            "parameters": [],
+            "response_schema": {
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string"},
+                    "messages": {"type": "array", "items": {"$ref": "#/components/schemas/ChatMessage"}},
+                },
+            },
+            "response_example": {
+                "session_id": "3b9d22b9a4974c31ad81863fa622f7d3",
+                "messages": [{
+                    "role": "assistant",
+                    "content": "Sou o Flight Advisor. Posso conversar sobre destinos, melhor dia ou horario para voar, risco de atraso e quando vale comprar a passagem.",
+                    "created_at": "2026-03-25T11:45:00",
+                    "mode": "discovery",
+                    "advice_source": "system",
+                    "clarification_prompts": [
+                        "Quero buscar uma viagem para um pais especifico.",
+                        "Qual o melhor dia ou horario para voar com menos risco de atraso?",
+                        "Qual o melhor momento para comprar a passagem?",
+                    ],
+                }],
+            },
+        },
+        {
+            "tag": "Advisor",
+            "method": "POST",
+            "path": "/advise",
+            "summary": "Advisor chat completion",
+            "description": "Aceita contexto opcional da rota e uma pergunta em linguagem natural. Mantem as mensagens na sessao e pode responder em modo discovery ou route.",
+            "parameters": [],
+            "request_schema": {"$ref": "#/components/schemas/AdviseRequest"},
+            "request_example": {
+                "question": "Quero viajar para Lisboa. Qual o melhor dia para voar?",
+                "origin_country": "Brazil",
+                "origin_airport": "GRU",
+                "destination_country": "Portugal",
+                "destination_airport": "LIS",
+                "airline": "TP",
+                "scheduled_departure": 2200,
+            },
+            "response_schema": {"$ref": "#/components/schemas/AdviseResponse"},
+            "response_example": {
+                "delay_probability": 0.18,
+                "risk_level": "LOW",
+                "top_factors": [{"feature": "ROUTE_DELAY_RATE", "impact": "Historico de atraso da rota abaixo da media."}],
+                "advice": "Para essa rota, o risco atual esta baixo. Se quiser flexibilidade, posso comparar outros horarios proximos.",
+                "mode": "route",
+                "advice_source": "heuristic",
+                "suggested_flights": [{
+                    "flight_date": "2026-04-10",
+                    "flight_date_br": "10/04/2026",
+                    "airline": "TP",
+                    "flight_number": "88",
+                    "flight_code": "TP88",
+                    "origin_airport": "GRU",
+                    "destination_airport": "LIS",
+                    "scheduled_departure": "22:00",
+                    "delay_probability": 0.18,
+                    "risk_level": "LOW",
+                }],
+                "clarification_prompts": [],
+                "session_id": "3b9d22b9a4974c31ad81863fa622f7d3",
+                "messages": [{
+                    "role": "user",
+                    "content": "Quero viajar para Lisboa. Qual o melhor dia para voar?",
+                    "created_at": "2026-03-25T11:46:00",
+                }],
+            },
+            "error_responses": [
+                {"status": 400, "description": "Body JSON invalido ou payload fora do schema.", "example": {"detail": "Body must be valid JSON."}},
+                {"status": 500, "description": "Falha interna ao carregar assets ou gerar resposta.", "example": {"detail": "Unexpected error."}},
+            ],
+        },
+        {
+            "tag": "Prediction",
+            "method": "POST",
+            "path": "/predict",
+            "summary": "Delay prediction API",
+            "description": "Executa a predicao de atraso para uma linha, varias linhas ou um arquivo CSV/parquet. Tambem aceita filtros sobre um dataset de entrada.",
+            "parameters": [],
+            "request_schema": {"$ref": "#/components/schemas/PredictRequest"},
+            "request_example": {
+                "origin_airport": "GRU",
+                "destination_airport": "JFK",
+                "airline": "DL",
+                "flight_date": "2026-04-08",
+                "scheduled_departure": 2230,
+                "limit": 10,
+                "threshold": 0.5,
+            },
+            "response_schema": {"type": "object"},
+            "response_example": {
+                "source": "data/refined/future_flights.parquet",
+                "threshold": 0.5,
+                "total_rows": 1384,
+                "matched_rows": 12,
+                "returned_rows": 10,
+                "predictions": [{
+                    "ORIGIN_AIRPORT": "GRU",
+                    "DESTINATION_AIRPORT": "JFK",
+                    "AIRLINE": "DL",
+                    "delay_probability": 0.37,
+                    "delay_prediction": 0,
+                }],
+            },
+            "error_responses": [
+                {"status": 400, "description": "Filtro invalido, JSON invalido ou dataset ausente.", "example": {"detail": "flight_date must be in YYYY-MM-DD format."}},
+                {"status": 500, "description": "Falha ao carregar o pipeline ou executar a predicao.", "example": {"detail": "Model assets not found."}},
+            ],
+        },
+        {
+            "tag": "Flights",
+            "method": "GET",
+            "path": "/api/upcoming_flights",
+            "summary": "Upcoming predicted flights",
+            "description": "Retorna voos futuros ou, na falta deles, a melhor janela disponivel para a tabela de predicoes.",
+            "parameters": [
+                {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 500}, "description": "Numero maximo de registros retornados.", "example": 50},
+                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "CSV/parquet local ou URI S3 para a fonte de voos futuros.", "example": "data/refined/future_flights.parquet"},
+            ],
+            "response_schema": {"type": "object"},
+            "response_example": {
+                "source": "data/refined/future_flights.parquet",
+                "total_rows": 1384,
+                "matched_rows": 214,
+                "returned_rows": 50,
+                "future_window": True,
+                "predictions": [{
+                    "flight_date": "2026-04-03",
+                    "flight_number": "88",
+                    "airline": "TP",
+                    "origin_airport": "GRU",
+                    "destination_airport": "LIS",
+                    "route": "GRU -> LIS",
+                    "scheduled_departure": "22:00",
+                    "distance_miles": 4923.0,
+                }],
+            },
+        },
+        {
+            "tag": "Flights",
+            "method": "GET",
+            "path": "/api/weekly_predictions",
+            "summary": "Legacy alias for upcoming flights",
+            "description": "Alias legado de /api/upcoming_flights. Mantido por compatibilidade com o frontend antigo.",
+            "parameters": [
+                {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 500}, "description": "Numero maximo de registros retornados.", "example": 50},
+                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "CSV/parquet local ou URI S3 para a fonte de voos futuros.", "example": "data/refined/future_flights.parquet"},
+            ],
+            "response_schema": {"type": "object"},
+            "response_example": {
+                "source": "data/refined/future_flights.parquet",
+                "total_rows": 1384,
+                "matched_rows": 214,
+                "returned_rows": 50,
+                "future_window": True,
+                "predictions": [],
+            },
+            "deprecated": True,
+        },
+        {
+            "tag": "Flights",
+            "method": "GET",
+            "path": "/api/flight/countries",
+            "summary": "Available countries",
+            "description": "Lista os paises presentes no indice de aeroportos para alimentar os dropdowns do frontend.",
+            "parameters": [
+                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "CSV local, HTTP ou S3 com o indice de aeroportos.", "example": "data/refined/world_airports.csv"},
+            ],
+            "response_schema": {"type": "object"},
+            "response_example": {
+                "source": "data/refined/world_airports.csv",
+                "total_countries": 3,
+                "countries": [
+                    {"country": "Brazil", "airport_count": 142},
+                    {"country": "Portugal", "airport_count": 10},
+                    {"country": "United States", "airport_count": 380},
+                ],
+            },
+        },
+        {
+            "tag": "Flights",
+            "method": "GET",
+            "path": "/api/flight/airports",
+            "summary": "Airports by country",
+            "description": "Retorna aeroportos filtrados por pais, com cidade, nome e coordenadas para o mapa.",
+            "parameters": [
+                {"name": "country", "in": "query", "required": True, "schema": {"type": "string"}, "description": "Pais usado como filtro principal.", "example": "Brazil"},
+                {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "default": 800, "minimum": 1, "maximum": 5000}, "description": "Limite maximo de aeroportos retornados.", "example": 200},
+                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "Fonte alternativa para o indice de aeroportos.", "example": "data/refined/world_airports.csv"},
+            ],
+            "response_schema": {"type": "object"},
+            "response_example": {
+                "source": "data/refined/world_airports.csv",
+                "country": "Brazil",
+                "total_airports": 2,
+                "airports": [
+                    {"iata_code": "GRU", "airport_name": "Sao Paulo/Guarulhos", "city": "Sao Paulo", "state": "SP", "country": "Brazil", "latitude": -23.4356, "longitude": -46.4731},
+                    {"iata_code": "GIG", "airport_name": "Rio de Janeiro/Galeao", "city": "Rio de Janeiro", "state": "RJ", "country": "Brazil", "latitude": -22.8099, "longitude": -43.2506},
+                ],
+            },
+            "error_responses": [
+                {"status": 400, "description": "Pais ausente ou limit invalido.", "example": {"detail": "Query parameter 'country' is required."}},
+            ],
+        },
+        {
+            "tag": "Flights",
+            "method": "GET",
+            "path": "/api/flight/departures",
+            "summary": "Airport departures",
+            "description": "Lista partidas previstas para um aeroporto IATA especifico com fallback para amostras quando nao houver fonte futura.",
+            "parameters": [
+                {"name": "airport", "in": "query", "required": True, "schema": {"type": "string"}, "description": "Codigo IATA do aeroporto de origem.", "example": "GRU"},
+                {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 500}, "description": "Quantidade maxima de partidas.", "example": 30},
+                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "Fonte alternativa para os voos futuros.", "example": "data/refined/future_flights.parquet"},
+            ],
+            "response_schema": {"type": "object"},
+            "response_example": {
+                "source": "data/refined/future_flights.parquet",
+                "airport": "GRU",
+                "total_rows": 1384,
+                "matched_rows": 42,
+                "returned_rows": 30,
+                "future_window": True,
+                "departures": [{
+                    "flight_date": "2026-04-10",
+                    "flight_date_br": "10/04/2026",
+                    "airline": "TP",
+                    "flight_number": "88",
+                    "flight_code": "TP88",
+                    "origin_airport": "GRU",
+                    "destination_airport": "LIS",
+                    "scheduled_departure": "22:00",
+                    "scheduled_arrival": "11:15",
+                }],
+            },
+            "error_responses": [
+                {"status": 400, "description": "Aeroporto ausente ou limit invalido.", "example": {"detail": "Query parameter 'airport' is required."}},
+            ],
+        },
+        {
+            "tag": "Live Flights",
+            "method": "GET",
+            "path": "/api/live_flights",
+            "summary": "Live flights by region or bounding box",
+            "description": "Consulta aeronaves em voo via OpenSky Network. Aceita regiao pre-definida ou bounding box customizado.",
+            "parameters": [
+                {"name": "region", "in": "query", "required": False, "schema": {"type": "string", "default": "brazil"}, "description": "Regiao pre-configurada: brazil, south_america, north_america, europe ou world.", "example": "brazil"},
+                {"name": "lamin", "in": "query", "required": False, "schema": {"type": "number"}, "description": "Latitude minima do bounding box.", "example": -23.7},
+                {"name": "lomin", "in": "query", "required": False, "schema": {"type": "number"}, "description": "Longitude minima do bounding box.", "example": -46.9},
+                {"name": "lamax", "in": "query", "required": False, "schema": {"type": "number"}, "description": "Latitude maxima do bounding box.", "example": -23.4},
+                {"name": "lomax", "in": "query", "required": False, "schema": {"type": "number"}, "description": "Longitude maxima do bounding box.", "example": -46.5},
+                {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "default": 200, "minimum": 1, "maximum": 500}, "description": "Maximo de aeronaves retornadas.", "example": 100},
+                {"name": "include_ground", "in": "query", "required": False, "schema": {"type": "boolean", "default": False}, "description": "Inclui aeronaves em solo quando true.", "example": False},
+            ],
+            "response_schema": {"type": "object"},
+            "response_example": {
+                "source": "OpenSky Network",
+                "region": "brazil",
+                "bounding_box": {"lamin": -33.75, "lomin": -73.99, "lamax": 5.27, "lomax": -28.84},
+                "include_ground": False,
+                "cache_age_sec": 8,
+                "total_found": 126,
+                "returned": 100,
+                "flights": [{"icao24": "e48f7f", "callsign": "TAM8085", "latitude": -23.31, "longitude": -46.11}],
+            },
+            "error_responses": [
+                {"status": 400, "description": "Bounding box invalido ou limit invalido.", "example": {"detail": "lamin/lomin/lamax/lomax must be decimal numbers."}},
+                {"status": 502, "description": "Erro do provedor OpenSky.", "example": {"detail": "OpenSky returned an invalid response."}},
+                {"status": 504, "description": "Timeout na consulta ao provedor.", "example": {"detail": "OpenSky request timed out."}},
+            ],
+        },
+        {
+            "tag": "Live Flights",
+            "method": "GET",
+            "path": "/api/live_flights/{icao24}",
+            "summary": "Live aircraft detail",
+            "description": "Retorna os dados em tempo real de uma aeronave especifica pelo codigo ICAO24.",
+            "parameters": [
+                {"name": "icao24", "in": "path", "required": True, "schema": {"type": "string"}, "description": "Identificador ICAO24 hexadecimal da aeronave.", "example": "e48f7f"},
+            ],
+            "response_schema": {"type": "object"},
+            "response_example": {
+                "source": "OpenSky Network",
+                "cache_age_sec": 8,
+                "flight": {"icao24": "e48f7f", "callsign": "TAM8085", "latitude": -23.31, "longitude": -46.11},
+            },
+            "error_responses": [
+                {"status": 404, "description": "Aeronave nao encontrada na janela atual.", "example": {"detail": "Aircraft 'e48f7f' not found or not currently in flight."}},
+                {"status": 502, "description": "Erro do provedor OpenSky.", "example": {"detail": "OpenSky returned an invalid response."}},
+                {"status": 504, "description": "Timeout na consulta ao provedor.", "example": {"detail": "OpenSky request timed out."}},
+            ],
+        },
+    ]
+
+
+def build_sample_url(base_url: str, endpoint: dict[str, Any]) -> str:
+    path = endpoint["path"]
+    query_params: dict[str, str] = {}
+    for parameter in endpoint.get("parameters", []):
+        example = parameter.get("example")
+        if example is None:
+            continue
+        if parameter["in"] == "path":
+            path = path.replace("{" + parameter["name"] + "}", str(example))
+        elif parameter["in"] == "query":
+            query_params[parameter["name"]] = str(example).lower() if isinstance(example, bool) else str(example)
+    query = urlencode(query_params)
+    return f"{base_url}{path}" + (f"?{query}" if query else "")
+
+
+def build_curl_example(base_url: str, endpoint: dict[str, Any]) -> str:
+    method = endpoint["method"].upper()
+    url = build_sample_url(base_url, endpoint)
+    if method == "GET":
+        return f'curl -X GET "{url}"'
+    request_example = endpoint.get("request_example")
+    if request_example is None:
+        return f'curl -X {method} "{url}"'
+    body = json.dumps(request_example, ensure_ascii=False)
+    return (
+        f'curl -X {method} "{url}" \\\n'
+        '  -H "Content-Type: application/json" \\\n'
+        f"  -d '{body}'"
+    )
+
+
+def build_docs_sections(base_url: str) -> list[dict[str, Any]]:
+    order = ["Meta", "Advisor", "Prediction", "Flights", "Live Flights"]
+    catalog = build_api_docs_catalog()
+    sections: list[dict[str, Any]] = []
+    for tag in order:
+        endpoints: list[dict[str, Any]] = []
+        for endpoint in catalog:
+            if endpoint["tag"] != tag:
+                continue
+            view = dict(endpoint)
+            view["anchor"] = f'{endpoint["method"].lower()}-{endpoint["path"].strip("/").replace("/", "-").replace("{", "").replace("}", "") or "root"}'
+            view["request_example_text"] = (
+                json.dumps(endpoint["request_example"], ensure_ascii=False, indent=2)
+                if endpoint.get("request_example") is not None else None
+            )
+            view["response_example_text"] = json.dumps(endpoint["response_example"], ensure_ascii=False, indent=2)
+            view["curl_example"] = build_curl_example(base_url, endpoint)
+            view["sample_url"] = build_sample_url(base_url, endpoint)
+            view["error_responses"] = [
+                {**item, "example_text": json.dumps(item["example"], ensure_ascii=False, indent=2)}
+                for item in endpoint.get("error_responses", [])
+            ]
+            endpoints.append(view)
+        sections.append({"tag": tag, "endpoints": endpoints})
+    return sections
+
+
+def build_openapi_spec(base_url: str) -> dict[str, Any]:
+    paths: dict[str, Any] = {}
+    for endpoint in build_api_docs_catalog():
+        method = endpoint["method"].lower()
+        operation: dict[str, Any] = {
+            "tags": [endpoint["tag"]],
+            "summary": endpoint["summary"],
+            "description": endpoint["description"],
+            "operationId": endpoint["path"].strip("/").replace("/", "_").replace("{", "").replace("}", "") or "root",
+            "responses": {
+                "200": {
+                    "description": "Successful response",
+                    "content": {
+                        "application/json": {
+                            "schema": endpoint.get("response_schema", {"type": "object"}),
+                            "example": endpoint["response_example"],
+                        },
+                    },
+                },
+            },
+        }
+        if endpoint.get("deprecated"):
+            operation["deprecated"] = True
+        if endpoint.get("parameters"):
+            operation["parameters"] = endpoint["parameters"]
+        if endpoint.get("request_schema") is not None:
+            operation["requestBody"] = {
+                "required": False,
+                "content": {
+                    "application/json": {
+                        "schema": endpoint["request_schema"],
+                        "example": endpoint.get("request_example", {}),
+                    },
+                },
+            }
+        for error in endpoint.get("error_responses", []):
+            operation["responses"][str(error["status"])] = {
+                "description": error["description"],
+                "content": {
+                    "application/json": {
+                        "schema": {"$ref": "#/components/schemas/ErrorResponse"},
+                        "example": error["example"],
+                    },
+                },
+            }
+        paths.setdefault(endpoint["path"], {})[method] = operation
+
+    return {
+        "openapi": "3.1.0",
+        "info": {
+            "title": "Flight Advisor (Flask)",
+            "version": "0.1.0",
+            "description": "HTTP API do Flight Advisor, incluindo previsao de atrasos, advisor conversacional, voos futuros e integracao com OpenSky.",
+        },
+        "servers": [{"url": base_url}],
+        "tags": [{"name": name} for name in ["Meta", "Advisor", "Prediction", "Flights", "Live Flights"]],
+        "paths": paths,
+        "components": build_openapi_components(),
+    }
+
+
 # ── Page routes ──────────────────────────────────────────────────────────────
 
-_PAGES = [
-    ("/",            "dashboard.html",   "Flight Advisor | Front",        "dashboard"),
-    ("/front",       "dashboard.html",   "Flight Advisor | Front",        "dashboard"),
-    ("/flight",      "flight.html",      "Flight Advisor | Flights",      "flight"),
-    ("/flights",     "flight.html",      "Flight Advisor | Flights",      "flight"),
-    ("/predictions", "predictions.html", "Flight Advisor | Predictions",  "predictions"),
-    ("/advisor",     "advisor.html",     "Flight Advisor | Advisor",      "advisor"),
-]
-for _path, _tpl, _title, _active in _PAGES:
-    def _make(tpl=_tpl, title=_title, active=_active):
-        def _view(): return render_template(tpl, page_title=title, active_page=active)
-        return _view
-    app.add_url_rule(_path, endpoint=_path.strip("/") or "home", view_func=_make())
+register_page_views(app)
+register_advisor_views(app, {
+    "AdviseRequest": AdviseRequest,
+    "AdviseResponse": AdviseResponse,
+    "ValidationError": ValidationError,
+    "coerce_feature_types": coerce_feature_types,
+    "load_advisor_messages": load_advisor_messages,
+    "persist_advisor_messages": persist_advisor_messages,
+    "reset_advisor_messages": reset_advisor_messages,
+    "trim_chat_text": trim_chat_text,
+    "has_full_route_context": has_full_route_context,
+    "user_chat_message": user_chat_message,
+    "build_discovery_response_runtime": build_discovery_response_runtime,
+    "should_use_nemotron": should_use_nemotron,
+    "generate_nemotron_advice": generate_nemotron_advice,
+    "build_discovery_context": build_discovery_context,
+    "assistant_chat_message": assistant_chat_message,
+    "load_assets": load_assets,
+    "build_features": build_features,
+    "risk_level": risk_level,
+    "compute_top_factors": compute_top_factors,
+    "build_suggested_flights": build_suggested_flights,
+    "advice_text": advice_text,
+    "build_advice_context": build_advice_context,
+})
+register_flight_views(app, {
+    "load_airports_index": load_airports_index,
+    "optional_text": optional_text,
+    "load_upcoming_flights_frame": load_upcoming_flights_frame,
+    "extract_airport_departures": extract_airport_departures,
+})
 
 
 # ── API routes ───────────────────────────────────────────────────────────────
@@ -805,11 +1735,13 @@ for _path, _tpl, _title, _active in _PAGES:
 @app.get("/api/routes")
 def api_routes():
     return jsonify({
-        "service": "Flight Advisor (Flask)", "docs": "/docs", "redoc": "/redoc",
+        "service": "Flight Advisor (Flask)", "docs": "/docs/", "redoc": "/redoc/",
         "openapi": "/openapi.json", "routes": list_route_index(),
         "examples": {
             "health":           {"method":"GET",  "path":"/health"},
             "advise":           {"method":"POST", "path":"/advise"},
+            "advisor_history":  {"method":"GET",  "path":"/api/advisor/history"},
+            "advisor_reset":    {"method":"POST", "path":"/api/advisor/reset"},
             "predict":          {"method":"POST", "path":"/predict"},
             "upcoming_flights": {"method":"GET",  "path":"/api/upcoming_flights?limit=50"},
             "flight_countries": {"method":"GET",  "path":"/api/flight/countries"},
@@ -818,117 +1750,36 @@ def api_routes():
         },
     })
 
-@app.get("/docs")
-def docs(): return redirect(url_for("api_routes"))
+@app.route("/docs", methods=["GET"], strict_slashes=False)
+def docs():
+    base_url = request.url_root.rstrip("/")
+    sections = build_docs_sections(base_url)
+    endpoint_count = sum(len(section["endpoints"]) for section in sections)
+    return render_template(
+        "api_docs.html",
+        page_title="Flight Advisor | API Docs",
+        active_page="docs",
+        doc_sections=sections,
+        base_url=base_url,
+        openapi_url=url_for("openapi_json"),
+        routes_url=url_for("api_routes"),
+        endpoint_count=endpoint_count,
+        post_count=sum(1 for section in sections for endpoint in section["endpoints"] if endpoint["method"] == "POST"),
+        get_count=sum(1 for section in sections for endpoint in section["endpoints"] if endpoint["method"] == "GET"),
+    )
 
-@app.get("/redoc")
-def redoc(): return redirect(url_for("api_routes"))
+@app.route("/redoc", methods=["GET"], strict_slashes=False)
+def redoc():
+    return redirect(url_for("docs"))
 
 @app.get("/openapi.json")
 def openapi_json():
-    return jsonify({"openapi":"3.1.0","info":{"title":"Flight Advisor (Flask)","version":"0.1.0"},
-                    "note":"OpenAPI schema is not auto-generated in Flask mode.","routes":list_route_index()})
+    return jsonify(build_openapi_spec(request.url_root.rstrip("/")))
 
 @app.get("/health")
 def health():
     try: _ = load_assets(); return jsonify({"status":"ok"})
     except Exception as exc: return jsonify({"status":"error","detail":str(exc)}), 500
-
-@app.get("/api/flight/countries")
-def flight_countries():
-    source_uri = request.args.get("source_uri")
-    try: airports_df, source = load_airports_index(source_uri)
-    except FileNotFoundError as exc: return jsonify({"source":None,"total_countries":0,"countries":[],"detail":str(exc)})
-    except Exception as exc: return jsonify({"detail":str(exc)}), 500
-    grouped = (airports_df.groupby("country",dropna=True)["iata_code"].count()
-               .reset_index(name="airport_count").sort_values("country"))
-    return jsonify({"source":source,"total_countries":len(grouped),
-                    "countries":[{"country":str(r["country"]),"airport_count":int(r["airport_count"])} for _,r in grouped.iterrows()]})
-
-@app.get("/api/flight/airports")
-def flight_airports():
-    country    = request.args.get("country","").strip()
-    source_uri = request.args.get("source_uri")
-    limit_raw  = request.args.get("limit","800")
-    if not country: return jsonify({"detail":"Query parameter 'country' is required."}), 400
-    try: limit = max(1, min(int(limit_raw), 5000))
-    except ValueError: return jsonify({"detail":"Query parameter 'limit' must be an integer."}), 400
-    try: airports_df, source = load_airports_index(source_uri)
-    except FileNotFoundError as exc: return jsonify({"source":None,"country":country,"total_airports":0,"airports":[],"detail":str(exc)})
-    except Exception as exc: return jsonify({"detail":str(exc)}), 500
-    selected = (airports_df[airports_df["country"].astype(str).str.casefold() == country.casefold()]
-                .sort_values(["city","airport_name","iata_code"],na_position="last").head(limit))
-
-    def _f(v):
-        try: f = float(v); return None if f!=f else f
-        except: return None
-
-    return jsonify({"source":source,"country":country,"total_airports":len(selected),
-                    "airports":[{"iata_code":optional_text(r.get("iata_code")),
-                                 "airport_name":optional_text(r.get("airport_name")),
-                                 "city":optional_text(r.get("city")),"state":optional_text(r.get("state")),
-                                 "country":optional_text(r.get("country")),
-                                 "latitude":_f(r.get("latitude")),"longitude":_f(r.get("longitude"))}
-                                for r in selected.to_dict(orient="records")]})
-
-@app.get("/api/flight/departures")
-def flight_departures():
-    airport    = request.args.get("airport","").strip().upper()
-    source_uri = request.args.get("source_uri")
-    limit_raw  = request.args.get("limit","50")
-    if not airport: return jsonify({"detail":"Query parameter 'airport' is required."}), 400
-    try: limit = max(1, min(int(limit_raw), 500))
-    except ValueError: return jsonify({"detail":"Query parameter 'limit' must be an integer."}), 400
-
-    deps, matched, future, total_rows, source = [], 0, False, 0, None
-    try:
-        flights_df, source = load_upcoming_flights_frame(source_uri)
-        total_rows = len(flights_df)
-        deps, matched, future = extract_airport_departures(flights_df, airport, limit)
-    except FileNotFoundError:
-        # No upcoming flights file found; proceed to generate suggestions.
-        pass
-    except Exception as exc:
-        return jsonify({"detail":str(exc)}), 500
-
-    if not deps:
-        try:
-            airports_df, _ = load_airports_index()
-            possible_dests = airports_df[airports_df["iata_code"] != airport]
-
-            popular_dests_iata = ["JFK", "LAX", "LHR", "CDG", "DXB", "HND", "GRU", "EZE"]
-            sample_destinations = possible_dests[possible_dests["iata_code"].isin(popular_dests_iata)]
-
-            num_missing = 3 - len(sample_destinations)
-            if num_missing > 0:
-                additional_samples = possible_dests[~possible_dests["iata_code"].isin(popular_dests_iata)].sample(min(num_missing, len(possible_dests[~possible_dests["iata_code"].isin(popular_dests_iata)])))
-                sample_destinations = pd.concat([sample_destinations, additional_samples])
-
-            fake_deps = []
-            today_iso = date.today().isoformat()
-            today_br = date.today().strftime("%d/%m/%Y")
-            for _, dest_row in sample_destinations.head(3).iterrows():
-                fake_deps.append({
-                    "flight_date": today_iso,
-                    "flight_date_br": today_br,
-                    "airline": "ZZ",
-                    "flight_number": "9876",
-                    "flight_code": "ZZ9876",
-                    "origin_airport": airport,
-                    "destination_airport": dest_row["iata_code"],
-                    "scheduled_departure": "11:00",
-                    "scheduled_arrival": "14:00",
-                })
-            deps = fake_deps
-            matched = len(deps)
-            # Signals to the frontend that these are future/scheduled flights
-            future = True
-        except Exception:
-            # If suggestion generation fails, return the empty deps list.
-            pass
-
-    return jsonify({"source":source,"airport":airport,"total_rows":total_rows,
-                    "matched_rows":matched,"returned_rows":len(deps),"future_window":future,"departures":deps})
 
 @app.get("/api/upcoming_flights")
 @app.get("/api/weekly_predictions")
@@ -945,53 +1796,6 @@ def upcoming_flights():
     flights, matched, future = extract_upcoming_flights(df, limit)
     return jsonify({"source":source,"total_rows":len(df),"matched_rows":matched,
                     "returned_rows":len(flights),"future_window":future,"predictions":flights})
-
-@app.route("/advise", methods=["POST","OPTIONS"])
-def advise():
-    if request.method == "OPTIONS": return ("", 204)
-    payload_data = request.get_json(silent=True)
-    if payload_data is None: return jsonify({"detail":"Body must be valid JSON."}), 400
-    try: payload = AdviseRequest.model_validate(payload_data)
-    except ValidationError as exc: return jsonify({"detail":exc.errors()}), 400
-    try: pipeline, meta, maps, global_rate, route_distance_map, global_distance = load_assets()
-    except Exception as exc: return jsonify({"detail":str(exc)}), 500
-    try: df = build_features(payload, maps, global_rate, route_distance_map, global_distance)
-    except ValueError as exc: return jsonify({"detail":str(exc)}), 400
-    X = df
-    if meta and "features" in meta and "selected" in meta["features"]:
-        required = meta["features"]["selected"]
-        missing = [c for c in required if c not in df.columns]
-        if missing: return jsonify({"detail":f"Missing columns required by the model: {', '.join(missing)}"}), 400
-        X = coerce_feature_types(df[required], meta["features"].get("numeric",[]), meta["features"].get("categorical",[]))
-    prob = float(pipeline.predict_proba(X)[:, 1][0])
-    level = risk_level(prob)
-    top = compute_top_factors(df, global_rate)
-    suggested_flights = build_suggested_flights(payload, pipeline, meta, limit=3)
-    fallback_advice = advice_text(prob, level, top, suggested_flights)
-
-    advice = fallback_advice
-    advice_source = "heuristic"
-    advice_model = None
-    if should_use_nemotron(payload.question):
-        try:
-            llm_result = generate_nemotron_advice(build_advice_context(
-                payload, prob, level, top, fallback_advice, suggested_flights
-            ))
-            advice = llm_result.content
-            advice_source = llm_result.provider
-            advice_model = llm_result.model
-        except RuntimeError as exc:
-            app.logger.warning("Falling back to heuristic advisor text: %s", exc)
-
-    return jsonify(AdviseResponse(
-        delay_probability=prob,
-        risk_level=level,
-        top_factors=top,
-        advice=advice,
-        advice_source=advice_source,
-        advice_model=advice_model,
-        suggested_flights=suggested_flights,
-    ).model_dump())
 
 @app.route("/predict", methods=["POST","OPTIONS"])
 def predict():

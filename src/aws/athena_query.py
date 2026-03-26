@@ -44,14 +44,17 @@ def load_env_file(path: Path = Path(".env")) -> None:
             os.environ[key] = value
 
 
-def build_session(profile: str | None, region: str) -> boto3.Session:
+def build_session(profile, region):
+    available = []
     try:
-        return boto3.Session(profile_name=profile, region_name=region)
-    except ProfileNotFound:
-        profiles = boto3.Session().available_profiles
-        hint = f"Available profiles: {profiles}" if profiles else "No profiles found in ~/.aws/credentials."
-        raise RuntimeError(f"AWS profile '{profile}' not found. {hint}")
+        available = boto3.Session().available_profiles
+    except Exception:
+        pass
 
+    if profile and profile in available:
+        return boto3.Session(profile_name=profile, region_name=region)
+    else:
+        return boto3.Session(region_name=region)
 
 def check_credentials(session: boto3.Session) -> None:
     creds = session.get_credentials()

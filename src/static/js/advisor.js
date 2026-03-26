@@ -47,6 +47,11 @@ function riskClass(riskLevel) {
   return "HIGH";
 }
 
+function isLlmAdviceSource(adviceSource) {
+  const value = String(adviceSource || "").toLowerCase();
+  return value === "nvidia_nemotron" || value === "huggingface";
+}
+
 function buildPredictionPayload(form) {
   const data = new FormData(form);
   return {
@@ -153,7 +158,7 @@ function renderAssistantExtras(message) {
       <div class="advisor-inline-metrics">
         <span class="advisor-inline-prob">${(probability * 100).toFixed(1)}%</span>
         <span class="risk-badge ${riskClass(message.risk_level)}">${escapeHtml(message.risk_level || "HIGH")}</span>
-        <span class="status-chip ${String(message.advice_source || "") === "nvidia_nemotron" ? "ok" : "warning"}">
+        <span class="status-chip ${isLlmAdviceSource(message.advice_source) ? "ok" : "warning"}">
           ${escapeHtml(message.advice_source || "assistant")}
         </span>
       </div>
@@ -221,7 +226,7 @@ function renderPredictionResponse(target, data) {
   const delayProbability = Number(data.delay_probability);
   const probabilityText = Number.isFinite(delayProbability) ? (delayProbability * 100).toFixed(1) : "0.0";
   const adviceSource = String(data.advice_source || "heuristic");
-  const adviceClass = adviceSource === "nvidia_nemotron" ? "ok" : "warning";
+  const adviceClass = isLlmAdviceSource(adviceSource) ? "ok" : "warning";
 
   target.classList.remove("empty", "error");
   target.innerHTML = `

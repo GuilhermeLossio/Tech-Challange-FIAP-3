@@ -178,9 +178,9 @@ RATE_COLS = ["ORIGIN_DELAY_RATE", "DEST_DELAY_RATE", "CARRIER_DELAY_RATE",
              "ROUTE_DELAY_RATE", "CARRIER_DELAY_RATE_DOW"]
 OPENFLIGHTS_AIRPORTS_SOURCE = "https://raw.githubusercontent.com/jpatokal/openflights/master/data/airports.dat"
 DISCOVERY_PROMPTS = [
-    "Quero buscar uma viagem para um pais especifico.",
-    "Qual o melhor dia ou horario para voar com menos risco de atraso?",
-    "Qual o melhor momento para comprar a passagem?",
+    "I want to travel to a specific country.",
+    "What is the best day or time to fly with lower delay risk?",
+    "When is the best time to buy my ticket?",
 ]
 ADVISOR_CHAT_DIR = ROOT_DIR / "data" / "runtime" / "advisor_sessions"
 ADVISOR_CHAT_MAX_MESSAGES = max(4, int(os.getenv("ADVISOR_CHAT_MAX_MESSAGES", "16")))
@@ -202,8 +202,8 @@ def chat_bootstrap_message() -> ChatMessage:
     return ChatMessage(
         role="assistant",
         content=(
-            "Sou o Flight Advisor. Posso conversar sobre destinos, melhor dia ou horario para voar, "
-            "risco de atraso e quando vale comprar a passagem. Se quiser, use os filtros de rota como contexto opcional."
+            "I'm the Flight Advisor. I can help with destinations, the best day or time to fly, "
+            "delay risk, and when to buy your ticket. Feel free to use the route filters as optional context."
         ),
         created_at=now_iso(),
         mode="discovery",
@@ -427,6 +427,42 @@ def missing_route_fields(req: AdviseRequest) -> list[str]:
         missing.append("scheduled departure")
     return missing
 
+
+def question_requests_delay_assessment(question: str | None) -> bool:
+    text = (question or "").strip().casefold()
+    if not text:
+        return False
+
+    positive_tokens = (
+        "atraso", "delay", "risco", "chance de atraso", "probabilidade",
+        "pontual", "pontualidade", "on time", "on-time", "late",
+        "melhor dia", "melhor horario", "melhor horário", "menos risco",
+        "horario para voar", "horário para voar", "dia para voar",
+        "risk", "on-time performance", "best time to fly", "best day to fly",
+        "departure time", "flight risk", "schedule risk",
+    )
+    if any(token in text for token in positive_tokens):
+        return True
+
+    negative_tokens = (
+        "preco", "precos", "price", "fare", "tarifa", "passagem", "comprar",
+        "compra", "destino", "destination", "pais", "country", "viagem",
+        "trip", "ferias", "férias", "turismo", "roteiro", "bagagem",
+        "documento", "visto", "hotel",
+        "ticket", "buy", "purchase", "where to go", "which country",
+        "clima", "weather", "temperature", "temperatura", "region", "regiao",
+        "região", "activities", "activity", "things to do", "tourist",
+        "tourism", "attractions", "atrações", "atracoes",
+    )
+    if any(token in text for token in negative_tokens):
+        return False
+
+    return False
+
+
+def should_run_route_prediction(req: AdviseRequest) -> bool:
+    return has_full_route_context(req) and question_requests_delay_assessment(req.question)
+
 def detect_discovery_topic(question: str | None) -> str:
     text = (question or "").strip().casefold()
     if not text:
@@ -563,44 +599,122 @@ def detect_discovery_topic_runtime(question: str | None) -> str:
     text = (question or "").strip().casefold()
     if not text:
         return "general"
-    if any(token in text for token in ("preco", "precos", "price", "fare", "tarifa", "passagem")):
+    if any(token in text for token in (
+        "preco", "precos", "price", "fare", "tarifa", "passagem",
+        "ticket", "buy", "purchase", "cost", "cheap",
+    )):
         return "price"
-    if any(token in text for token in ("pais", "country", "destino", "destination", "viagem", "viajar", "trip", "lisboa")):
+    if any(token in text for token in (
+        "pais", "country", "destino", "destination", "viagem", "viajar",
+        "trip", "lisboa", "travel", "where", "onde", "city", "cidade",
+        "visit", "visitar", "vacation", "holiday",
+        "clima", "weather", "temperature", "temperatura", "region", "regiao",
+        "região", "activities", "activity", "things to do", "tourist",
+        "tourism", "attractions", "atrações", "atracoes",
+    )):
         return "country"
-    if any(token in text for token in ("dia", "day", "horario", "time", "atraso", "delay", "melhor voo", "best flight")):
+    if any(token in text for token in (
+        "dia para voar", "day to fly", "best day to fly",
+        "horario para voar", "horário para voar", "time to fly",
+        "departure time", "scheduled departure", "atraso", "delay",
+        "melhor voo", "best flight", "schedule", "on-time", "on time",
+        "pontual", "risco", "risk", "less risk", "lower delay risk",
+    )):
         return "timing"
     return "general"
+
+
+def clean_context_text(value: Any) -> str | None:
+    if value is None or pd.isna(value):
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def build_destination_context(req: AdviseRequest) -> dict[str, Any]:
+    context: dict[str, Any] = {
+        "country": req.destination_country,
+        "airport": req.destination_airport,
+    }
+    if not req.destination_airport:
+        return {key: value for key, value in context.items() if value}
+
+    try:
+        airports_df, _ = load_airports_index()
+    except Exception:
+        return {key: value for key, value in context.items() if value}
+
+    matches = airports_df[
+        airports_df["iata_code"].astype(str).str.strip().str.upper() == req.destination_airport
+    ]
+    if matches.empty:
+        return {key: value for key, value in context.items() if value}
+
+    row = matches.iloc[0]
+    context["city"] = clean_context_text(row.get("city"))
+    context["airport_name"] = clean_context_text(row.get("airport_name"))
+    context["country"] = context["country"] or clean_context_text(row.get("country"))
+    return {key: value for key, value in context.items() if value}
+
+
+def destination_context_label(context: dict[str, Any]) -> str | None:
+    city = context.get("city")
+    country = context.get("country")
+    airport_name = context.get("airport_name")
+    airport = context.get("airport")
+    if city and country:
+        return f"{city}, {country}"
+    return city or country or airport_name or airport
 
 def build_discovery_response_runtime(req: AdviseRequest) -> AdviseResponse:
     topic = detect_discovery_topic_runtime(req.question)
     missing = missing_route_fields(req) if has_any_route_context(req) else []
+    destination_context = build_destination_context(req)
+    destination_label = destination_context_label(destination_context)
 
     if missing:
         advice = (
-            "Antes de analisar um voo especifico, ainda preciso de "
+            "Before I can analyze a specific flight, I still need: "
             + ", ".join(missing)
-            + ". Se preferir, me diga se o cliente quer um destino em um pais especifico, "
-              "o melhor dia ou horario para voar, ou orientacao sobre quando comprar a passagem."
+            + ". If you'd rather start more broadly, tell me about the kind of trip or destination "
+              "you have in mind and I can help with the typical climate, regional vibe, and activity ideas "
+              "before we get into flight-specific analysis."
         )
     elif topic == "country":
-        advice = (
-            "Posso comecar por um destino em pais especifico. Selecione o pais e depois o aeroporto no dropdown, "
-            "ou descreva o perfil da viagem para eu sugerir opcoes."
-        )
+        if destination_label:
+            advice = (
+                f"We can start with {destination_label}. I can help in a broader, friendlier way "
+                "with the typical climate, what the region is like, and activities that fit the trip, "
+                "before we move into flight-specific details."
+            )
+        else:
+            advice = (
+                "We can start with the destination itself. Tell me the country or city you have in mind "
+                "and I can help with the typical climate, regional highlights, and activities that fit the trip."
+            )
     elif topic == "timing":
         advice = (
-            "Consigo sugerir o melhor dia ou horario para voar, mas para comparar risco de atraso por voo eu ainda "
-            "preciso de origem, destino, companhia e horario de partida."
+            "I can help find the best day or time to fly with lower delay risk. "
+            "To compare specific flights I'll need origin airport, destination airport, "
+            "airline, and scheduled departure time."
         )
     elif topic == "price":
         advice = (
-            "Posso orientar sobre estrategia de compra, mas este projeto ainda nao tem historico de tarifas nem "
-            "uma tool `search_flights` integrada para consultar precos em tempo real."
+            "I can give general guidance on the best time to buy, but this project does not yet "
+            "have historical fare data or a live search_flights integration for real-time prices."
+        )
+    elif has_full_route_context(req):
+        place_text = destination_label or "the destination"
+        advice = (
+            f"I already have {place_text} as context. If you want, I can first help in a more exploratory way "
+            "with the typical climate, what the region is like, and activity ideas, without jumping straight "
+            "into delay data."
         )
     else:
         advice = (
-            "Me diga o que o cliente esta buscando. Posso ajudar com destino por pais, melhor dia ou horario para voar, "
-            "ou orientacao sobre quando vale comprar a passagem."
+            "Tell me a bit about the trip you have in mind. I can start in a broader, friendlier way "
+            "with destination ideas, the typical climate, regional highlights, and tourist activities, "
+            "and only get into delay risk if you want that."
         )
 
     return AdviseResponse(
@@ -613,9 +727,15 @@ def build_discovery_response_runtime(req: AdviseRequest) -> AdviseResponse:
 
 def build_discovery_context(req: AdviseRequest, fallback_advice: str,
                             messages: list[ChatMessage]) -> dict[str, Any]:
+    destination_context = build_destination_context(req)
     return {
         "mode": "discovery",
-        "question": req.question or "Nenhuma pergunta explicita foi fornecida.",
+        "question": req.question or "No explicit question was provided.",
+        "route_context_status": {
+            "is_complete": has_full_route_context(req),
+            "prediction_ready": should_run_route_prediction(req),
+            "missing_fields": missing_route_fields(req),
+        },
         "partial_request": {
             "origin_country": req.origin_country,
             "origin_airport": req.origin_airport,
@@ -630,7 +750,19 @@ def build_discovery_context(req: AdviseRequest, fallback_advice: str,
             "day_of_week": req.day_of_week,
             "distance_miles": req.distance,
         },
-        "chat_history": message_snapshot_for_llm(messages),
+        "destination_context": destination_context,
+        "open_question_guidance": {
+            "friendly_discovery": True,
+            "avoid_delay_data_unless_explicitly_requested": True,
+            "allowed_topics": [
+                "typical climate",
+                "regional profile",
+                "tourist activities",
+                "best season in general terms",
+                "travel style fit",
+            ],
+            "weather_scope": "general regional guidance only, not live weather",
+        },
         "clarification_prompts": DISCOVERY_PROMPTS,
         "assistant_runtime": build_advisor_runtime_context(),
         "fallback_advice": fallback_advice,
@@ -1147,8 +1279,14 @@ def build_advice_context(payload: AdviseRequest, probability: float, level: str,
                          top_factors: List[Factor], fallback_advice: str,
                          suggested_flights: List[SuggestedFlight],
                          messages: list[ChatMessage]) -> dict[str, Any]:
+    destination_context = build_destination_context(payload)
     return {
-        "question": payload.question or "Nenhuma pergunta explicita foi fornecida.",
+        "question": payload.question or "No explicit question was provided.",
+        "route_context_status": {
+            "is_complete": has_full_route_context(payload),
+            "prediction_ready": should_run_route_prediction(payload),
+            "missing_fields": missing_route_fields(payload),
+        },
         "requested_flight": {
             "origin_country": payload.origin_country,
             "origin_airport": payload.origin_airport,
@@ -1169,7 +1307,7 @@ def build_advice_context(payload: AdviseRequest, probability: float, level: str,
             "top_factors": [factor.model_dump() for factor in top_factors],
         },
         "suggested_flights": [flight.model_dump(exclude_none=True) for flight in suggested_flights],
-        "chat_history": message_snapshot_for_llm(messages),
+        "destination_context": destination_context,
         "assistant_runtime": build_advisor_runtime_context(),
         "fallback_advice": fallback_advice,
     }
@@ -1707,7 +1845,7 @@ register_advisor_views(app, {
     "persist_advisor_messages": persist_advisor_messages,
     "reset_advisor_messages": reset_advisor_messages,
     "trim_chat_text": trim_chat_text,
-    "has_full_route_context": has_full_route_context,
+    "should_run_route_prediction": should_run_route_prediction,
     "user_chat_message": user_chat_message,
     "build_discovery_response_runtime": build_discovery_response_runtime,
     "should_use_nemotron": should_use_nemotron,

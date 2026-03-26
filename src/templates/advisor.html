@@ -7,86 +7,151 @@
 {% block content %}
 <section class="hero compact">
   <p class="eyebrow">Advisor</p>
-  <h1>Flight Advisor Chat</h1>
-  <p>Converse com o assistente e use os campos de rota apenas como contexto opcional.</p>
+  <h1>Flight Advisor</h1>
+  <p>Converse livremente. Os campos de rota são opcionais — use-os só quando quiser afunilar a análise.</p>
 </section>
 
 <form id="advisor-form" class="advisor-layout">
-  <article class="panel">
-    <h2>Trip Context</h2>
+
+  <!-- ── Painel de contexto (opcional) ── -->
+  <article class="panel advisor-context-panel">
+
+    <p class="panel-label">Contexto de rota</p>
+    <span class="advisor-optional-badge">todos os campos opcionais</span>
     <p class="advisor-note">
-      Todos os campos abaixo sao opcionais. Use-os para enriquecer a conversa quando quiser afunilar a rota.
+      Preencha apenas o que souber. O assistente funciona sem nenhum desses dados — eles só ajudam a afinar a análise.
     </p>
 
     <div class="form-grid">
-      <label>Origin Country
+
+      <!-- Origem -->
+      <label>País de origem
         <select id="advisor-origin-country" name="origin_country">
-          <option value="">Select a country</option>
+          <option value="">Qualquer país</option>
         </select>
       </label>
-      <label>Origin Airport
-        <select id="advisor-origin-airport" name="origin_airport" disabled>
-          <option value="">Select the origin country first</option>
+      <label>Aeroporto de origem
+        <select id="advisor-origin-airport" name="origin_airport">
+          <option value="">Qualquer aeroporto</option>
         </select>
       </label>
-      <label>Destination Country
+
+      <div class="advisor-route-separator">destino</div>
+
+      <!-- Destino -->
+      <label>País de destino
         <select id="advisor-destination-country" name="destination_country">
-          <option value="">Select a country</option>
+          <option value="">Qualquer país</option>
         </select>
       </label>
-      <label>Destination Airport
-        <select id="advisor-destination-airport" name="destination_airport" disabled>
-          <option value="">Select the destination country first</option>
+      <label>Aeroporto de destino
+        <select id="advisor-destination-airport" name="destination_airport">
+          <option value="">Qualquer aeroporto</option>
         </select>
       </label>
-      <div id="advisor-location-feedback" class="advisor-hint">
-        Select a country before the airport to avoid overloading the list.
+
+      <!-- Linha: companhia + horário -->
+      <div class="form-grid-2col">
+        <label>Cia. aérea (IATA)
+          <input name="airline" maxlength="3" placeholder="LA, G3, AD…" />
+        </label>
+        <label>Horário (HHMM)
+          <input name="scheduled_departure" type="number" min="0" max="2359" placeholder="0800" />
+        </label>
       </div>
-      <label>Airline (IATA)
-        <input name="airline" maxlength="3" placeholder="DL" />
-      </label>
-      <label>Scheduled Departure (HHMM)
-        <input name="scheduled_departure" type="number" min="0" max="2359" placeholder="1800" />
-      </label>
-      <label>Month
-        <input name="month" type="number" min="1" max="12" placeholder="11" />
-      </label>
-      <label>Day Of Week
-        <input name="day_of_week" type="number" min="1" max="7" placeholder="5" />
-      </label>
+
+      <!-- Linha: mês + dia -->
+      <div class="form-grid-2col">
+        <label>Mês
+          <input name="month" type="number" min="1" max="12" placeholder="6" />
+        </label>
+        <label>Dia da semana
+          <input name="day_of_week" type="number" min="1" max="7" placeholder="5" />
+        </label>
+      </div>
+
     </div>
   </article>
 
-  <article class="panel advisor-chat-panel">
+  <!-- ── Chat ── -->
+  <article class="advisor-chat-panel">
+
+    <!-- Cabeçalho -->
     <div class="advisor-chat-head">
-      <div>
-        <h2>Chat Session</h2>
-        <p id="advisor-session-meta" class="advisor-hint">Loading session...</p>
+      <div class="advisor-chat-head-left">
+        <h2>Conversa</h2>
+        <p id="advisor-session-meta" class="advisor-hint">Carregando sessão…</p>
       </div>
-      <button id="advisor-reset" type="button" class="btn btn-secondary">New Session</button>
+      <button id="advisor-reset" type="button" class="btn btn-secondary">Nova sessão</button>
     </div>
 
+    <!-- Mensagens -->
     <div id="advisor-messages" class="advisor-chat-log">
-      <div class="advisor-chat-empty">Loading conversation...</div>
+      <div class="advisor-chat-empty">
+        <div class="advisor-empty-glyph">✦</div>
+        <p class="advisor-empty-title">Como posso ajudar?</p>
+        <p class="advisor-empty-sub">Pergunte sobre rotas, preços, melhores datas ou qualquer dúvida sobre sua viagem.</p>
+        <div class="advisor-suggestions">
+          <button class="advisor-suggestion-btn" type="button">Melhor época para ir a Lisboa?</button>
+          <button class="advisor-suggestion-btn" type="button">Voos baratos saindo de São Paulo</button>
+          <button class="advisor-suggestion-btn" type="button">Quando comprar para economizar?</button>
+        </div>
+      </div>
     </div>
 
+    <!-- Composer -->
     <div class="advisor-composer">
-      <label>Your Message
+      <div class="advisor-composer-row">
         <textarea
           id="advisor-question"
           name="question"
-          rows="4"
-          placeholder="Ex.: quero viajar para Lisboa, qual o melhor dia para voar ou quando vale comprar a passagem?"
+          rows="1"
+          placeholder="Pergunte sobre sua viagem… (Enter envia, Shift+Enter quebra linha)"
+          aria-label="Sua mensagem"
         ></textarea>
-      </label>
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary">Send Message</button>
+        <button type="submit" class="advisor-send-btn" aria-label="Enviar">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 13V3M8 3L3 8M8 3l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
       </div>
+      <p class="advisor-composer-hint">Contexto de rota é opcional — pergunte livremente</p>
     </div>
+
   </article>
 </form>
 {% endblock %}
 
 {% block page_scripts %}
 <script src="{{ url_for('static', filename='js/advisor.js') }}" defer></script>
+<script>
+  // Auto-resize textarea
+  const ta = document.getElementById('advisor-question');
+  if (ta) {
+    const resize = () => {
+      ta.style.height = 'auto';
+      ta.style.height = Math.min(ta.scrollHeight, 140) + 'px';
+    };
+    ta.addEventListener('input', resize);
+
+    // Enter envia, Shift+Enter quebra linha
+    ta.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        document.getElementById('advisor-form')
+          .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      }
+    });
+  }
+
+  // Sugestões preenchem o textarea
+  document.querySelectorAll('.advisor-suggestion-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!ta) return;
+      ta.value = btn.textContent.trim();
+      ta.focus();
+      ta.dispatchEvent(new Event('input'));
+    });
+  });
+</script>
 {% endblock %}

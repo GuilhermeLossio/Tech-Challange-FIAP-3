@@ -8,7 +8,7 @@
 <section class="hero compact docs-hero">
   <p class="eyebrow">API Docs</p>
   <h1>Flask API Reference</h1>
-  <p>Base URL atual: <code>{{ base_url }}</code>. Os exemplos abaixo usam a sessao local e o schema exposto em <a href="{{ openapi_url }}">OpenAPI JSON</a>.</p>
+  <p>Current base URL: <code>{{ base_url }}</code>. The examples below use the local session and the schema exposed at <a href="{{ openapi_url }}">OpenAPI JSON</a>.</p>
   <div class="docs-actions">
     <a href="{{ openapi_url }}" class="btn btn-primary">OpenAPI JSON</a>
     <a href="{{ routes_url }}" class="btn docs-btn-secondary">Route Index</a>
@@ -19,17 +19,17 @@
   <article class="panel docs-stat">
     <span class="section-label">Endpoints</span>
     <strong>{{ endpoint_count }}</strong>
-    <p>Rotas documentadas para chamadas HTTP da API Flask.</p>
+    <p>Documented routes for Flask API HTTP calls.</p>
   </article>
   <article class="panel docs-stat">
     <span class="section-label">GET</span>
     <strong>{{ get_count }}</strong>
-    <p>Consultas de leitura, health, listagens e voos em tempo real.</p>
+    <p>Read-only queries, health checks, listings, and live flights.</p>
   </article>
   <article class="panel docs-stat">
     <span class="section-label">POST</span>
     <strong>{{ post_count }}</strong>
-    <p>Predicao, reset de sessao e interacoes do advisor.</p>
+    <p>Prediction, session reset, and advisor interactions.</p>
   </article>
 </section>
 

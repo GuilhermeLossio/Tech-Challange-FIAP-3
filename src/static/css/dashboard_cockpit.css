@@ -86,7 +86,7 @@ function renderSuggestions(containerId, matches, onPick) {
   const container = $(containerId);
   if (!container) return;
   if (!matches.length) {
-    container.innerHTML = '<div class="suggestion-empty">Nenhum voo disponível no momento.</div>';
+    container.innerHTML = '<div class="suggestion-empty">No flights available at the moment.</div>';
     container.classList.add("visible");
     return;
   }
@@ -135,12 +135,12 @@ async function checkApiHealth() {
   const chip = $("api-health-chip");
   if (!chip) return;
   chip.className = "status-chip";
-  chip.textContent = "conectando...";
+  chip.textContent = "connecting...";
   try {
     const r = await fetch(apiBase() + "/health", { signal: AbortSignal.timeout(4000) });
     if (!r.ok) throw new Error("health");
     chip.className = "status-chip connected";
-    chip.textContent = "conectado";
+    chip.textContent = "connected";
   } catch {
     chip.className = "status-chip";
     chip.textContent = "offline";
@@ -164,7 +164,7 @@ async function fetchLivePlanes() {
     const data = await r.json();
     renderLivePlanes(data.states || []);
   } catch (e) {
-    console.warn("Falha OpenSky:", e.message);
+    console.warn("OpenSky failure:", e.message);
   }
 }
 
@@ -184,9 +184,9 @@ function renderLivePlanes(states) {
     const marker = L.marker([lat, lon], { icon })
       .bindPopup(`<div style="font-family:'Space Mono',monospace;font-size:11px;background:#111520;color:#e8eaf0;padding:8px;border-radius:6px">
         <b style="color:#4f8ef7">${(callsign || "").trim() || icao24}</b><br>
-        País: ${country}<br>
+        Country: ${country}<br>
         Alt: ${s[7] != null ? Math.round(s[7]) + "m" : "-"}<br>
-        Vel: ${vel != null ? Math.round(vel * 3.6) + "km/h" : "-"}
+        Speed: ${vel != null ? Math.round(vel * 3.6) + "km/h" : "-"}
       </div>`, { className: "flight-popup" })
       .addTo(state.map);
     state.markers.push(marker);
@@ -203,7 +203,7 @@ async function lookupFlight() {
   const status = $("lookup-status");
   btn.disabled = true;
   btn.textContent = "...";
-  status.textContent = "Consultando OpenSky...";
+  status.textContent = "Querying OpenSky...";
 
   try {
     let states = [];
@@ -215,17 +215,17 @@ async function lookupFlight() {
       if (states.length) break;
     }
     if (!states.length) {
-      status.textContent = `"${raw}" não encontrado. Preenchimento manual disponível.`;
+      status.textContent = `"${raw}" not found. Manual fill is available.`;
       autoFillFromIcao(raw);
       return;
     }
     fillFlightCard(states[0], raw);
     status.textContent = "";
   } catch (e) {
-    status.textContent = `Erro: ${e.message}`;
+    status.textContent = `Error: ${e.message}`;
   } finally {
     btn.disabled = false;
-    btn.textContent = "Buscar";
+    btn.textContent = "Search";
   }
 }
 
@@ -294,7 +294,7 @@ function renderHourlyChart(airline, origin, dest, currentHour) {
   const canvas = $("chart-hourly");
   if (!canvas) return;
 
-  // Garante que o canvas tenha dimensões reais antes de renderizar
+  // Ensure the canvas has real dimensions before rendering
   requestAnimationFrame(() => {
     const ctx = canvas.getContext("2d");
     const data = buildHourlyData(airline || "XX", origin || "XXX", dest || "XXX");
@@ -313,7 +313,7 @@ function renderHourlyChart(airline, origin, dest, currentHour) {
         maintainAspectRatio: false,
         animation: { duration: 400 },
         plugins: { legend: { display: false }, tooltip: {
-          callbacks: { label: (ctx) => ` ${ctx.parsed.y}% chance de atraso` },
+          callbacks: { label: (ctx) => ` ${ctx.parsed.y}% delay chance` },
         }},
         scales: {
           x: { grid: { color: CHART_GRID }, ticks: { color: TICK_COLOR, font: TICK_FONT } },
@@ -368,7 +368,7 @@ function renderCarrierChart(origin, dest, myAirline) {
         maintainAspectRatio: false,
         animation: { duration: 400 },
         plugins: { legend: { display: false }, tooltip: {
-          callbacks: { label: (ctx) => ` ${ctx.parsed.x}% chance de atraso` },
+          callbacks: { label: (ctx) => ` ${ctx.parsed.x}% delay chance` },
         }},
         scales: {
           x: { grid: { color: CHART_GRID }, ticks: { color: TICK_COLOR, font: TICK_FONT, callback: (v) => `${v}%` }, max: 80 },
@@ -384,7 +384,7 @@ function renderFactors(topFactors) {
   const wrap = $("radar-wrap");
   if (!wrap) return;
   if (!topFactors || !topFactors.length) {
-    wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">📡</div><div class="empty-text">Aguardando análise</div></div>';
+    wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">📡</div><div class="empty-text">Awaiting analysis</div></div>';
     return;
   }
   const parsed = topFactors.map((f) => ({
@@ -419,7 +419,7 @@ function showResult(data) {
 
   const badge = $("risk-badge");
   if (badge) {
-    const MAP = { LOW: "BAIXO RISCO", MEDIUM: "RISCO MÉDIO", HIGH: "ALTO RISCO" };
+    const MAP = { LOW: "LOW RISK", MEDIUM: "MEDIUM RISK", HIGH: "HIGH RISK" };
     const BG  = { LOW: "rgba(79,247,160,.12)", MEDIUM: "rgba(247,201,79,.12)", HIGH: "rgba(247,96,79,.12)" };
     const CLR = { LOW: "#4ff7a0",              MEDIUM: "#f7c94f",              HIGH: "#f7604f" };
     badge.textContent    = MAP[level] || level;
@@ -448,13 +448,13 @@ async function runAnalysis() {
   const dist    = $("f-dist").value;
 
   if (!origin || !dest || !airline || !dep) {
-    alert("Preencha Origem, Destino, Companhia e Horário de Partida.");
+    alert("Fill in Origin, Destination, Airline, and Departure Time.");
     return;
   }
 
   const btn  = $("btn-analyze");
   btn.disabled = true;
-  btn.textContent = "Analisando...";
+  btn.textContent = "Analyzing...";
 
   drawRoute(origin, dest);
   const hour = Math.floor(parseInt(dep, 10) / 100);
@@ -482,13 +482,13 @@ async function runAnalysis() {
         { feature: "ORIGIN_DELAY_RATE",   impact: "+5.1%" },
         { feature: "ROUTE_DELAY_RATE",    impact: "-2.3%" },
       ],
-      advice: `[Demonstração] Rota ${origin}→${dest} — probabilidade simulada: ${(mockProb * 100).toFixed(0)}%.`,
+      advice: `[Demo] Route ${origin}→${dest} — simulated probability: ${(mockProb * 100).toFixed(0)}%.`,
     };
     showResult(mockData);
     renderFactors(mockData.top_factors);
   } finally {
     btn.disabled    = false;
-    btn.textContent = "ANALISAR RISCO DE ATRASO";
+    btn.textContent = "ANALYZE DELAY RISK";
   }
 }
 
@@ -508,10 +508,10 @@ async function loadWeeklyPredictions() {
       table.classList.remove("hidden");
       if (emptyEl) emptyEl.classList.add("hidden");
     } else {
-      if (emptyEl) emptyEl.querySelector(".empty-text").textContent = data.detail || "Nenhum voo futuro encontrado.";
+      if (emptyEl) emptyEl.querySelector(".empty-text").textContent = data.detail || "No upcoming flight found.";
     }
   } catch {
-    if (emptyEl) emptyEl.querySelector(".empty-text").textContent = "Falha ao carregar lista de voos.";
+    if (emptyEl) emptyEl.querySelector(".empty-text").textContent = "Failed to load flight list.";
   }
 }
 
@@ -550,10 +550,11 @@ window.addEventListener("DOMContentLoaded", () => {
   checkApiHealth();
   loadWeeklyPredictions();
 
-  // Renderiza o gráfico horário depois do layout estabilizar
+  // Render the hourly chart after the layout stabilizes
   setTimeout(() => renderHourlyChart("XX", "XXX", "XXX", -1), 300);
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && document.activeElement === $("flight-number-input")) lookupFlight();
   });
 });
+

@@ -15,22 +15,15 @@ MAX_SESSION_MESSAGES = 40
 S3_AVAILABLE_FIELDS: list[str] = [
     "origin_airport",
     "destination_airport",
-    "airline",
-    "scheduled_departure",
-    "departure_date",
-    "passengers",
-    "cabin_class",
 ]
 
 _FIELD_QUESTIONS: dict[str, str] = {
     "origin_airport":      "Which airport are you departing from? (e.g. GRU, JFK)",
     "destination_airport": "What is your destination airport? (e.g. MIA, LHR)",
-    "airline":             "Which airline are you flying with?",
-    "scheduled_departure": "What time is your scheduled departure? (HHMM format, e.g. 0730)",
-    "departure_date":      "What is your travel date? (YYYY-MM-DD)",
-    "passengers":          "How many passengers are travelling?",
     "cabin_class":         "Which cabin class — economy, business, or first?",
 }
+
+_FIELD_QUESTIONS = {key: value for key, value in _FIELD_QUESTIONS.items() if key in S3_AVAILABLE_FIELDS}
 
 # ---------------------------------------------------------------------------
 # System prompt sent to the LLM on every call.
@@ -60,9 +53,11 @@ You are a friendly and practical flight advisor.
 - When the user's request is missing key information for a specific analysis, ask for the missing details
   naturally, one or two questions at a time.
 
-Key fields required for a flight-specific delay assessment:
+Key fields required for a route-level delay assessment:
 - Departure airport (IATA code)
 - Destination airport (IATA code)
+
+Optional fields that help narrow the result:
 - Airline
 - Scheduled departure time
 - Travel date
@@ -74,8 +69,24 @@ Never dump all questions at once and prioritise the most relevant missing field.
 - If real-time flight search results are provided in the context, incorporate them naturally.
 - Highlight price, availability, and schedule only when those data are actually present.
 
+## Complete travel guide requests
+- If the user asks for a complete travel guide, a full destination guide, or explicitly asks for climate,
+  attractions, gastronomy, flights, and accommodation in the same answer, provide a complete long-form response.
+- Never leave a section unfinished and never stop mid-structure.
+- If you start a list of topics, cover all requested topics fully.
+- End with a conclusion or a clear next-step question.
+- If the user explicitly asks for English, respond in English.
+- Use this structure for complete travel guides:
+  1. General destination info, including climate and best time to visit
+  2. Top tourist attractions, with at least 5 concrete suggestions
+  3. Practical details, including flight tips, accommodation guidance, and local transportation
+  4. Cultural and food tips
+  5. Conclusion with next steps
+- If live flight prices, hotel inventory, or current availability are not present in the structured context,
+  say that clearly and provide general planning guidance instead of inventing data.
+
 ## Tone
-Friendly, concise, and helpful. Avoid jargon.
+Friendly, helpful, and well-structured. Avoid jargon.
 """
 
 
@@ -121,8 +132,10 @@ def register_advisor_views(app: Flask, deps: dict[str, Any]) -> None:
     persist_advisor_messages       = deps["persist_advisor_messages"]
     reset_advisor_messages         = deps["reset_advisor_messages"]
     trim_chat_text                 = deps["trim_chat_text"]
-    # Accepts both the legacy key name used in main.py and the new one
-    has_full_route_context         = deps.get("has_full_route_context") or deps["should_run_route_prediction"]
+    should_run_route_prediction    = deps["should_run_route_prediction"]
+    should_run_weekly_route_prediction = deps["should_run_weekly_route_prediction"]
+    enrich_route_payload_from_question = deps["enrich_route_payload_from_question"]
+    route_updates_from_request     = deps["route_updates_from_request"]
     user_chat_message              = deps["user_chat_message"]
     build_discovery_response_runtime = deps["build_discovery_response_runtime"]
     should_use_llm                 = deps.get("should_use_llm") or deps["should_use_nemotron"]
@@ -130,10 +143,8 @@ def register_advisor_views(app: Flask, deps: dict[str, Any]) -> None:
     build_discovery_context        = deps["build_discovery_context"]
     assistant_chat_message         = deps["assistant_chat_message"]
     load_assets                    = deps["load_assets"]
-    build_features                 = deps["build_features"]
-    risk_level                     = deps["risk_level"]
-    compute_top_factors            = deps["compute_top_factors"]
-    build_suggested_flights        = deps["build_suggested_flights"]
+    compute_model_delay_snapshot   = deps["compute_model_delay_snapshot"]
+    build_weekly_route_prediction  = deps["build_weekly_route_prediction"]
     advice_text                    = deps["advice_text"]
     build_advice_context           = deps["build_advice_context"]
 
@@ -271,12 +282,14 @@ def register_advisor_views(app: Flask, deps: dict[str, Any]) -> None:
             payload = AdviseRequest.model_validate(payload_data)
         except ValidationError as exc:
             return jsonify({"detail": exc.errors()}), 400
+        payload = enrich_route_payload_from_question(payload)
+        route_updates = route_updates_from_request(payload)
 
         # --- Session & user message ----------------------------------------
         session_id, messages = load_advisor_messages()
 
         user_text = trim_chat_text(payload.question)
-        if not user_text and has_full_route_context(payload):
+        if not user_text and should_run_route_prediction(payload):
             # Synthetic message so the LLM has something to respond to
             user_text = (
                 f"Analyze the route {payload.origin_airport} to "
@@ -296,11 +309,98 @@ def register_advisor_views(app: Flask, deps: dict[str, Any]) -> None:
         # Serialised history for the LLM
         llm_history = _serialize_history(messages)
 
+        if should_run_weekly_route_prediction(payload):
+            try:
+                pipeline, meta, maps, global_rate, route_distance_map, global_distance = load_assets()
+            except Exception as exc:
+                return jsonify({"detail": str(exc)}), 500
+
+            weekly_response = build_weekly_route_prediction(payload, pipeline, meta, limit=3)
+            if weekly_response is None:
+                try:
+                    snapshot = compute_model_delay_snapshot(
+                        payload,
+                        pipeline,
+                        meta,
+                        maps,
+                        global_rate,
+                        route_distance_map,
+                        global_distance,
+                        limit=3,
+                    )
+                except ValueError as exc:
+                    return jsonify({"detail": str(exc)}), 400
+
+                fallback_advice = advice_text(
+                    snapshot["delay_probability"],
+                    snapshot["risk_level"],
+                    snapshot["top_factors"],
+                    snapshot["suggested_flights"],
+                    snapshot["delay_prediction"],
+                )
+                advice = fallback_advice
+                advice_source = "model_fallback"
+                advice_model = None
+
+                if should_use_llm(user_text):
+                    advice_ctx = build_advice_context(
+                        payload,
+                        snapshot["delay_probability"],
+                        snapshot["risk_level"],
+                        snapshot["delay_prediction"],
+                        snapshot["top_factors"],
+                        fallback_advice,
+                        snapshot["suggested_flights"],
+                        messages,
+                    )
+                    advice_ctx["flight_search"] = flight_search_ctx
+
+                    try:
+                        llm_result = generate_llm_advice(
+                            advice_ctx,
+                            history=llm_history,
+                            system_prompt=ADVISOR_SYSTEM_PROMPT,
+                        )
+                        advice = llm_result.content
+                        advice_source = llm_result.provider
+                        advice_model = llm_result.model
+                    except RuntimeError as exc:
+                        app.logger.warning("LLM unavailable, falling back to sparse model advice: %s", exc)
+                        advice_source = "model_fallback"
+
+                weekly_response = AdviseResponse(
+                    delay_probability=snapshot["delay_probability"],
+                    delay_prediction=snapshot["delay_prediction"],
+                    risk_level=snapshot["risk_level"],
+                    top_factors=snapshot["top_factors"],
+                    advice=advice,
+                    advice_source=advice_source,
+                    advice_model=advice_model,
+                    suggested_flights=snapshot["suggested_flights"],
+                    mode="route_model",
+                )
+
+            if weekly_response is not None:
+                weekly_response = weekly_response.model_copy(update={
+                    "route_updates": route_updates,
+                })
+                messages.append(assistant_chat_message(weekly_response))
+                messages = _trim_session_messages(messages)
+                messages = persist_advisor_messages(session_id, messages)
+                weekly_response = weekly_response.model_copy(update={
+                    "session_id": session_id,
+                    "messages": messages,
+                    "route_updates": route_updates,
+                })
+                return jsonify(weekly_response.model_dump())
+
         # ==================================================================
         # DISCOVERY PATH — incomplete route context
         # ==================================================================
-        if not has_full_route_context(payload):
-            discovery = build_discovery_response_runtime(payload)
+        if not should_run_route_prediction(payload):
+            discovery = build_discovery_response_runtime(payload).model_copy(update={
+                "route_updates": route_updates,
+            })
 
             if should_use_llm(user_text):
                 discovery_ctx = build_discovery_context(payload, discovery.advice, messages)
@@ -339,6 +439,7 @@ def register_advisor_views(app: Flask, deps: dict[str, Any]) -> None:
                 "session_id":        session_id,
                 "messages":          messages,
                 "probing_questions": probing_questions,  # expose to frontend
+                "route_updates":     route_updates,
             })
             return jsonify(discovery.model_dump())
 
@@ -351,32 +452,27 @@ def register_advisor_views(app: Flask, deps: dict[str, Any]) -> None:
             return jsonify({"detail": str(exc)}), 500
 
         try:
-            df = build_features(payload, maps, global_rate, route_distance_map, global_distance)
+            snapshot = compute_model_delay_snapshot(
+                payload,
+                pipeline,
+                meta,
+                maps,
+                global_rate,
+                route_distance_map,
+                global_distance,
+                limit=3,
+            )
         except ValueError as exc:
             return jsonify({"detail": str(exc)}), 400
-
-        X = df
-        if meta and "features" in meta and "selected" in meta["features"]:
-            required = meta["features"]["selected"]
-            missing  = [col for col in required if col not in df.columns]
-            if missing:
-                return jsonify({
-                    "detail": f"Missing columns required by the model: {', '.join(missing)}"
-                }), 400
-            X = coerce_feature_types(
-                df[required],
-                meta["features"].get("numeric", []),
-                meta["features"].get("categorical", []),
-            )
-
-        prob             = float(pipeline.predict_proba(X)[:, 1][0])
-        level            = risk_level(prob)
-        top              = compute_top_factors(df, global_rate)
-        suggested_flights = build_suggested_flights(payload, pipeline, meta, limit=3)
+        prob              = snapshot["delay_probability"]
+        delay_prediction  = snapshot["delay_prediction"]
+        level             = snapshot["risk_level"]
+        top               = snapshot["top_factors"]
+        suggested_flights = snapshot["suggested_flights"]
 
         # Heuristic advice now also receives flight_results so the fallback
         # path can surface real-time alternatives even without the LLM.
-        fallback_advice = advice_text(prob, level, top, suggested_flights)
+        fallback_advice = advice_text(prob, level, top, suggested_flights, delay_prediction)
 
         advice        = fallback_advice
         advice_source = "heuristic"
@@ -384,7 +480,7 @@ def register_advisor_views(app: Flask, deps: dict[str, Any]) -> None:
 
         if should_use_llm(user_text):
             advice_ctx = build_advice_context(
-                payload, prob, level, top, fallback_advice, suggested_flights, messages
+                payload, prob, level, delay_prediction, top, fallback_advice, suggested_flights, messages
             )
             advice_ctx["flight_search"]   = flight_search_ctx
 
@@ -403,12 +499,14 @@ def register_advisor_views(app: Flask, deps: dict[str, Any]) -> None:
 
         response_model = AdviseResponse(
             delay_probability = prob,
+            delay_prediction  = delay_prediction,
             risk_level        = level,
             top_factors       = top,
             advice            = advice,
             advice_source     = advice_source,
             advice_model      = advice_model,
             suggested_flights = suggested_flights,
+            route_updates     = route_updates,
         )
         messages.append(assistant_chat_message(response_model))
         messages = _trim_session_messages(messages)
@@ -416,5 +514,6 @@ def register_advisor_views(app: Flask, deps: dict[str, Any]) -> None:
         response_model = response_model.model_copy(update={
             "session_id": session_id,
             "messages":   messages,
+            "route_updates": route_updates,
         })
         return jsonify(response_model.model_dump())

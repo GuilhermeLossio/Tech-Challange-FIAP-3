@@ -1,21 +1,21 @@
 /**
- * live_map.js — Mapa de voos ao vivo usando Leaflet + endpoint /api/live_flights
+ * live_map.js - Live flight map powered by Leaflet and the /api/live_flights endpoint.
  *
- * Dependências (adicione ao seu HTML):
+ * Dependencies:
  *   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
  *   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
  *
- * HTML mínimo:
+ * Minimum HTML:
  *   <div id="live-map" style="width:100%;height:600px;"></div>
  *   <div id="live-map-status"></div>
  *   <script src="/static/live_map.js"></script>
  */
 
 const LIVE_FLIGHTS_URL = "/api/live_flights";
-const REFRESH_INTERVAL_MS = 20_000; // atualiza a cada 20 s
-const MAX_ALTITUDE_FT = 45_000;     // referência para a barra de altitude
+const REFRESH_INTERVAL_MS = 20_000; // refresh every 20s
+const MAX_ALTITUDE_FT = 45_000;     // reference for the altitude bar
 
-// ── Inicializa o mapa centrado no Brasil ────────────────────────────────────
+// ── Initialize the map centered on Brazil ────────────────────────────────────
 const map = L.map("live-map").setView([-15.0, -50.0], 4);
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -23,7 +23,7 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 18,
 }).addTo(map);
 
-// ── Ícone do avião — emoji maior com sombra aprimorada ──────────────────────
+// ── Larger plane icon with enhanced shadow ──────────────────────
 function planeIcon(heading = 0) {
   return L.divIcon({
     className: "",
@@ -46,25 +46,25 @@ function planeIcon(heading = 0) {
   });
 }
 
-// ── Indicador de subida/descida ─────────────────────────────────────────────
-// vertical_rate_fpm: positivo = subindo, negativo = descendo, null/0 = nivelado
+// ── Climb/descent indicator ─────────────────────────────────────────────
+// vertical_rate_fpm: positive = climbing, negative = descending, null/0 = level
 function climbIndicator(vertical_rate_fpm) {
-  if (vertical_rate_fpm == null) return "➖ Nivelado";
-  if (vertical_rate_fpm > 100)  return `⬆️ Subindo <small>(${vertical_rate_fpm.toLocaleString()} ft/min)</small>`;
-  if (vertical_rate_fpm < -100) return `⬇️ Descendo <small>(${Math.abs(vertical_rate_fpm).toLocaleString()} ft/min)</small>`;
-  return "➖ Nivelado";
+  if (vertical_rate_fpm == null) return "➖ Level";
+  if (vertical_rate_fpm > 100)  return `⬆️ Climbing <small>(${vertical_rate_fpm.toLocaleString()} ft/min)</small>`;
+  if (vertical_rate_fpm < -100) return `⬇️ Descending <small>(${Math.abs(vertical_rate_fpm).toLocaleString()} ft/min)</small>`;
+  return "➖ Level";
 }
 
-// ── Barra de progresso de altitude ──────────────────────────────────────────
+// ── Altitude progress bar ──────────────────────────────────────────
 function altitudeBar(altitude_ft) {
   if (altitude_ft == null) return "";
   const pct = Math.min(100, Math.round((altitude_ft / MAX_ALTITUDE_FT) * 100));
-  // Cor: verde (baixo) → amarelo → vermelho (cruzeiro)
-  const hue = Math.round(120 - pct * 1.2); // 120=verde, 0=vermelho
+  // Color: green (low) -> yellow -> red (cruise)
+  const hue = Math.round(120 - pct * 1.2); // 120=green, 0=red
   return `
     <div style="margin-top:4px;">
       <div style="font-size:11px; color:#666; margin-bottom:2px;">
-        Altitude: ${altitude_ft.toLocaleString()} ft (${pct}% do máx)
+        Altitude: ${altitude_ft.toLocaleString()} ft (${pct}% of max)
       </div>
       <div style="background:#ddd; border-radius:4px; height:7px; width:100%;">
         <div style="
@@ -78,7 +78,7 @@ function altitudeBar(altitude_ft) {
     </div>`;
 }
 
-// ── Link externo para FlightAware ───────────────────────────────────────────
+// ── External link to FlightAware ───────────────────────────────────────────
 function flightAwareLink(callsign, icao24) {
   const id = callsign ? callsign.trim() : icao24;
   const url = `https://flightaware.com/live/flight/${encodeURIComponent(id)}`;
@@ -90,7 +90,7 @@ function flightAwareLink(callsign, icao24) {
     </div>`;
 }
 
-// ── Conteúdo do popup ───────────────────────────────────────────────────────
+// ── Popup content ───────────────────────────────────────────────────────
 function buildPopup(flight) {
   const {
     icao24, latitude, longitude, heading,
@@ -106,15 +106,15 @@ function buildPopup(flight) {
       <div>🌍 ${origin_country || "—"}</div>
       <div>📡 ICAO: <code>${icao24}</code></div>
       <div>🧭 Heading: ${heading ?? "—"}°</div>
-      <div>💨 Velocidade: ${speed_kmh != null ? speed_kmh + " km/h" : "—"}</div>
+      <div>💨 Speed: ${speed_kmh != null ? speed_kmh + " km/h" : "—"}</div>
       <div style="margin-top:4px;">${climbIndicator(vertical_rate_fpm)}</div>
       ${altitudeBar(altitude_ft)}
       ${flightAwareLink(callsign, icao24)}
     </div>`;
 }
 
-// ── Estado dos marcadores ───────────────────────────────────────────────────
-const markers = {}; // icao24 → L.marker
+// ── Marker state ───────────────────────────────────────────────────
+const markers = {}; // icao24 -> L.marker
 
 function updateMarker(flight) {
   const { icao24, latitude, longitude, heading } = flight;
@@ -145,11 +145,11 @@ function removeStaleMarkers(activeCodes) {
   }
 }
 
-// ── Busca e atualiza ────────────────────────────────────────────────────────
+// ── Fetch and refresh ────────────────────────────────────────────────────────
 let statusEl = document.getElementById("live-map-status");
 
 async function fetchAndUpdate() {
-  if (statusEl) statusEl.textContent = "Atualizando…";
+  if (statusEl) statusEl.textContent = "Updating...";
 
   try {
     const resp = await fetch(`${LIVE_FLIGHTS_URL}?region=brazil&limit=300`);
@@ -161,15 +161,16 @@ async function fetchAndUpdate() {
     removeStaleMarkers(flights.map((f) => f.icao24));
 
     if (statusEl) {
-      const ts = new Date().toLocaleTimeString("pt-BR");
-      statusEl.textContent = `✅ ${flights.length} aeronaves • atualizado às ${ts} • cache ${data.cache_age_sec}s`;
+      const ts = new Date().toLocaleTimeString("en-US");
+      statusEl.textContent = `✅ ${flights.length} aircraft • updated at ${ts} • cache ${data.cache_age_sec}s`;
     }
   } catch (err) {
-    console.error("Erro ao buscar voos:", err);
-    if (statusEl) statusEl.textContent = `⚠️ Erro: ${err.message}`;
+    console.error("Error fetching flights:", err);
+    if (statusEl) statusEl.textContent = `⚠️ Error: ${err.message}`;
   }
 }
 
-// Primeira carga imediata + polling
+// Initial load plus polling
 fetchAndUpdate();
 setInterval(fetchAndUpdate, REFRESH_INTERVAL_MS);
+

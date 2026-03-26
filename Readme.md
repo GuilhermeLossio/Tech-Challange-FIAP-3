@@ -1,632 +1,264 @@
-<div align="center">
-
-<img src="https://img.shields.io/badge/✈️-Flight%20Advisor-1A3557?style=for-the-badge&labelColor=1A3557&color=2563A8" alt="Flight Advisor"/>
-
 # Flight Advisor
-### Intelligent Platform for Analysis and Prediction of Air Delays
 
-*Tech Challenge — Phase 03 | FIAP Machine Learning Engineering*
+Flight Advisor is a Flask application for flight-delay prediction and conversational travel assistance. The current codebase combines trained delay models, weekly route estimation, airport and route APIs, live-flight lookups, and a session-aware advisor UI.
 
----
+## What the app currently includes
 
-[![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
-[![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Qwen%203-FFD21E?style=flat-square&logo=huggingface&logoColor=black)](https://huggingface.co)
-[![Flask](https://img.shields.io/badge/Flask-000000?style=flat-square&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
-[![Dash](https://img.shields.io/badge/Dash-FF4B4B?style=flat-square&logo=Dash&logoColor=white)](https://dash.ploty.com)
-[![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](https://langchain.com)
-[![XGBoost](https://img.shields.io/badge/XGBoost-189ABB?style=flat-square)](https://xgboost.readthedocs.io)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+### Web pages
+- `/` or `/front`: dashboard landing page
+- `/flight` or `/flights`: flight lookup and route selection
+- `/predictions`: prediction-focused page
+- `/advisor`: conversational advisor
+- `/dashboard`: optional mounted Dash app when `ENABLE_DASH=1` and Dash dependencies are available
 
-<br/>
+### API and docs
+- `/docs`, `/redoc`, `/openapi.json`
+- `/health`
+- `/predict`
+- `/advise`
+- `/api/advisor/history`
+- `/api/advisor/reset`
+- `/api/flight/countries`
+- `/api/flight/airports`
+- `/api/flight/departures`
+- `/api/upcoming_flights`
+- `/api/weekly_predictions`
+- `/api/live_flights`
+- `/api/live_flights/<icao24>`
+- `/api/routes`
 
-> **"This flight has a 71% chance of being delayed. Peak hours at JFK (+24%) and the airline's Friday history (+18%) are the main factors. I recommend the 6:00 AM flight — only a 23% risk."**
->
-> *— Flight Advisor, via RAG + Qwen 3*
+## Core capabilities
 
-</div>
+- Predict delay probability and a binary delay decision for a specific flight.
+- Fall back to weekly route estimation when origin and destination are known but airline, date, or departure time are missing.
+- Extract route context from natural-language questions and return `route_updates` so the frontend can sync the country and airport dropdowns automatically.
+- Infer distance from the request, the historical route average, or the global average when explicit airline or country data is missing.
+- Keep advisor chat history per session and expose history and reset endpoints.
+- Use a configurable LLM provider for discovery, destination guidance, and complete travel-guide responses.
+- Return model-based fallback advice even when the LLM is disabled or unavailable.
+- Serve live-flight snapshots through OpenSky and upcoming schedule suggestions from the generated weekly dataset.
 
----
+## Architecture snapshot
 
-## 📋 Table of Contents
+- Delivery layer: Flask app in `src/api/main.py`, Jinja templates in `src/templates`, static assets in `src/static`.
+- View registration: `src/api/views/pages.py`, `src/api/views/flight.py`, and `src/api/views/advisor.py`.
+- Prediction layer: model artifacts in `models/`, feature construction and fallback logic in `src/api/main.py`.
+- Advisor layer: session-aware orchestration, route extraction, weekly fallback, and LLM prompt assembly.
+- LLM layer: `src/api/services/llm_service.py` with provider selection for NVIDIA or Hugging Face compatible backends.
+- Batch and jobs layer: future schedule generation and weekly prediction helpers in `src/jobs/`.
+- Optional analytics layer: legacy or supplemental Dash app in `dashboard/app.py`.
 
-- [About the Project](#-about-the-project)
-- [Demo](#-demo)
-- [Architecture](#-architecture)
-- [Features](#-features)
-- [Tech Stack](#-tech-stack)
-- [Repository Structure](#-repository-structure)
-- [Installation and Usage](#-installation-and-usage)
-- [Notebooks](#-notebooks)
-- [Results](#-results)
-- [Market Vision](#-market-vision)
-- [Limitations and Next Steps](#-limitations-and-next-steps)
-- [Author](#-author)
+## Repository structure
 
----
+```text
+FIAP-3/
+|-- dashboard/                 # Optional Dash app and dashboard utilities
+|-- data/                      # Raw, processed, and runtime data
+|-- docs/                      # Mermaid and SVG architecture assets
+|-- models/                    # Trained model artifacts and explainability exports
+|-- notebooks/                 # Exploration and experimentation notebooks
+|-- src/
+|   |-- api/
+|   |   |-- main.py            # Flask app, schemas, predictors, API registration
+|   |   |-- services/          # LLM, flight, and live-flight integrations
+|   |   `-- views/             # Page, advisor, and flight endpoints
+|   |-- jobs/                  # Weekly schedule and prediction jobs
+|   |-- static/                # Browser JavaScript and CSS
+|   |-- templates/             # Jinja templates
+|   `-- rag/                   # Reserved or legacy area for retrieval artifacts
+|-- PROTOTYPE.md               # Current technical prototype reference
+|-- Readme.md                  # Project overview and setup
+`-- requirements.txt
+```
 
-## 🎯 About the Project
+## Getting started
 
-**Flight Advisor** goes beyond an academic Machine Learning project — it is a functional product with a production-level architecture that solves a real problem: **passengers do not have access to explainable delay predictions before choosing a flight**.
+### Prerequisites
 
-The project combines:
+- Python 3.11
+- A valid model artifact under `models/`
+- Optional LLM credentials if you want advisor generation beyond heuristic fallback
 
-- **Supervised Machine Learning** to predict the probability of delay for each flight
-- **Explainability with SHAP** to understand *why* a flight has a high risk
-- **Clustering and PCA** to discover hidden patterns in airports and routes
-- **RAG with Qwen 3** (Hugging Face Spaces) to answer questions in natural language
-- **REST API + Dashboard** to deliver value to the end-user
-
-### The Problem
-
-| | Current Market | Flight Advisor |
-|---|---|---|
-| **Available Information** | "Delta has 78% on-time performance on this route" | "This specific flight has a 71% chance of being delayed" |
-| **Explainability** | None | Top factors with % contribution (SHAP) |
-| **Recommendation** | None | "Fly at 6:00 AM — 23% risk" |
-| **Interface** | Static tables | Natural language via RAG + LLM |
-
----
-
-## 🚀 Demo
+### Install dependencies
 
 ```bash
-# Start the API
-python src/api/main.py
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-# Start the dashboard
+### Create or update `.env`
+
+The project loads environment variables automatically from `.env`. There is no `.env.example` in the repository at the moment, so create the file manually if needed.
+
+Key variables:
+
+| Variable | Purpose |
+|---|---|
+| `API_PORT` | Local Flask port. Defaults to `8000`. |
+| `FLASK_DEBUG` | Set to `1` for debug mode. |
+| `FLASK_SECRET_KEY` | Flask session secret. |
+| `ENABLE_DASH` | Mount the Dash app under `/dashboard` when available. |
+| `ADVISOR_LLM_ENABLED` | Enable or disable LLM calls for the advisor. |
+| `ADVISOR_LLM_PROVIDER` or `LLM_PROVIDER` | LLM backend selection. Supports `nvidia` and `huggingface`. |
+| `ADVISOR_LLM_MODEL` or `LLM_MODEL` | Shared model identifier. |
+| `NVIDIA_API_KEY` or `NEMOTRON_API_KEY` | API key for NVIDIA-compatible calls. |
+| `HF_TOKEN` or `HUGGINGFACE_API_KEY` | API key for Hugging Face router calls. |
+| `ADVISOR_LLM_COMPACT_MODE` | Force compact responses for lightweight runs. |
+| `QWEN_MAX_TOKENS` | Compact token ceiling used for Qwen-like models. |
+| `ADVISOR_LLM_GUIDE_MAX_TOKENS` | Larger response budget for complete travel guides. |
+| `ADVISOR_WEEKLY_WINDOW_DAYS` | Weekly prediction window size, clamped to `1..14`. |
+| `AIRPORTS_INDEX_SOURCE` or `WORLD_AIRPORTS_SOURCE` | Airports source used by the flight dropdown APIs. |
+
+### Run the current web app and API
+
+```bash
+python src/api/main.py
+```
+
+Then open:
+
+- `http://localhost:8000/`
+- `http://localhost:8000/advisor`
+- `http://localhost:8000/docs`
+
+### Run the Dash app standalone
+
+If you still use the separate Dash dashboard directly:
+
+```bash
 python dashboard/app.py
 ```
 
-**Example API query:**
+## Main API surface
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/health` | Liveness check |
+| `GET` | `/docs` | Swagger UI |
+| `GET` | `/redoc` | ReDoc |
+| `POST` | `/predict` | Structured delay prediction |
+| `POST` | `/advise` | Advisor workflow with prediction, weekly fallback, and LLM guidance |
+| `GET` | `/api/advisor/history` | Load the current advisor chat session |
+| `POST` | `/api/advisor/reset` | Clear chat history and route context |
+| `GET` | `/api/flight/countries` | Countries available in the airports index |
+| `GET` | `/api/flight/airports?country=...` | Airports for a selected country |
+| `GET` | `/api/flight/departures?airport=...` | Upcoming departures or generated placeholders |
+| `GET` | `/api/upcoming_flights` | Upcoming schedule view |
+| `GET` | `/api/weekly_predictions` | Weekly prediction listing alias |
+| `GET` | `/api/live_flights` | Live flights from OpenSky |
+| `GET` | `/api/live_flights/<icao24>` | Live details for one aircraft |
+| `GET` | `/api/routes` | Route and endpoint discovery payload |
+
+## Advisor behavior
+
+### Request model
+
+`/advise` accepts structured fields plus a free-form question. The current request schema includes:
+
+- `origin_country`
+- `origin_airport`
+- `destination_country`
+- `destination_airport`
+- `airline`
+- `scheduled_departure`
+- `flight_date`
+- `year`, `month`, `day`, `day_of_week`
+- `distance`
+- `question`
+
+### Response highlights
+
+The advisor can return:
+
+- `delay_probability`
+- `delay_prediction`
+- `risk_level`
+- `top_factors`
+- `suggested_flights`
+- `clarification_prompts`
+- `route_updates`
+- `messages`
+- `mode`
+- `advice_source`
+- `advice_model`
+
+### Current routing and fallback rules
+
+- If the user mentions a new origin or destination in natural language, the backend extracts it and sends `route_updates` so the frontend can sync the dropdowns.
+- If a specific airport is detected, the corresponding country is filled automatically when possible.
+- If origin and destination are known but airline, departure time, or exact date are missing, the advisor can use the upcoming weekly schedule instead of blocking on missing fields.
+- If `distance` is missing, the predictor falls back to the historical route average or the global average.
+- If the LLM is turned off or unavailable, the backend still returns deterministic model-based advice text.
+- Session history is stored under `data/runtime/advisor_sessions`.
+
+### Example request
 
 ```bash
 curl -X POST "http://localhost:8000/advise" \
   -H "Content-Type: application/json" \
   -d '{
-    "origin_airport": "JFK",
-    "destination_airport": "LAX",
-    "airline": "DL",
-    "month": 11,
-    "day_of_week": 5,
-    "scheduled_departure": 1800,
-    "question": "Is this flight worth it, or is there a better time?"
+    "origin_airport": "GRU",
+    "destination_airport": "JFK",
+    "question": "Use the weekly schedule and tell me if this route is likely to be delayed."
   }'
 ```
 
-**Response:**
+### Example response shape
 
 ```json
 {
-  "delay_probability": 0.71,
-  "risk_level": "HIGH",
+  "delay_probability": 0.38,
+  "delay_prediction": 0,
+  "risk_level": "LOW",
+  "mode": "weekly_route",
+  "advice_source": "weekly_model",
   "top_factors": [
-    {"feature": "peak_hour_JFK", "impact": "+24%"},
-    {"feature": "carrier_history_friday", "impact": "+18%"},
-    {"feature": "route_congestion", "impact": "+15%"}
+    {
+      "feature": "distance",
+      "impact": "Estimated distance from the historical average for this route."
+    }
   ],
-  "advice": "This flight has a HIGH risk of delay (71%). Fridays at 6:00 PM at JFK are historically problematic on the route to LAX. I recommend the 6:00 AM flight — same route and airline, with only a 23% risk. My recommendation: opt for the morning flight if your schedule allows."
+  "route_updates": {
+    "origin": { "country": "Brazil", "airport": "GRU" },
+    "destination": { "country": "United States", "airport": "JFK" }
+  },
+  "advice": "On-time predicted. The estimate uses the upcoming weekly schedule because no exact date was specified."
 }
 ```
 
----
+## Data and jobs
 
-## 🏗️ Architecture
+### Main artifacts
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     FLIGHT ADVISOR                          │
-├──────────────┬──────────────────────┬───────────────────────┤
-│  ML Pipeline │    RAG Engine        │    Delivery           │
-│              │                      │                       │
-│ ┌──────────┐ │  ┌────────────────┐  │  ┌──────────────────┐ │
-│ │ Random   │ │  │  Vector Store  │  │  │      Dash        │ │
-│ │ Forest   │ │  │  FAISS + HF    │  │  │   Dashboard      │ │
-│ │ XGBoost  │ │  │  Embeddings    │  │  └────────┬─────────┘ │
-│ │ Logistic │ │  └───────┬────────┘  │           │           │
-│ └────┬─────┘ │          │           │  ┌──────────────────┐ │
-│      │       │  ┌───────▼────────┐  │  │   Flask          │ │
-│ ┌──────────┐ │  │   Qwen 3       │  │  │   REST API       │ │
-│ │  SHAP    │→│  │ HF Spaces      │→ │  └──────────────────┘ │
-│ │Explainer │ │  │ (open-source)  │  │                       │
-│ └──────────┘ │  └────────────────┘  │                       │
-│              │                      │                       │
-│ ┌──────────┐ │  ┌────────────────┐  │                       │
-│ │ K-Means  │ │  │ Docs: routes,  │  │                       │
-│ │   PCA    │ │  │ airports,      │  │                       │
-│ │ IsoForest│ │  │ patterns, EDA  │  │                       │
-│ └──────────┘ │  └────────────────┘  │                       │
-└──────────────┴──────────────────────┴───────────────────────┘
-```
+- `models/delay_model.pkl`: serialized delay model
+- `models/delay_model_meta.json`: metadata for the prediction pipeline
+- `models/explain/`: SHAP exports used by the explainability flow
 
-### Query Flow
+### Supporting jobs
 
-```
-User ──► Flask ──► ML Model (prob: 71%, risk: HIGH)
-                │
-                ├──► SHAP Explainer (top factors)
-                │
-                ├──► RAG Retriever (historical route context)
-                │
-                └──► Qwen 3 / HF Spaces (natural language response)
-                            │
-                            └──► User receives an explained recommendation
-```
+- `src/jobs/generate_future_flights.py`: future schedule generation
+- `src/jobs/weekly_predict.py`: weekly prediction outputs
+- `src/jobs/weekly_pipeline.py`: weekly processing flow
+- `src/jobs/csv_to_parquet_converter.py`: CSV to Parquet helper
 
----
+### Data dependencies
 
-## ✨ Features
+The app expects:
 
-### 📊 Data Exploration (EDA)
-- Descriptive statistics and delay distribution
-- Analysis by airline, airport, route, and state
-- Interactive geographical maps of US delays (Plotly)
-- Seasonal patterns: time of day, day of the week, month, season
+- a training or processed flight dataset for the model pipeline
+- an airports index for country and airport dropdowns
+- future or weekly schedule data for weekly route estimation
+- OpenSky access for live-flight endpoints
 
-### 🤖 Supervised Machine Learning
-- **Classification**: predict if a flight will be delayed (>15 min)
-- Three models compared: Random Forest, XGBoost, Logistic Regression
-- **Feature engineering**: time of day, seasons, holidays, historical delay rate per route
-- Metrics: F1-Score, ROC-AUC, Confusion Matrix, Classification Report
+## Limitations and next steps
 
-### 🔵 Unsupervised Machine Learning
-- **K-Means**: clustering of airports by delay profile
-- **PCA**: dimensionality reduction for 2D visualization of clusters
-- Interpretation of each cluster with a detailed profile
+- Real-time booking and purchase execution are not implemented in this backend.
+- Live availability and fare shopping depend on external integrations that are still optional or disabled.
+- The `dashboard/` app and the Flask pages overlap in some analytical capabilities and should be consolidated further.
+- `src/rag/` is not the active runtime path for the current advisor flow and may be cleaned up or formalized later.
 
-### 🔍 Explainability
-- **SHAP values** per individual prediction
-- Global feature importance plots
-- Answers the question: *"Why does this flight have a high risk?"*
+## Related docs
 
-### 🚨 Anomaly Detection
-- **Isolation Forest** to identify flights outside the historical pattern
-- Visualization of outliers vs. normal behavior
-
-### 🧠 RAG with Qwen 3 (Hugging Face Spaces)
-- FAISS vector store indexing historical data of routes and airports
-- Embeddings via `sentence-transformers` (local, no API cost)
-- Qwen 3 LLM hosted on Hugging Face Spaces (open-source, free)
-- Natural language responses with actionable recommendations
-
-### 📡 REST API (Flask)
-- `/advise` endpoint for a complete query (ML + RAG + LLM)
-- `/predict` endpoint for isolated prediction
-- Simple API route listing
-
-📈 Interactive Dashboard
-- Filters by airline, route, period
-- Real-time KPIs
-- Interactive maps and charts
-- Interface to query the Flight Advisor
-
-## 🛠️ Tech Stack
-
-| Layer | Technology | Purpose |
-|---|---|---|
-| **Language** | Python 3.11 | Core of the project |
-| **ML** | Scikit-learn, XGBoost | Supervised and unsupervised models |
-| **Explainability** | SHAP | Interpretability per prediction |
-| **Anomaly** | Isolation Forest | Detection of anomalous flights |
-| **RAG** | LangChain + FAISS | Indexing and semantic retrieval |
-| **LLM** | Qwen 3 (Hugging Face Spaces) | Generation of natural language responses |
-| **Embeddings** | sentence-transformers | Local embeddings with no API cost |
-| **API** | Flask | REST endpoints for integration |
-| **Dashboard** | Dash | Interactive interface |
-| **Visualization** | Plotly, Seaborn, Matplotlib | Charts and geographical maps |
-| **Data** | Pandas, NumPy | Manipulation and analysis |
-| **Versioning** | Git + DVC | Code and models |
-
----
-```
-flight-advisor/
-│
-├── src/
-│   ├── api/
-│   │   ├── main.py                  # Flask + Jinja2 + endpoints JSON
-│   │   └── services/
-│   
-│── services/  
-│   ├── model.py
-│   ├── features.py
-│   ├── airports.py
-│   ├── data_sources.py
-│   ├── templates/                   # Jinja2 templates
-│   │   ├── base.html                # Layout base, Bootstrap CDN, navbar
-│   │   ├── dashboard.html
-│   │   ├── predictions.html
-│   │   └── advisor.html             # Chat RAG
-│   │
-│   └── static/
-│       ├── css/
-│       │   └── custom.css
-│       └── js/
-│           ├── charts.js            # Chart.js
-│           └── advisor.js           # fetch para os endpoints JSON
-│
-├── data/
-│   ├── raw/                    # Raw data (not versioned)
-│   ├── processed/              # Processed data
-│   └── vector_store/           # FAISS index for RAG
-│
-├── notebooks/
-│   ├── 01_eda.ipynb                    # Exploration and visualizations
-│   ├── 02_feature_engineering.ipynb    # Feature creation
-│   ├── 03_supervised_models.ipynb      # Supervised ML + SHAP
-│   ├── 04_unsupervised_models.ipynb    # Clustering + PCA
-│   └── 05_anomaly_detection.ipynb      # Anomaly Detection
-│
-├── dashboard/
-│   ├── app.py                  # Dash dashboard
-│   ├── build_dashboard_dataset.py # Build slim S3 dataset for dashboard
-│   └── parquet_writer.py       # Legacy partition writer (optional)
-│
-├── models/                     # Serialized models (.pkl)
-│
-├── infra/
-│   ├── s3_config.py            # Bucket names, prefixes and credentials
-│   └── athena_schema.sql       # Athena table schema documentation
-│
-├── requirements.txt
-├── .env.example
-├── .gitignore
-├── PROTOTYPE.md
-└── README.md
-```
----
-
-## ⚙️ Installation and Usage
-
-### Prerequisites
-
-- Python 3.11+
-- pip
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/GuilhermeLossio/flight-advisor.git
-cd flight-advisor
-```
-
-### 2. Create the virtual environment and install dependencies
-
-```bash
-python -m venv venv
-source venv/bin/activate        # Linux/Mac
-# venv\Scripts\activate         # Windows
-
-pip install -r requirements.txt
-```
-
-### 3. Configure environment variables
-
-```bash
-cp .env.example .env
-# Edit the .env file with your configurations (HuggingFace token, etc.)
-```
-
-Optional but recommended for AWS/S3:
-
-- `S3_BUCKET` — default bucket for dataset reads/writes and artifact uploads
-- `S3_RAW_PREFIX` — raw dataset prefix (default: `raw`)
-- `S3_PROCESSED_PREFIX` — processed dataset prefix (default: `processed`)
-- `S3_REFINED_PREFIX` — refined dataset prefix (default: `refined`)
-- `S3_DASHBOARD_PREFIX` — dashboard dataset prefix (default: `processed/flights_dashboard`)
-- `S3_MODEL_PREFIX` — model artifacts prefix (default: `models`)
-- `S3_EXPLAIN_PREFIX` — SHAP outputs prefix (default: `explain`)
-- `S3_PREDICTIONS_PREFIX` — weekly predictions prefix (default: `predictions`)
-- `S3_ATHENA_RESULTS_PREFIX` — Athena query results prefix (default: `athena-results`)
-- `S3_PREDICTIONS_ATHENA_PREFIX` — Athena dataset prefix for predictions (default: `<S3_PREDICTIONS_PREFIX>/weekly_predictions`)
-- `S3_TABLE_LAYOUT` — S3 layout for Athena tables (`folder` recommended)
-- `ATHENA_DATABASE` — Athena database name (default: `flight_advisor`)
-- `ATHENA_TABLE` — table to sync partitions (default: `flights_processed`)
-- `ATHENA_PREDICTIONS_TABLE` — Athena table for weekly predictions (default: `weekly_predictions`)
-- `AWS_REGION` and `AWS_PROFILE` — AWS credentials resolution
-
-### Optional: S3 + Athena pipeline
-
-If you are running the pipeline on AWS (S3 + Athena), use the steps below.
-All dataset interactions default to S3 when `S3_BUCKET` is set.
-
-#### Step 1 — Upload raw datasets to S3 (CSV or Parquet)
-
-```bash
-python src/aws/uploader.py --bucket flight-advisor-fiap3 --input data/raw/flights.csv  --name flights.parquet
-python src/aws/uploader.py --bucket flight-advisor-fiap3 --input data/raw/airports.csv --name airports.parquet
-python src/aws/uploader.py --bucket flight-advisor-fiap3 --input data/raw/airlines.csv --name airlines.parquet
-```
-The uploader converts CSVs to Parquet and stores them in `s3://$S3_BUCKET/raw/`.
-
-#### Step 2 — Preprocessing (reads from `raw/`, writes to `processed/` and `refined/`)
-
-```bash
-python src/preprocessing.py --bucket flight-advisor-fiap3 --athena-table-layout folder
-```
-
-For a first run or schema change, add `--athena-drop-existing`.
-Preprocessing also registers Athena tables and syncs partitions unless you pass `--skip-athena`.
-Use `--skip-partitioned` or `--skip-dashboard` if you want to disable specific outputs.
-
-This step uploads the following to S3:
-- `s3://$S3_BUCKET/processed/flights_processed.parquet`
-- `s3://$S3_BUCKET/processed/train.parquet`
-- `s3://$S3_BUCKET/processed/test.parquet`
-- `s3://$S3_BUCKET/refined/airport_profiles.parquet`
-- `s3://$S3_BUCKET/refined/flights_processed.parquet`
-- `s3://$S3_BUCKET/refined/train.parquet`
-- `s3://$S3_BUCKET/refined/test.parquet`
-- `s3://$S3_BUCKET/processed/flights_processed/` (partitioned by `YEAR`/`MONTH` for Athena)
-- `s3://$S3_BUCKET/processed/flights_dashboard/` (slim dataset for the dashboard)
-- `s3://$S3_BUCKET/processed/train/` (Athena folder layout)
-- `s3://$S3_BUCKET/processed/test/` (Athena folder layout)
-- `s3://$S3_BUCKET/refined/airport_profiles/` (Athena folder layout)
-
-#### Step 3 — Athena setup (folder layout)
-
-```bash
-# Normal execution
-python src/aws/athena_client.py --bucket flight-advisor-fiap3 --format parquet --table-layout folder
-
-# See the DDL without executing
-python src/aws/athena_client.py --bucket flight-advisor-fiap3 --dry-run --format parquet --table-layout folder
-
-# Recreate tables from scratch
-python src/aws/athena_client.py --bucket flight-advisor-fiap3 --drop-existing --format parquet --table-layout folder
-```
-
-Notes:
-- `flights_processed` is partitioned (`YEAR`, `MONTH`) and uses **folder layout**
-  (e.g. `s3://$S3_BUCKET/processed/flights_processed/`).
-- `train`, `test`, and `airport_profiles` also use **folder layout** for Athena.
-
-Partition sync (preprocessing already runs this step):
-
-```bash
-# Athena Engine v3
-CALL system.sync_partition_metadata('flight_advisor','flights_processed','ADD');
-```
-
-```bash
-# Athena Engine v2 fallback
-MSCK REPAIR TABLE flight_advisor.flights_processed;
-```
-
-#### Step 4 — (Optional) Rebuild only the dashboard dataset
-
-```bash
-python dashboard/build_dashboard_dataset.py \
-  --input s3://$S3_BUCKET/processed/flights_processed/ \
-  --bucket flight-advisor-fiap3 \
-  --prefix processed/flights_dashboard \
-  --overwrite
-```
-
-Legacy option: `dashboard/parquet_writer.py` can still build the partitioned dataset from a local
-`data/flights_processed.parquet`, but preprocessing already produces the S3 partitions.
-
-#### Step 5 — Weekly predictions published to Athena
-
-```bash
-# One command: generate future flights + predict
-python src/jobs/weekly_pipeline.py --start-date 2026-03-23 --week-days 7 --rows 50000
-```
-
-This writes:
-- `s3://$S3_BUCKET/$S3_PREDICTIONS_PREFIX/weekly_predictions_YYYYMMDD.parquet` (artifact file)
-- `s3://$S3_BUCKET/$S3_PREDICTIONS_ATHENA_PREFIX/year=.../month=.../` (partitioned dataset)
-
-And registers/syncs:
-- `$ATHENA_DATABASE.$ATHENA_PREDICTIONS_TABLE` (Parquet, partitioned by `year`, `month`)
-
-Notes:
-- Athena publish runs by default when a bucket is available (`--bucket` / `S3_BUCKET`, or inferred from S3 input/output URIs).
-- To disable publish for a run, use:
-
-```bash
-python src/jobs/weekly_pipeline.py --skip-athena-publish ...
-```
-#### AWS credentials diagnostics
-
-```bash
-# Verify which identity is being used
-aws sts get-caller-identity
-
-# Test Athena access
-aws athena list-work-groups
-
-# Test Glue access
-aws glue get-database --name flight_advisor
-
-# Configure new credentials
-aws configure
-```
-
-### 4. Download and prepare the data
-
-```bash
-# Download from: https://www.kaggle.com/datasets/usdot/flight-delays
-# Place the three files in data/raw/:
-#   data/raw/flights.csv
-#   data/raw/airports.csv
-#   data/raw/airlines.csv
-
-python src/preprocessing.py
-```
-
-### 5. Train the models
-
-```bash
-python src/trainer.py
-# Default: reads s3://$S3_BUCKET/$S3_PROCESSED_PREFIX/train.parquet and test.parquet
-# and uploads artifacts to s3://$S3_BUCKET/$S3_MODEL_PREFIX/
-```
-
-Local fallback (explicit CSV paths + no upload):
-
-```bash
-python src/trainer.py --train data/processed/train.parquet --test data/processed/test.parquet --no-upload
-```
-
-### 6. Generate SHAP explanations
-
-```bash
-python src/explainer.py --input s3://$S3_BUCKET/$S3_PROCESSED_PREFIX/test.parquet --plot
-# Outputs: models/explain/shap_top_featured.csv and shap_summary.png
-# Uploads: s3://$S3_BUCKET/$S3_EXPLAIN_PREFIX/
-```
-
-### 7. Create the vector store (RAG)
-
-```bash
-python src/rag/indexer.py
-```
-
-### 8. Start the API
-
-```bash
-python src/api/main.py
-# Access: http://localhost:8000/
-```
-
-### 9. Start the dashboard
-
-```bash
-python dashboard/app.py
-```
-
----
-
-## 📓 Notebooks
-
-The notebooks are organized in order of execution and are self-contained — each includes context, code, and interpretation of the results.
-
-| Notebook | Content | Highlights |
-|---|---|---|
-| `01_eda.ipynb` | Complete data exploration | Delay maps, distributions, seasonal patterns |
-| `02_feature_engineering.ipynb` | Feature creation and validation | Time of day, holidays, target encoding of airports |
-| `03_supervised_models.ipynb` | Comparison of 3 models + SHAP | ROC curves, SHAP summary plots, confusion matrix |
-| `04_unsupervised_models.ipynb` | K-Means + PCA | Profile of each cluster, interactive 2D visualization |
-| `05_anomaly_detection.ipynb` | Isolation Forest | Ranking of the most anomalous flights |
-
----
-
-## 📊 Results
-
-> *Results will be updated after full execution with the dataset.*
-
-### Supervised Models
-
-| Model | ROC-AUC | F1-Score | Accuracy |
-|---|---|---|---|
-| Random Forest | — | — | — |
-| XGBoost | — | — | — |
-| Logistic Regression | — | — | — |
-
-### Top Features (SHAP)
-
-The most relevant features for delay prediction identified by the model will be documented here after training.
-
-### Airport Clusters (K-Means)
-
-| Cluster | Profile | Example Airports |
-|---|---|---|
-| 0 | — | — |
-| 1 | — | — |
-| 2 | — | — |
-| 3 | — | — |
-
----
-
-## 💼 Market Vision
-
-Flight Advisor is conceived as a commercial product with three primary segments:
-
-```
-B2C  →  Passengers   →  Dashboard + reliability score per flight
-B2B  →  Insurers     →  Delay risk API for dynamic pricing
-B2B  →  Airlines     →  Cascading delay prediction for fleet management
-```
-
-**Addressable Market:**
-- Travel insurance: **$23 billion** (global market)
-- B2B travel tech: **$4.2 billion** (estimated SAM)
-- Predictive flight tools: **$180 million** (direct niche)
-
-For a complete market analysis, competition, and roadmap, consult the [project conception document](docs/flight_advisor_conception.docx).
-
----
-
-## ⚠️ Limitations and Next Steps
-
-### Known Limitations
-
-| Limitation | Impact | Mitigation |
-|---|---|---|
-| Historical dataset (not real-time) | Does not capture current weather or live ATC events | Documented in the interface; V1.0 to integrate live APIs |
-| Imbalanced classes (~20% delays) | Risk of bias towards the majority class | `class_weight='balanced'` + SMOTE + F1/AUC metrics |
-| Restricted geographic scope (USA) | Patterns may not generalize to other countries | Scope documented; expansion on the roadmap |
-| Local embeddings (MiniLM) | Lower quality than API embeddings | Sufficient for MVP; upgrade planned |
-
-### Next Steps
-
-- [ ] Fine-tuning Qwen 3 with an aviation-specialized corpus
-- [ ] Integration with FlightAware API for real-time data
-- [ ] User authentication and query history
-- [ ] White-label module for insurers
-- [ ] Expansion to international flights
-
----
-
-## 🗂️ Dataset
-
-**Source:** [2015 Flight Delays and Cancellations — Kaggle](https://www.kaggle.com/datasets/usdot/flight-delays)
-
-The project uses **three CSV files** available in the dataset:
-
-| File | Description | Key |
-|---|---|---|
-| `flights.csv` | Main base — 31 columns, ~5.8M records of domestic US flights | — |
-| `airports.csv` | Geographic reference — name, city, state, lat/lon of each airport | `IATA_CODE` |
-| `airlines.csv` | Airline reference — IATA code and full name | `IATA_CODE` |
-
-The three files are related via foreign keys:
-
-```
-flights.csv ── AIRLINE             ──► airlines.csv (IATA_CODE)
-            ── ORIGIN_AIRPORT      ──► airports.csv (IATA_CODE)
-            ── DESTINATION_AIRPORT ──► airports.csv (IATA_CODE)
-```
-
-For the complete schema of all columns, cleaning rules, and feature engineering, consult [PROTOTYPE.md](PROTOTYPE.md).
-
-> ⚠️ The raw files are not versioned in the repository due to their size. Download from the link above and place them in `data/raw/`.
-
-### ☁️ Storage
-
-Parquet reads and writes default to **AWS S3** when `S3_BUCKET` is set (raw CSVs are converted on upload). Model artifacts and SHAP outputs are automatically uploaded to S3 after training and explanation runs, keeping environments in sync.
-
----
-
-## 👤 Author
-
-<div align="center">
-
-**Guilherme Lossio**
-
-Machine Learning Engineering — FIAP MLET 2026
-
-[![GitHub](https://img.shields.io/badge/GitHub-guilhermelossio-181717?style=flat-square&logo=github)](https://github.com/guilherme-lossio)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-guilhermelossio-0A66C2?style=flat-square&logo=linkedin)](https://linkedin.com/in/guilherme-lossio)
-[![Hugging Face](https://img.shields.io/badge/HuggingFace-guilhermelossio-FFD21E?style=flat-square&logo=huggingface&logoColor=black)](https://huggingface.co/GuilhermeL)
-
-</div>
-
----
-
-<div align="center">
-
-*Tech Challenge Phase 03 — FIAP Machine Learning Engineering*
-
-**Flight Advisor** · Made with ☕ and lots of Python
-
-</div>
+- `PROTOTYPE.md`: technical current-state reference
+- `docs/`: diagrams and SVG assets used during design and presentation

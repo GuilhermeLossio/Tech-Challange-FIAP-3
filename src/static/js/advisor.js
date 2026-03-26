@@ -1,7 +1,7 @@
 const DEFAULT_DISCOVERY_PROMPTS = [
-  "Quero buscar uma viagem para um pais especifico.",
-  "Qual o melhor dia ou horario para voar com menos risco de atraso?",
-  "Qual o melhor momento para comprar a passagem?",
+  "I want to search for a trip to a specific country.",
+  "What is the best day or time to fly with lower delay risk?",
+  "When is the best time to book the ticket?",
 ];
 
 const advisorState = {
@@ -40,11 +40,42 @@ function normalizeErrorMessage(message) {
   return String(message || "Unexpected error while calling /advise.");
 }
 
+function truncateSelectLabel(rawValue, maxLength = 44) {
+  const value = String(rawValue ?? "").trim();
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+}
+
 function riskClass(riskLevel) {
   const level = String(riskLevel || "").toUpperCase();
   if (level === "LOW") return "LOW";
   if (level === "MEDIUM") return "MEDIUM";
   return "HIGH";
+}
+
+function resolveDelayPrediction(rawValue, fallbackProbability = null) {
+  if (rawValue === true) return 1;
+  if (rawValue === false) return 0;
+
+  const numeric = Number(rawValue);
+  if (Number.isFinite(numeric)) {
+    if (numeric === 1) return 1;
+    if (numeric === 0) return 0;
+  }
+
+  const probability = Number(fallbackProbability);
+  if (Number.isFinite(probability)) {
+    return probability >= 0.5 ? 1 : 0;
+  }
+  return null;
+}
+
+function renderDelayPredictionChip(rawValue, fallbackProbability = null) {
+  const prediction = resolveDelayPrediction(rawValue, fallbackProbability);
+  if (prediction === null) return "";
+  const chipClass = prediction === 1 ? "error" : "ok";
+  const label = prediction === 1 ? "delay predicted" : "on-time predicted";
+  return `<span class="status-chip ${chipClass}">${label}</span>`;
 }
 
 function isLlmAdviceSource(adviceSource) {
@@ -77,6 +108,7 @@ function buildAdvisorPayload(form) {
     scheduled_departure: toNumberOrNull(data.get("scheduled_departure")),
     month: toNumberOrNull(data.get("month")),
     day_of_week: toNumberOrNull(data.get("day_of_week")),
+    distance: toNumberOrNull(data.get("distance")),
     question: toTextOrNull(data.get("question")),
   };
 }
@@ -125,6 +157,7 @@ function renderSuggestedFlights(data) {
       const risk = flight.risk_level
         ? `<span class="risk-badge ${riskClass(flight.risk_level)}">${escapeHtml(flight.risk_level)}</span>`
         : "";
+      const predictionChip = renderDelayPredictionChip(flight.delay_prediction, flight.delay_probability);
       const probability = Number.isFinite(Number(flight.delay_probability))
         ? `<span class="advisor-flight-prob">${(Number(flight.delay_probability) * 100).toFixed(1)}% predicted risk</span>`
         : "";
@@ -133,7 +166,7 @@ function renderSuggestedFlights(data) {
         <article class="advisor-flight-card">
           <div class="advisor-flight-head">
             <strong>${escapeHtml(flightCode)}</strong>
-            ${risk}
+            <div class="advisor-flight-head-badges">${predictionChip}${risk}</div>
           </div>
           <div class="advisor-flight-meta">${escapeHtml(route || "Alternative route")}</div>
           <div class="advisor-flight-meta">${escapeHtml(schedule || "Scheduled flight")}</div>
@@ -153,14 +186,25 @@ function renderSuggestedFlights(data) {
 
 function renderAssistantExtras(message) {
   const probability = Number(message.delay_probability);
-  const metrics = Number.isFinite(probability)
+  const probabilityMetric = Number.isFinite(probability)
+    ? `<span class="advisor-inline-prob">${(probability * 100).toFixed(1)}%</span>`
+    : "";
+  const riskBadge = message.risk_level
+    ? `<span class="risk-badge ${riskClass(message.risk_level)}">${escapeHtml(message.risk_level)}</span>`
+    : "";
+  const predictionChip = renderDelayPredictionChip(message.delay_prediction, message.delay_probability);
+  const sourceChip = `
+    <span class="status-chip ${isLlmAdviceSource(message.advice_source) ? "ok" : "warning"}">
+      ${escapeHtml(message.advice_source || "assistant")}
+    </span>
+  `;
+  const metrics = (probabilityMetric || riskBadge || predictionChip)
     ? `
       <div class="advisor-inline-metrics">
-        <span class="advisor-inline-prob">${(probability * 100).toFixed(1)}%</span>
-        <span class="risk-badge ${riskClass(message.risk_level)}">${escapeHtml(message.risk_level || "HIGH")}</span>
-        <span class="status-chip ${isLlmAdviceSource(message.advice_source) ? "ok" : "warning"}">
-          ${escapeHtml(message.advice_source || "assistant")}
-        </span>
+        ${probabilityMetric}
+        ${predictionChip}
+        ${riskBadge}
+        ${sourceChip}
       </div>
     `
     : "";
@@ -187,7 +231,7 @@ function renderAdvisorMessage(message) {
     <article class="advisor-message ${role}">
       <div class="advisor-message-bubble">
         <div class="advisor-message-meta">
-          <span>${role === "user" ? "Cliente" : "Advisor"}</span>
+          <span>${role === "user" ? "Customer" : "Advisor"}</span>
           ${timestamp ? `<span>${timestamp}</span>` : ""}
           ${mode}
         </div>
@@ -227,6 +271,7 @@ function renderPredictionResponse(target, data) {
   const probabilityText = Number.isFinite(delayProbability) ? (delayProbability * 100).toFixed(1) : "0.0";
   const adviceSource = String(data.advice_source || "heuristic");
   const adviceClass = isLlmAdviceSource(adviceSource) ? "ok" : "warning";
+  const predictionChip = renderDelayPredictionChip(data.delay_prediction, data.delay_probability);
 
   target.classList.remove("empty", "error");
   target.innerHTML = `
@@ -235,6 +280,7 @@ function renderPredictionResponse(target, data) {
         <strong class="prob-num">${probabilityText}</strong>
         <span class="prob-pct">% delay risk</span>
       </div>
+      ${predictionChip}
       <span class="risk-badge ${riskClass(data.risk_level)}">${escapeHtml(data.risk_level || "HIGH")}</span>
       <span class="status-chip ${adviceClass}">${escapeHtml(adviceSource)}</span>
       <div class="advice-inline">${escapeHtml(data.advice || "")}</div>
@@ -256,13 +302,16 @@ function setSelectOptions(selectEl, placeholder, items, valueFn, labelFn) {
 
   const firstOption = document.createElement("option");
   firstOption.value = "";
-  firstOption.textContent = placeholder;
+  firstOption.textContent = truncateSelectLabel(placeholder, 52);
+  firstOption.title = String(placeholder || "");
   selectEl.appendChild(firstOption);
 
   for (const item of items) {
     const option = document.createElement("option");
     option.value = valueFn(item);
-    option.textContent = labelFn(item);
+    const label = String(labelFn(item) || "");
+    option.textContent = truncateSelectLabel(label, 52);
+    option.title = label;
     selectEl.appendChild(option);
   }
 }
@@ -276,7 +325,7 @@ function buildAirportLabel(airport) {
   const parts = [];
   if (airport.city) parts.push(airport.city);
   if (airport.airport_name) parts.push(airport.airport_name);
-  return `${airport.iata_code} - ${parts.join(" / ") || "Aeroporto sem descricao"}`;
+  return `${airport.iata_code} - ${parts.join(" / ") || "Airport without description"}`;
 }
 
 function getAdvisorLocationElements(role) {
@@ -297,6 +346,101 @@ function resetAirportSelect(selectEl, message) {
   if (!selectEl) return;
   selectEl.disabled = true;
   setSelectOptions(selectEl, message, [], () => "", () => "");
+}
+
+function clearAdvisorRouteContext(showHint = true) {
+  const origin = getAdvisorLocationElements("origin");
+  const destination = getAdvisorLocationElements("destination");
+
+  if (origin.country) origin.country.value = "";
+  if (destination.country) destination.country.value = "";
+  if (origin.airport) resetAirportSelect(origin.airport, "Select the origin country first");
+  if (destination.airport) resetAirportSelect(destination.airport, "Select the destination country first");
+
+  for (const fieldName of ["airline", "scheduled_departure", "month", "day_of_week", "distance"]) {
+    const field = document.querySelector(`#advisor-form [name='${fieldName}']`);
+    if (field) field.value = "";
+  }
+
+  if (showHint) {
+    setAdvisorHint("Route context reset.");
+  }
+}
+
+function hasRouteDropdownValue(value) {
+  return Boolean(value && (toTextOrNull(value.country) || toTextOrNull(value.airport)));
+}
+
+function questionMentionsRouteContext(question) {
+  const text = String(question || "").trim().toLowerCase();
+  if (!text) return false;
+  return [
+    /\b[a-z0-9]{3}\s*(?:-|->|>)\s*[a-z0-9]{3}\b/i,
+    /\bsaindo\s+(?:de|do|da)\b/i,
+    /\borigem\b/i,
+    /\bdestino\b/i,
+    /\bde\s+.+\s+(?:para|pra|pro)\s+/i,
+    /\b(?:para|pra|pro)\s+[a-z]/i,
+  ].some((pattern) => pattern.test(text));
+}
+
+function findLatestRouteUpdates(messages) {
+  const items = Array.isArray(messages) ? messages : [];
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const routeUpdates = items[index]?.route_updates;
+    if (routeUpdates && (hasRouteDropdownValue(routeUpdates.origin) || hasRouteDropdownValue(routeUpdates.destination))) {
+      return routeUpdates;
+    }
+  }
+  return null;
+}
+
+async function applyAdvisorLocationUpdate(role, rawUpdate) {
+  const update = rawUpdate || {};
+  const nextCountry = toTextOrNull(update.country);
+  const nextAirport = toTextOrNull(update.airport);
+  if (!nextCountry && !nextAirport) return;
+
+  const { country, airport } = getAdvisorLocationElements(role);
+  if (!country || !airport) return;
+
+  await ensureCountryOptions();
+
+  if (!nextCountry) {
+    if (nextAirport && Array.from(airport.options).some((option) => option.value === nextAirport)) {
+      airport.value = nextAirport;
+    }
+    return;
+  }
+
+  if (!Array.from(country.options).some((option) => option.value === nextCountry)) {
+    return;
+  }
+
+  const previousCountry = country.value || "";
+  country.value = nextCountry;
+
+  const airportAlreadyAvailable = nextAirport
+    ? Array.from(airport.options).some((option) => option.value === nextAirport)
+    : false;
+  if (previousCountry !== nextCountry || airport.disabled || (nextAirport && !airportAlreadyAvailable)) {
+    await loadAirportsByCountry(role, nextCountry);
+  }
+
+  if (nextAirport) {
+    airport.value = Array.from(airport.options).some((option) => option.value === nextAirport) ? nextAirport : "";
+  } else if (previousCountry !== nextCountry) {
+    airport.value = "";
+  }
+}
+
+async function applyAdvisorRouteUpdates(routeUpdates) {
+  if (!routeUpdates) return;
+  if (!hasRouteDropdownValue(routeUpdates.origin) && !hasRouteDropdownValue(routeUpdates.destination)) return;
+
+  await applyAdvisorLocationUpdate("origin", routeUpdates.origin);
+  await applyAdvisorLocationUpdate("destination", routeUpdates.destination);
+  setAdvisorHint("Route filters updated from the conversation.");
 }
 
 async function fetchJson(url, options = {}) {
@@ -404,6 +548,7 @@ async function resetAdvisorSession() {
     const data = await fetchJson("/api/advisor/reset", { method: "POST" });
     updateAdvisorSessionMeta(data.session_id);
     renderAdvisorMessages(data.messages);
+    clearAdvisorRouteContext();
     const questionField = document.getElementById("advisor-question");
     if (questionField) questionField.value = "";
   } catch (error) {
@@ -424,12 +569,8 @@ async function resetAdvisorSession() {
 
 async function submitPredictionForm(form, resultEl) {
   const payload = buildPredictionPayload(form);
-  if (!payload.origin_airport || !payload.destination_airport || !payload.airline) {
-    renderPredictionError(resultEl, "Fill in origin, destination and airline.");
-    return;
-  }
-  if (payload.scheduled_departure === null) {
-    renderPredictionError(resultEl, "Scheduled departure must be a number (HHMM).");
+  if (!payload.origin_airport || !payload.destination_airport) {
+    renderPredictionError(resultEl, "Fill in origin and destination.");
     return;
   }
 
@@ -472,6 +613,10 @@ async function submitAdvisorForm(form) {
     });
     updateAdvisorSessionMeta(body.session_id);
     renderAdvisorMessages(body.messages);
+    if (questionMentionsRouteContext(payload.question)) {
+      clearAdvisorRouteContext(false);
+    }
+    await applyAdvisorRouteUpdates(body.route_updates || findLatestRouteUpdates(body.messages));
     const questionField = document.getElementById("advisor-question");
     if (questionField) {
       questionField.value = "";
@@ -563,6 +708,7 @@ async function initAdvisorLocationSelectors() {
 async function initAdvisorPage() {
   if (!document.getElementById("advisor-form")) return;
   await initAdvisorLocationSelectors();
+  clearAdvisorRouteContext(false);
   await loadAdvisorHistory();
 }
 

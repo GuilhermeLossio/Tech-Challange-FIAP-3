@@ -17,44 +17,96 @@ DEFAULT_MODEL = "nvidia/llama-3.1-nemotron-70b-instruct"
 DEFAULT_HUGGINGFACE_BASE_URL = "https://router.huggingface.co/v1"
 DEFAULT_PROVIDER = "nvidia"
 DEFAULT_MAX_TOKENS = 1024
+DEFAULT_COMPACT_MAX_TOKENS = 512
+DEFAULT_GUIDE_MAX_TOKENS = 2800
 DEFAULT_TEMPERATURE = 0.4
-# Janela máxima de mensagens enviadas ao LLM (evita estouro de contexto)
+# Maximum number of messages sent to the LLM to avoid context overflow
 MAX_HISTORY_MESSAGES = 10
 RETRY_ATTEMPTS = 3
 RETRY_BACKOFF_BASE = 1.5
 RETRY_STATUS_CODES = {429, 500, 502, 503, 504}
 
 FLIGHT_ADVISOR_SYSTEM_PROMPT = """
-## Papel
-Você é um Flight Advisor, assistente especializado em viagens aéreas. Você atende viajantes corporativos, turistas, famílias e viajantes solo. Seu objetivo é ajudar o cliente a encontrar, comparar e comprar passagens aéreas da melhor forma possível.
+## Role
+You are Flight Advisor, a specialist assistant for air travel. You help business travelers, tourists, families, and solo travelers. Your goal is to help the customer find, compare, and buy airline tickets in the best possible way.
 
-## Comportamento principal
-1. Seja proativo. Não bloqueie a conversa esperando todos os dados. Se faltar data, sugira datas próximas com bom custo-benefício. Se faltar origem, pergunte de forma natural ou use o contexto disponível. Se faltar número de passageiros, assuma 1 adulto e informe isso ao cliente. Se o destino estiver em aberto, sugira opções com base no perfil e nos interesses citados.
-2. Nunca invente voos, preços, horários, disponibilidade, aeroportos, probabilidades ou confirmações de compra.
-3. Use apenas os dados estruturados disponíveis na mensagem do usuário e respeite estritamente o objeto `assistant_runtime` enviado nela.
-4. Se `assistant_runtime.tooling.search_flights.enabled` for true e houver resultados estruturados de busca, apresente opções reais de forma clara e comparativa. Se estiver false, deixe claro que a busca em tempo real ainda não está integrada neste backend e não finja ter executado a consulta.
-5. Faça sugestões inteligentes com base em custo-benefício, preferências inferidas e perfil do cliente. Explique brevemente o motivo de cada sugestão.
-6. Só conduza fluxo de compra se `assistant_runtime.tooling.booking_flow.enabled` for true. Nunca finalize compra sem confirmação explícita do cliente.
-7. Se a API ou a ferramenta não tiver resultados, informe isso com transparência e proponha alternativas, como datas próximas, aeroportos alternativos ou ajustes de rota.
-8. Não armazene dados sensíveis além da sessão atual.
+## Core behavior
+1. Be proactive. Do not block the conversation waiting for every detail. If the date is missing, suggest nearby dates with good value. If the origin is missing, ask naturally or use the available context. If the number of passengers is missing, assume 1 adult and tell the customer. If the destination is still open, suggest options based on the profile and interests mentioned.
+2. Never invent flights, prices, schedules, availability, airports, probabilities, or purchase confirmations.
+3. Use only the structured data available in the user's message and strictly follow the `assistant_runtime` object included in it.
+4. If `assistant_runtime.tooling.search_flights.enabled` is true and there are structured search results, present real options clearly and comparatively. If it is false, make it clear that real-time search is not integrated in this backend yet and do not pretend the query was executed.
+5. Make smart suggestions based on value, inferred preferences, and the customer's profile. Briefly explain the reason behind each suggestion.
+6. Only move into a booking flow if `assistant_runtime.tooling.booking_flow.enabled` is true. Never complete a purchase without the customer's explicit confirmation.
+7. If the API or tool has no results, say so transparently and propose alternatives such as nearby dates, alternate airports, or route adjustments.
+8. Do not store sensitive data beyond the current session.
 
-## Tom e comunicação
-- Seja direto, amigável e eficiente.
-- Adapte o vocabulário ao perfil do cliente.
-- Evite jargões de aviação sem explicar.
-- Em caso de dúvida sobre o perfil, use tom neutro e profissional.
-- Responda em português do Brasil, a menos que o cliente tenha escrito claramente em outro idioma.
+## Tone and communication
+- Be direct, friendly, and efficient.
+- Adapt the vocabulary to the customer's profile.
+- Avoid aviation jargon unless you explain it.
+- If the user's profile is unclear, use a neutral and professional tone.
+- Reply in Brazilian Portuguese unless the customer clearly wrote in another language.
 """.strip()
 
 DISCOVERY_STYLE_PROMPT = """
 ## Discovery
-- Se a pergunta for ampla, exploratória ou focada em planejamento, não pule direto para atraso.
-- Primeiro entenda o que o cliente realmente precisa.
-- Nesses casos, responda de forma mais amigável, consultiva e acolhedora.
-- Se houver destino ou região no contexto, você pode comentar clima típico, perfil da região, melhor época em termos gerais e atividades turísticas comuns.
-- Quando falar de clima ou weather, trate isso como orientação geral da região, nunca como previsão em tempo real, a menos que exista uma ferramenta ou dado específico para isso.
-- Só mencione probabilidade, risco, fatores de atraso ou números operacionais quando o cliente pedir isso de forma explícita.
+- If the question is broad, exploratory, or focused on planning, do not jump straight to delays.
+- First understand what the customer actually needs.
+- In those cases, respond in a friendlier, more consultative, and more welcoming way.
+- If there is a destination or region in the context, you may comment on the typical climate, the general profile of the region, the usual best time to visit, and common tourist activities.
+- When talking about climate or weather, treat it as general regional guidance, never as a real-time forecast unless there is a specific tool or dataset for that.
+- Only mention probability, risk, delay factors, or operational numbers when the customer asks for that explicitly.
 """.strip()
+
+COMPACT_SYSTEM_PROMPT = """
+You are a concise flight advisor.
+- Reply in the user's language. Default to Brazilian Portuguese.
+- Use only the structured context provided.
+- Never invent flights, prices, availability, delay metrics, or live weather.
+- If the request is broad, stay in discovery mode and avoid delay metrics unless explicitly asked.
+- If key data is missing, ask only one or two short follow-up questions.
+- Be direct, practical, and brief.
+""".strip()
+
+
+def _question_from_context(context: dict[str, Any] | None) -> str:
+    if not isinstance(context, dict):
+        return ""
+    question = context.get("question")
+    if isinstance(question, str):
+        return question.strip()
+    return ""
+
+
+def _is_complete_travel_guide_request(context: dict[str, Any] | None) -> bool:
+    text = _question_from_context(context).casefold()
+    if not text:
+        return False
+
+    explicit_markers = (
+        "complete travel guide",
+        "full travel guide",
+        "travel guide from",
+        "guia completo",
+        "roteiro completo",
+        "do not leave any section incomplete",
+        "respond in english",
+        "best time to visit",
+        "top tourist attractions",
+        "conclusion with next steps",
+    )
+    if any(marker in text for marker in explicit_markers):
+        return True
+
+    guide_terms = (
+        "guide", "travel guide", "guia", "roteiro",
+    )
+    content_terms = (
+        "climate", "weather", "attractions", "tourist attractions",
+        "gastronomy", "food", "accommodation", "hotel", "transportation",
+        "gastronomia", "hospedagem", "transporte", "clima",
+    )
+    return any(term in text for term in guide_terms) and any(term in text for term in content_terms)
 
 
 @dataclass(frozen=True)
@@ -77,7 +129,7 @@ class LLMProviderConfig:
 
 
 # ---------------------------------------------------------------------------
-# Helpers de configuração via variáveis de ambiente
+# Environment-variable configuration helpers
 # ---------------------------------------------------------------------------
 
 def _env_flag(name: str, default: str = "0") -> bool:
@@ -208,6 +260,14 @@ def _provider_config() -> LLMProviderConfig:
     )
 
 
+def _compact_mode_enabled(config: LLMProviderConfig, context: dict[str, Any] | None = None) -> bool:
+    if _is_complete_travel_guide_request(context):
+        return False
+    if _env_flag("ADVISOR_LLM_COMPACT_MODE", "0"):
+        return True
+    return "qwen" in (config.model or "").casefold()
+
+
 def llm_enabled() -> bool:
     if not _env_flag("ADVISOR_LLM_ENABLED", "1"):
         return False
@@ -228,7 +288,7 @@ should_use_nemotron = should_use_llm
 
 
 # ---------------------------------------------------------------------------
-# Processamento de mensagens
+# Message processing
 # ---------------------------------------------------------------------------
 
 def _flatten_content(content: Any) -> str:
@@ -254,19 +314,30 @@ def _sanitize_output(text: str) -> str:
     return cleaned
 
 
-def _system_prompt(system_prompt: str | None = None) -> str:
-    base_prompt = (system_prompt or FLIGHT_ADVISOR_SYSTEM_PROMPT).strip()
+def _system_prompt(system_prompt: str | None = None, compact: bool = False) -> str:
     extra = (os.getenv("ADVISOR_LLM_PROMPT_APPEND") or "").strip()
+    if compact:
+        return f"{COMPACT_SYSTEM_PROMPT}\n\n## Additional rules\n{extra}" if extra else COMPACT_SYSTEM_PROMPT
+
+    base_prompt = (system_prompt or FLIGHT_ADVISOR_SYSTEM_PROMPT).strip()
     if not extra:
         return f"{base_prompt}\n\n{DISCOVERY_STYLE_PROMPT}"
-    return f"{base_prompt}\n\n{DISCOVERY_STYLE_PROMPT}\n\n## Regras adicionais\n{extra}"
+    return f"{base_prompt}\n\n{DISCOVERY_STYLE_PROMPT}\n\n## Additional rules\n{extra}"
+
+
+def _history_limit(config: LLMProviderConfig, context: dict[str, Any] | None = None) -> int:
+    if _is_complete_travel_guide_request(context):
+        return max(2, _as_int("ADVISOR_LLM_GUIDE_MAX_HISTORY_MESSAGES", 6))
+    if _compact_mode_enabled(config, context):
+        return max(2, _as_int("QWEN_MAX_HISTORY_MESSAGES", 4))
+    return max(2, _as_int("ADVISOR_LLM_MAX_HISTORY_MESSAGES", MAX_HISTORY_MESSAGES))
 
 
 def _trim_history(messages: list[dict[str, Any]], max_messages: int = MAX_HISTORY_MESSAGES) -> list[dict[str, Any]]:
     non_system = [m for m in messages if m.get("role") != "system"]
     if len(non_system) > max_messages:
         logger.debug(
-            "Histórico truncado de %d para %d mensagens antes de enviar ao LLM.",
+            "History trimmed from %d to %d messages before sending to the LLM.",
             len(non_system),
             max_messages,
         )
@@ -274,28 +345,101 @@ def _trim_history(messages: list[dict[str, Any]], max_messages: int = MAX_HISTOR
     return non_system
 
 
+def _prune_context(value: Any) -> Any:
+    if isinstance(value, dict):
+        cleaned: dict[str, Any] = {}
+        for key, item in value.items():
+            pruned = _prune_context(item)
+            if pruned in (None, "", [], {}):
+                continue
+            cleaned[key] = pruned
+        return cleaned
+    if isinstance(value, list):
+        cleaned_items = [_prune_context(item) for item in value]
+        return [item for item in cleaned_items if item not in (None, "", [], {})]
+    return value
+
+
+def _compact_context(value: Any, key: str | None = None) -> Any:
+    if isinstance(value, dict):
+        if key == "assistant_runtime":
+            tooling = value.get("tooling") or {}
+            restrictions = value.get("restrictions") or {}
+            compact_runtime = {
+                "tooling": {
+                    "search_flights_enabled": bool((tooling.get("search_flights") or {}).get("enabled")),
+                    "booking_flow_enabled": bool((tooling.get("booking_flow") or {}).get("enabled")),
+                    "fare_history_enabled": bool((tooling.get("fare_history") or {}).get("enabled")),
+                },
+                "restrictions": restrictions,
+            }
+            return _prune_context(compact_runtime)
+
+        compact_dict: dict[str, Any] = {}
+        for child_key, child_value in value.items():
+            compact_value = _compact_context(child_value, child_key)
+            if compact_value in (None, "", [], {}):
+                continue
+            compact_dict[child_key] = compact_value
+        return compact_dict
+
+    if isinstance(value, list):
+        item_limit = {
+            "top_factors": 3,
+            "suggested_flights": 2,
+            "clarification_prompts": 2,
+            "allowed_topics": 3,
+            "missing_fields": 4,
+        }.get(key, 4)
+        compact_list = []
+        for item in value[:item_limit]:
+            compact_value = _compact_context(item)
+            if compact_value in (None, "", [], {}):
+                continue
+            compact_list.append(compact_value)
+        return compact_list
+
+    if isinstance(value, str):
+        text = value.strip()
+        if len(text) > 280:
+            return text[:277].rstrip() + "..."
+        return text
+
+    return value
+
+
 def _build_messages(
+    config: LLMProviderConfig,
     context: dict[str, Any],
     history: list[dict[str, Any]] | None = None,
     system_prompt: str | None = None,
 ) -> list[dict[str, str]]:
     """
-    Monta o array de mensagens para a API.
-    - Inclui o system prompt
-    - Injeta histórico recente (já truncado)
+    Build the message array for the API.
+    - Includes the system prompt
+    - Injects the recent history after trimming
     """
-    msgs: list[dict[str, str]] = [{"role": "system", "content": _system_prompt(system_prompt)}]
+    compact_mode = _compact_mode_enabled(config, context)
+    msgs: list[dict[str, str]] = [{"role": "system", "content": _system_prompt(system_prompt, compact=compact_mode)}]
 
     if history:
-        trimmed = _trim_history(history)
+        trimmed = _trim_history(history, max_messages=_history_limit(config, context))
         msgs.extend(trimmed)
 
-    # Contexto atual serializado de forma compacta
+    context_payload = _prune_context(_compact_context(context) if compact_mode else context)
     msgs.append({
         "role": "user",
-        "content": json.dumps(context, ensure_ascii=False, separators=(",", ":")),
+        "content": json.dumps(context_payload, ensure_ascii=False, separators=(",", ":")),
     })
     return msgs
+
+
+def _resolve_max_tokens(config: LLMProviderConfig, context: dict[str, Any] | None = None) -> int:
+    if _is_complete_travel_guide_request(context):
+        return max(512, _as_int("ADVISOR_LLM_GUIDE_MAX_TOKENS", DEFAULT_GUIDE_MAX_TOKENS))
+    if _compact_mode_enabled(config, context):
+        return max(96, _as_int("QWEN_MAX_TOKENS", DEFAULT_COMPACT_MAX_TOKENS))
+    return max(128, _as_int("NEMOTRON_MAX_TOKENS", DEFAULT_MAX_TOKENS))
 
 
 # ---------------------------------------------------------------------------
@@ -303,7 +447,7 @@ def _build_messages(
 # ---------------------------------------------------------------------------
 
 def _iter_stream_chunks(response: requests.Response) -> Generator[str, None, None]:
-    """Itera sobre chunks SSE e extrai os deltas de texto."""
+    """Iterate over SSE chunks and extract text deltas."""
     for raw_line in response.iter_lines():
         if not raw_line:
             continue
@@ -331,11 +475,11 @@ def generate_llm_advice_stream(
     config = _provider_config()
     endpoint = f"{config.base_url}/chat/completions"
     timeout_sec = max(5, _as_int("NEMOTRON_TIMEOUT_SEC", 30))
-    max_tokens = max(128, _as_int("NEMOTRON_MAX_TOKENS", DEFAULT_MAX_TOKENS))
+    max_tokens = _resolve_max_tokens(config, context)
 
     payload: dict[str, Any] = {
         "model": config.model,
-        "messages": _build_messages(context, history, system_prompt),
+        "messages": _build_messages(config, context, history, system_prompt),
         "max_tokens": max_tokens,
         "temperature": _as_float("NEMOTRON_TEMPERATURE", DEFAULT_TEMPERATURE),
         "top_p": _as_float("NEMOTRON_TOP_P", 0.95),
@@ -354,7 +498,7 @@ def generate_llm_advice_stream(
 
 
 # ---------------------------------------------------------------------------
-# Chamada síncrona principal (com retry)
+# Main synchronous call with retry
 # ---------------------------------------------------------------------------
 
 def generate_llm_advice(
@@ -365,12 +509,12 @@ def generate_llm_advice(
     config = _provider_config()
     endpoint = f"{config.base_url}/chat/completions"
     timeout_sec = max(5, _as_int("NEMOTRON_TIMEOUT_SEC", 20))
-    max_tokens = max(128, _as_int("NEMOTRON_MAX_TOKENS", DEFAULT_MAX_TOKENS))
+    max_tokens = _resolve_max_tokens(config, context)
     attempts = max(1, _as_int("NEMOTRON_RETRY_ATTEMPTS", RETRY_ATTEMPTS))
 
     payload: dict[str, Any] = {
         "model": config.model,
-        "messages": _build_messages(context, history, system_prompt),
+        "messages": _build_messages(config, context, history, system_prompt),
         "max_tokens": max_tokens,
         "temperature": _as_float("NEMOTRON_TEMPERATURE", DEFAULT_TEMPERATURE),
         "top_p": _as_float("NEMOTRON_TOP_P", 0.95),
@@ -404,7 +548,7 @@ def generate_llm_advice(
             last_exc = exc
             if attempt < attempts:
                 wait = RETRY_BACKOFF_BASE ** attempt
-                logger.warning("Timeout na tentativa %d/%d. Aguardando %.1fs...", attempt, attempts, wait)
+                logger.warning("Timeout on attempt %d/%d. Waiting %.1fs...", attempt, attempts, wait)
                 time.sleep(wait)
                 continue
             raise RuntimeError(f"{config.label} request timed out after {timeout_sec}s.") from exc
@@ -423,12 +567,12 @@ def generate_llm_advice(
             last_exc = exc
             if attempt < attempts:
                 wait = RETRY_BACKOFF_BASE ** attempt
-                logger.warning("Erro de conexão na tentativa %d/%d: %s", attempt, attempts, exc)
+                logger.warning("Connection error on attempt %d/%d: %s", attempt, attempts, exc)
                 time.sleep(wait)
                 continue
             raise RuntimeError(f"{config.label} connection error: {exc}") from exc
 
-        # Sucesso — processa resposta
+        # Success: process response
         try:
             body = response.json()
         except ValueError as exc:

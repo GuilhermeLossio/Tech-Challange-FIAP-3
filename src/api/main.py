@@ -2,7 +2,8 @@
 """Flask app for Flight Advisor (frontend + JSON API)."""
 from __future__ import annotations
 
-import json, os, sys
+import json, os, re, sys, unicodedata
+from collections import defaultdict
 from datetime import date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
@@ -119,7 +120,18 @@ class SuggestedFlight(BaseModel):
     destination_airport: str | None = None
     scheduled_departure: str | None = None
     delay_probability: float | None = None
+    delay_prediction: int | None = None
     risk_level: str | None = None
+
+
+class RouteDropdownValue(BaseModel):
+    country: str | None = None
+    airport: str | None = None
+
+
+class RouteDropdownUpdates(BaseModel):
+    origin: RouteDropdownValue | None = None
+    destination: RouteDropdownValue | None = None
 
 
 class ChatMessage(BaseModel):
@@ -128,16 +140,19 @@ class ChatMessage(BaseModel):
     created_at: str
     mode: str | None = None
     delay_probability: float | None = None
+    delay_prediction: int | None = None
     risk_level: str | None = None
     advice_source: str | None = None
     advice_model: str | None = None
     top_factors: List[Factor] = Field(default_factory=list)
     suggested_flights: List[SuggestedFlight] = Field(default_factory=list)
     clarification_prompts: List[str] = Field(default_factory=list)
+    route_updates: RouteDropdownUpdates | None = None
 
 
 class AdviseResponse(BaseModel):
     delay_probability: float | None = None
+    delay_prediction: int | None = None
     risk_level: str | None = None
     top_factors: List[Factor]
     advice: str
@@ -148,6 +163,7 @@ class AdviseResponse(BaseModel):
     clarification_prompts: List[str] = Field(default_factory=list)
     session_id: str | None = None
     messages: List[ChatMessage] = Field(default_factory=list)
+    route_updates: RouteDropdownUpdates | None = None
 
 
 class PredictRequest(BaseModel):
@@ -182,6 +198,20 @@ DISCOVERY_PROMPTS = [
     "What is the best day or time to fly with lower delay risk?",
     "When is the best time to buy my ticket?",
 ]
+ROUTE_CONTEXT_FIELDS = (
+    "origin_country",
+    "origin_airport",
+    "destination_country",
+    "destination_airport",
+    "airline",
+    "scheduled_departure",
+    "flight_date",
+    "year",
+    "month",
+    "day",
+    "day_of_week",
+    "distance",
+)
 ADVISOR_CHAT_DIR = ROOT_DIR / "data" / "runtime" / "advisor_sessions"
 ADVISOR_CHAT_MAX_MESSAGES = max(4, int(os.getenv("ADVISOR_CHAT_MAX_MESSAGES", "16")))
 ADVISOR_CHAT_MAX_CONTENT = max(120, int(os.getenv("ADVISOR_CHAT_MAX_CONTENT", "1200")))
@@ -290,12 +320,14 @@ def assistant_chat_message(response: AdviseResponse) -> ChatMessage:
         created_at=now_iso(),
         mode=response.mode,
         delay_probability=response.delay_probability,
+        delay_prediction=response.delay_prediction,
         risk_level=response.risk_level,
         advice_source=response.advice_source,
         advice_model=response.advice_model,
         top_factors=response.top_factors,
         suggested_flights=response.suggested_flights,
         clarification_prompts=response.clarification_prompts,
+        route_updates=response.route_updates,
     )
 
 def season_from_month(m: int) -> str:
@@ -370,14 +402,14 @@ def apply_rate_maps(df: pd.DataFrame, maps: Dict[str, Dict[str, float]], gr: flo
 def build_features(req, maps, global_rate, route_distance_map, global_distance) -> pd.DataFrame:
     flight_date = infer_date(req)
     dow = req.day_of_week or (flight_date.weekday() + 1)
-    route = f"{req.origin_airport}_{req.destination_airport}"
-    distance = req.distance or route_distance_map.get(route) or global_distance
+    resolved = resolve_prediction_inputs(req, route_distance_map, global_distance)
+    route = resolved["route"]
     df = pd.DataFrame([{
         "YEAR": flight_date.year, "MONTH": req.month or flight_date.month,
         "DAY": flight_date.day, "DAY_OF_WEEK": dow,
-        "SCHEDULED_DEPARTURE": int(req.scheduled_departure),
-        "DISTANCE": distance, "ORIGIN_AIRPORT": req.origin_airport,
-        "DESTINATION_AIRPORT": req.destination_airport, "AIRLINE": req.airline,
+        "SCHEDULED_DEPARTURE": resolved["scheduled_departure"],
+        "DISTANCE": resolved["distance"], "ORIGIN_AIRPORT": req.origin_airport,
+        "DESTINATION_AIRPORT": req.destination_airport, "AIRLINE": resolved["airline"],
     }])
     hours = (df["SCHEDULED_DEPARTURE"].fillna(0).astype(int) // 100).clip(0, 23)
     df["TIME_OF_DAY"] = hours.map(time_of_day)
@@ -400,14 +432,124 @@ def compute_top_factors(df: pd.DataFrame, global_rate: float, top_k: int = 3) ->
     )
     return [Factor(feature=n, impact=i) for n, _, i in factors[:top_k]]
 
+
+def build_advisor_top_factors(
+    df: pd.DataFrame,
+    payload: AdviseRequest,
+    global_rate: float,
+    resolved_inputs: dict[str, Any],
+) -> List[Factor]:
+    factors: list[Factor] = []
+    if not payload.airline:
+        factors.append(Factor(
+            feature="carrier_fallback",
+            impact="No airline was provided, so carrier-specific behavior falls back to route and global historical averages.",
+        ))
+
+    distance = resolved_inputs.get("distance")
+    distance_source = resolved_inputs.get("distance_source")
+    if distance is not None:
+        if distance_source == "request":
+            impact = f"Used the provided flight distance of {distance:.0f} miles as an input signal."
+        elif distance_source == "route_average":
+            impact = f"Estimated distance from the historical average for this route: {distance:.0f} miles."
+        else:
+            impact = f"Route distance was unavailable, so the model used the global average distance of {distance:.0f} miles."
+        factors.append(Factor(feature="distance", impact=impact))
+
+    for factor in compute_top_factors(df, global_rate):
+        if any(existing.feature == factor.feature for existing in factors):
+            continue
+        factors.append(factor)
+    return factors[:3]
+
 def risk_level(p: float) -> str:
     return "HIGH" if p >= 0.7 else "MEDIUM" if p >= 0.4 else "LOW"
+
+
+def prediction_threshold() -> float:
+    try:
+        return min(max(float(os.getenv("ADVISOR_DELAY_THRESHOLD", "0.5")), 0.0), 1.0)
+    except ValueError:
+        return 0.5
+
+
+def delay_prediction_from_probability(probability: float, threshold: float | None = None) -> int:
+    cutoff = prediction_threshold() if threshold is None else threshold
+    return int(float(probability) >= cutoff)
+
+
+def delay_prediction_text(prediction: int | None) -> str:
+    if prediction is None:
+        return "The model could not classify the delay outcome."
+    return (
+        "The model predicts this flight is more likely to be delayed."
+        if int(prediction) == 1 else
+        "The model predicts this flight is more likely to operate on time."
+    )
+
+
+def clamp_scheduled_departure(value: Any, default: int = 1200) -> int:
+    try:
+        raw = int(float(value))
+    except (TypeError, ValueError):
+        raw = default
+    raw = max(0, min(raw, 2359))
+    hour = max(0, min(raw // 100, 23))
+    minute = max(0, min(raw % 100, 59))
+    return hour * 100 + minute
+
+
+def default_scheduled_departure() -> int:
+    return clamp_scheduled_departure(os.getenv("ADVISOR_DEFAULT_SCHEDULED_DEPARTURE", "1200"))
+
+
+def default_airline_code() -> str:
+    code = (os.getenv("ADVISOR_DEFAULT_AIRLINE") or "UNKNOWN").strip().upper()
+    return code or "UNKNOWN"
+
+
+def resolve_prediction_inputs(
+    req: AdviseRequest,
+    route_distance_map: Dict[str, float],
+    global_distance: float,
+) -> dict[str, Any]:
+    route = f"{req.origin_airport}_{req.destination_airport}"
+    if req.distance is not None:
+        distance = float(req.distance)
+        distance_source = "request"
+    elif route_distance_map.get(route) is not None:
+        distance = float(route_distance_map[route])
+        distance_source = "route_average"
+    else:
+        distance = float(global_distance)
+        distance_source = "global_average"
+
+    return {
+        "route": route,
+        "distance": distance,
+        "distance_source": distance_source,
+        "airline": req.airline or default_airline_code(),
+        "airline_source": "request" if req.airline else "fallback",
+        "scheduled_departure": (
+            clamp_scheduled_departure(req.scheduled_departure)
+            if req.scheduled_departure is not None else
+            default_scheduled_departure()
+        ),
+        "scheduled_departure_source": "request" if req.scheduled_departure is not None else "fallback",
+    }
+
+def has_any_date_context(req: AdviseRequest) -> bool:
+    return bool(req.flight_date or req.year or req.month or req.day or req.day_of_week)
 
 def has_full_route_context(req: AdviseRequest) -> bool:
     return bool(
         req.origin_airport and req.destination_airport and req.airline
         and req.scheduled_departure is not None
     )
+
+def has_specific_flight_prediction_context(req: AdviseRequest) -> bool:
+    return has_full_route_context(req) and has_any_date_context(req)
 
 def has_any_route_context(req: AdviseRequest) -> bool:
     return bool(
@@ -421,10 +563,6 @@ def missing_route_fields(req: AdviseRequest) -> list[str]:
         missing.append("origin airport")
     if not req.destination_airport:
         missing.append("destination airport")
-    if not req.airline:
-        missing.append("airline")
-    if req.scheduled_departure is None:
-        missing.append("scheduled departure")
     return missing
 
 
@@ -440,6 +578,8 @@ def question_requests_delay_assessment(question: str | None) -> bool:
         "horario para voar", "horário para voar", "dia para voar",
         "risk", "on-time performance", "best time to fly", "best day to fly",
         "departure time", "flight risk", "schedule risk",
+        "previsao", "previsão", "prever", "forecast", "prediction",
+        "weekly", "semanal", "semana",
     )
     if any(token in text for token in positive_tokens):
         return True
@@ -460,8 +600,19 @@ def question_requests_delay_assessment(question: str | None) -> bool:
     return False
 
 
+def should_auto_run_delay_prediction(question: str | None) -> bool:
+    return not (question or "").strip() or question_requests_delay_assessment(question)
+
+
 def should_run_route_prediction(req: AdviseRequest) -> bool:
-    return has_full_route_context(req) and question_requests_delay_assessment(req.question)
+    return has_specific_flight_prediction_context(req) and should_auto_run_delay_prediction(req.question)
+
+def should_run_weekly_route_prediction(req: AdviseRequest) -> bool:
+    return bool(
+        req.origin_airport and req.destination_airport
+        and should_auto_run_delay_prediction(req.question)
+        and not should_run_route_prediction(req)
+    )
 
 def detect_discovery_topic(question: str | None) -> str:
     text = (question or "").strip().casefold()
@@ -471,7 +622,11 @@ def detect_discovery_topic(question: str | None) -> str:
         return "price"
     if any(token in text for token in ("pais", "country", "destino", "destination", "viagem", "trip")):
         return "country"
-    if any(token in text for token in ("dia", "day", "horario", "time", "atraso", "delay", "melhor voo", "best flight")):
+    if any(token in text for token in (
+        "dia", "day", "horario", "time", "atraso", "delay", "melhor voo", "best flight",
+        "previsao", "previsão", "prever", "forecast", "prediction",
+        "weekly", "semanal", "semana",
+    )):
         return "timing"
     return "general"
 
@@ -493,8 +648,9 @@ def build_discovery_response(req: AdviseRequest) -> AdviseResponse:
         )
     elif topic == "timing":
         advice = (
-            "To compare the best day or time to fly with lower delay risk, I need at least origin airport, "
-            "destination airport, airline and scheduled departure."
+            "To compare lower-risk options, start with origin and destination airports. "
+            "If airline, departure time, or date are missing, I can use the upcoming weekly schedule instead "
+            "of blocking the analysis."
         )
     elif topic == "price":
         advice = (
@@ -555,7 +711,7 @@ def build_advisor_runtime_context() -> dict[str, Any]:
             "search_flights": {
                 "enabled": realtime_enabled,
                 "name": "search_flights",
-                "purpose": "Consulta voos disponiveis em tempo real.",
+                "purpose": "Queries flights available in real time.",
                 "parameters": [
                     "origin",
                     "destination",
@@ -619,6 +775,8 @@ def detect_discovery_topic_runtime(question: str | None) -> str:
         "departure time", "scheduled departure", "atraso", "delay",
         "melhor voo", "best flight", "schedule", "on-time", "on time",
         "pontual", "risco", "risk", "less risk", "lower delay risk",
+        "previsao", "previsão", "prever", "forecast", "prediction",
+        "weekly", "semanal", "semana",
     )):
         return "timing"
     return "general"
@@ -676,9 +834,8 @@ def build_discovery_response_runtime(req: AdviseRequest) -> AdviseResponse:
         advice = (
             "Before I can analyze a specific flight, I still need: "
             + ", ".join(missing)
-            + ". If you'd rather start more broadly, tell me about the kind of trip or destination "
-              "you have in mind and I can help with the typical climate, regional vibe, and activity ideas "
-              "before we get into flight-specific analysis."
+            + ". Once I have origin and destination, I can estimate the route using the upcoming weekly "
+              "schedule even when airline, departure time, or exact date are missing."
         )
     elif topic == "country":
         if destination_label:
@@ -695,8 +852,8 @@ def build_discovery_response_runtime(req: AdviseRequest) -> AdviseResponse:
     elif topic == "timing":
         advice = (
             "I can help find the best day or time to fly with lower delay risk. "
-            "To compare specific flights I'll need origin airport, destination airport, "
-            "airline, and scheduled departure time."
+            "With origin and destination I can already use the weekly schedule; airline, departure time, "
+            "and exact date only help narrow the answer further."
         )
     elif topic == "price":
         advice = (
@@ -769,8 +926,10 @@ def build_discovery_context(req: AdviseRequest, fallback_advice: str,
     }
 
 def advice_text(prob: float, level: str, top_factors: List[Factor],
-                suggested_flights: List[SuggestedFlight] | None = None) -> str:
-    parts = [f"This flight has a {level} risk of delay ({prob:.0%})."]
+                suggested_flights: List[SuggestedFlight] | None = None,
+                delay_prediction: int | None = None) -> str:
+    prediction = delay_prediction_from_probability(prob) if delay_prediction is None else int(delay_prediction)
+    parts = [f"{delay_prediction_text(prediction)} Estimated delay risk: {prob:.0%} ({level})."]
     if top_factors:
         parts.append(f"The strongest signal is {top_factors[0].feature} ({top_factors[0].impact}).")
     if suggested_flights:
@@ -957,6 +1116,314 @@ def load_airports_index(source_uri: str | None = None) -> tuple[pd.DataFrame, st
     hint = "Configure AIRPORTS_INDEX_SOURCE or add data/raw/world_airports.csv."
     if errors: hint += f" Last errors: {' | '.join(errors[-3:])}"
     raise FileNotFoundError(f"Airports dataset not found. {hint}")
+
+
+LOCATION_PAIR_PATTERNS = [
+    re.compile(r"\b(?P<origin>[A-Za-z]{3})\s*(?:-|->|>)\s*(?P<destination>[A-Za-z]{3})\b", re.IGNORECASE),
+    re.compile(r"\bde\s+(?P<origin>.+?)\s+(?:para|pra|pro|to)\s+(?P<destination>.+?)(?=(?:[,.!?;]|$))", re.IGNORECASE),
+]
+ORIGIN_LOCATION_PATTERNS = [
+    re.compile(
+        r"\b(?:saindo|partindo|embarque|origem|from|departing)\s+(?:de|do|da|from)\s+(?P<value>.+?)"
+        r"(?=(?:\s+(?:para|pra|pro|destino|to)\b|[,.!?;]|$))",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\borigem\s*[:=-]?\s*(?P<value>.+?)(?=(?:\s+(?:para|pra|pro|destino|to)\b|[,.!?;]|$))", re.IGNORECASE),
+]
+DESTINATION_LOCATION_PATTERNS = [
+    re.compile(r"\b(?:destino|para|pra|pro|to)\s+(?P<value>.+?)(?=(?:[,.!?;]|$))", re.IGNORECASE),
+    re.compile(r"\b(?:indo|viajando|voando)\s+(?:para|pra|pro|to)\s+(?P<value>.+?)(?=(?:[,.!?;]|$))", re.IGNORECASE),
+]
+LOCATION_FRAGMENT_SPLIT_RE = re.compile(
+    r"\s+(?:com|sem|usando|pela|por|via|em|no dia|na data|on|with|using)\b",
+    re.IGNORECASE,
+)
+LOCATION_EDGE_ARTICLE_RE = re.compile(r"^(?:o|a|os|as|um|uma)\s+", re.IGNORECASE)
+
+
+def normalize_location_key(value: Any) -> str:
+    text = str(value or "").strip().casefold()
+    if not text:
+        return ""
+    normalized = unicodedata.normalize("NFKD", text)
+    normalized = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+    normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def clean_location_fragment(value: str | None) -> str:
+    text = str(value or "").strip(" \t\r\n,.;:!?()[]{}")
+    if not text:
+        return ""
+    text = LOCATION_FRAGMENT_SPLIT_RE.split(text, maxsplit=1)[0]
+    text = LOCATION_EDGE_ARTICLE_RE.sub("", text)
+    return text.strip(" \t\r\n,.;:!?()[]{}")
+
+
+def location_tokens(value: str | None) -> tuple[str, ...]:
+    key = normalize_location_key(value)
+    return tuple(token for token in key.split(" ") if token)
+
+
+@lru_cache
+def load_airports_search_index(source_uri: str | None = None) -> dict[str, Any]:
+    airports_df, source = load_airports_index(source_uri)
+    records: list[dict[str, Any]] = []
+    iata_index: dict[str, dict[str, Any]] = {}
+    country_index: dict[str, str] = {}
+    city_index: dict[str, tuple[dict[str, Any], ...]] = {}
+    airport_name_index: dict[str, tuple[dict[str, Any], ...]] = {}
+    city_groups: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
+    airport_name_groups: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
+
+    for row in airports_df.to_dict(orient="records"):
+        iata_code = optional_text(row.get("iata_code"))
+        country = optional_text(row.get("country"))
+        if not iata_code or not country:
+            continue
+
+        city = optional_text(row.get("city"))
+        airport_name = optional_text(row.get("airport_name"))
+        record = {
+            "iata_code": iata_code,
+            "country": country,
+            "city": city,
+            "airport_name": airport_name,
+            "country_norm": normalize_location_key(country),
+            "city_norm": normalize_location_key(city),
+            "airport_name_norm": normalize_location_key(airport_name),
+            "city_tokens": frozenset(location_tokens(city)),
+            "airport_name_tokens": frozenset(location_tokens(airport_name)),
+        }
+        records.append(record)
+        iata_index[iata_code] = record
+        if record["country_norm"]:
+            country_index.setdefault(record["country_norm"], country)
+        if record["city_norm"]:
+            city_groups[record["city_norm"]].append(record)
+        if record["airport_name_norm"]:
+            airport_name_groups[record["airport_name_norm"]].append(record)
+
+    for key, grouped_records in city_groups.items():
+        city_index[key] = tuple(grouped_records)
+    for key, grouped_records in airport_name_groups.items():
+        airport_name_index[key] = tuple(grouped_records)
+
+    return {
+        "source": source,
+        "records": tuple(records),
+        "iata_index": iata_index,
+        "country_index": country_index,
+        "city_index": city_index,
+        "airport_name_index": airport_name_index,
+    }
+
+
+def _dedupe_location_records(records: list[dict[str, Any]] | tuple[dict[str, Any], ...]) -> list[dict[str, Any]]:
+    unique: dict[str, dict[str, Any]] = {}
+    for record in records:
+        code = str(record.get("iata_code") or "").strip().upper()
+        if code and code not in unique:
+            unique[code] = record
+    return list(unique.values())
+
+
+def _build_dropdown_value(records: list[dict[str, Any]] | tuple[dict[str, Any], ...]) -> RouteDropdownValue | None:
+    unique = _dedupe_location_records(records)
+    if not unique:
+        return None
+    if len(unique) == 1:
+        record = unique[0]
+        return RouteDropdownValue(country=record.get("country"), airport=record.get("iata_code"))
+    countries = {record.get("country") for record in unique if record.get("country")}
+    if len(countries) == 1:
+        return RouteDropdownValue(country=next(iter(countries)), airport=None)
+    return None
+
+
+def _location_token_match(fragment_tokens: frozenset[str], record_tokens: frozenset[str]) -> bool:
+    if not fragment_tokens or not record_tokens:
+        return False
+    if len(fragment_tokens) == 1:
+        token = next(iter(fragment_tokens))
+        if len(token) < 4:
+            return False
+    return fragment_tokens.issubset(record_tokens) or record_tokens.issubset(fragment_tokens)
+
+
+def _best_partial_location_records(
+    fragment_key: str,
+    fragment_tokens: frozenset[str],
+    records: tuple[dict[str, Any], ...],
+    key_name: str,
+    token_name: str,
+) -> list[dict[str, Any]]:
+    scored: list[tuple[int, int, dict[str, Any]]] = []
+    for record in records:
+        record_key = str(record.get(key_name) or "")
+        record_tokens = record.get(token_name) or frozenset()
+        if not record_key:
+            continue
+        if fragment_key in record_key:
+            scored.append((len(record_tokens), len(record_key), record))
+            continue
+        if len(fragment_tokens) > 1 and record_key in fragment_key:
+            scored.append((len(record_tokens), len(record_key), record))
+            continue
+        if _location_token_match(fragment_tokens, record_tokens):
+            scored.append((len(record_tokens), len(record_key), record))
+
+    if not scored:
+        return []
+
+    best_token_count, best_key_length, _ = max(scored, key=lambda item: (item[0], item[1]))
+    return [
+        record
+        for token_count, key_length, record in scored
+        if token_count == best_token_count and key_length == best_key_length
+    ]
+
+
+def resolve_location_fragment(fragment: str | None, source_uri: str | None = None) -> RouteDropdownValue | None:
+    cleaned = clean_location_fragment(fragment)
+    if not cleaned:
+        return None
+
+    try:
+        search_index = load_airports_search_index(source_uri)
+    except Exception:
+        return None
+    iata_codes = re.findall(r"\b([A-Za-z0-9]{3})\b", cleaned.upper())
+    for iata_code in iata_codes:
+        record = search_index["iata_index"].get(iata_code)
+        if record:
+            return RouteDropdownValue(country=record.get("country"), airport=record.get("iata_code"))
+
+    fragment_key = normalize_location_key(cleaned)
+    if not fragment_key:
+        return None
+
+    airport_exact = _build_dropdown_value(search_index["airport_name_index"].get(fragment_key, ()))
+    if airport_exact:
+        return airport_exact
+
+    city_exact = _build_dropdown_value(search_index["city_index"].get(fragment_key, ()))
+    if city_exact:
+        return city_exact
+
+    country = search_index["country_index"].get(fragment_key)
+    if country:
+        return RouteDropdownValue(country=country, airport=None)
+
+    fragment_tokens = frozenset(fragment_key.split())
+    partial_airports = _best_partial_location_records(
+        fragment_key,
+        fragment_tokens,
+        search_index["records"],
+        "airport_name_norm",
+        "airport_name_tokens",
+    )
+    airport_partial = _build_dropdown_value(partial_airports)
+    if airport_partial:
+        return airport_partial
+
+    partial_cities = _best_partial_location_records(
+        fragment_key,
+        fragment_tokens,
+        search_index["records"],
+        "city_norm",
+        "city_tokens",
+    )
+    return _build_dropdown_value(partial_cities)
+
+
+def extract_route_updates_from_question(question: str | None, source_uri: str | None = None) -> RouteDropdownUpdates | None:
+    text = str(question or "").strip()
+    if not text:
+        return None
+
+    origin: RouteDropdownValue | None = None
+    destination: RouteDropdownValue | None = None
+
+    for pattern in LOCATION_PAIR_PATTERNS:
+        for match in pattern.finditer(text):
+            pair_origin = resolve_location_fragment(match.groupdict().get("origin"), source_uri)
+            pair_destination = resolve_location_fragment(match.groupdict().get("destination"), source_uri)
+            if pair_origin and pair_destination:
+                origin = pair_origin
+                destination = pair_destination
+                break
+        if origin or destination:
+            break
+
+    if origin is None:
+        for pattern in ORIGIN_LOCATION_PATTERNS:
+            match = pattern.search(text)
+            if not match:
+                continue
+            origin = resolve_location_fragment(match.groupdict().get("value"), source_uri)
+            if origin:
+                break
+
+    if destination is None:
+        for pattern in DESTINATION_LOCATION_PATTERNS:
+            match = pattern.search(text)
+            if not match:
+                continue
+            destination = resolve_location_fragment(match.groupdict().get("value"), source_uri)
+            if destination:
+                break
+
+    if not origin and not destination:
+        return None
+    return RouteDropdownUpdates(origin=origin, destination=destination)
+
+
+def enrich_route_payload_from_question(req: AdviseRequest, source_uri: str | None = None) -> AdviseRequest:
+    updates = extract_route_updates_from_question(req.question, source_uri)
+    if not updates:
+        return req
+
+    # When the user mentions a new route in free text, treat it as the source
+    # of truth and discard stale route filters carried in the form/session.
+    changed_fields: dict[str, Any] = {field: None for field in ROUTE_CONTEXT_FIELDS}
+    if updates.origin:
+        changed_fields["origin_country"] = updates.origin.country
+        changed_fields["origin_airport"] = updates.origin.airport
+    if updates.destination:
+        changed_fields["destination_country"] = updates.destination.country
+        changed_fields["destination_airport"] = updates.destination.airport
+    return req.model_copy(update=changed_fields)
+
+
+def airport_country_from_code(airport_code: str | None, source_uri: str | None = None) -> str | None:
+    code = optional_text(airport_code)
+    if not code:
+        return None
+    try:
+        search_index = load_airports_search_index(source_uri)
+    except Exception:
+        return None
+    record = search_index["iata_index"].get(code.strip().upper())
+    return optional_text(record.get("country")) if record else None
+
+
+def route_updates_from_request(req: AdviseRequest) -> RouteDropdownUpdates | None:
+    origin = None
+    destination = None
+    if req.origin_country or req.origin_airport:
+        origin = RouteDropdownValue(
+            country=req.origin_country or airport_country_from_code(req.origin_airport),
+            airport=req.origin_airport,
+        )
+    if req.destination_country or req.destination_airport:
+        destination = RouteDropdownValue(
+            country=req.destination_country or airport_country_from_code(req.destination_airport),
+            airport=req.destination_airport,
+        )
+    if not origin and not destination:
+        return None
+    return RouteDropdownUpdates(origin=origin, destination=destination)
 
 
 # ── Upcoming flights helpers ─────────────────────────────────────────────────
@@ -1215,7 +1682,7 @@ def build_suggested_flights(payload: AdviseRequest, pipeline: Any, meta: dict | 
             continue
 
         filtered = filtered.copy()
-        if airline_col and dep_col:
+        if airline_col and dep_col and payload.airline and payload.scheduled_departure is not None:
             same_airline = filtered[airline_col].astype(str).str.strip().str.upper() == payload.airline
             same_departure = pd.to_numeric(filtered[dep_col], errors="coerce") == int(payload.scheduled_departure)
             filtered = filtered[~(same_airline & same_departure)]
@@ -1267,6 +1734,7 @@ def build_suggested_flights(payload: AdviseRequest, pipeline: Any, meta: dict | 
                 destination_airport=payload.destination_airport,
                 scheduled_departure=departure,
                 delay_probability=prob,
+                delay_prediction=delay_prediction_from_probability(prob) if prob is not None else None,
                 risk_level=risk_level(prob) if prob is not None else None,
             ))
             if len(suggestions) >= limit:
@@ -1275,7 +1743,246 @@ def build_suggested_flights(payload: AdviseRequest, pipeline: Any, meta: dict | 
     return suggestions
 
 
+def compute_model_delay_snapshot(
+    payload: AdviseRequest,
+    pipeline: Any,
+    meta: dict | None,
+    maps: Dict[str, Dict[str, float]],
+    global_rate: float,
+    route_distance_map: Dict[str, float],
+    global_distance: float,
+    limit: int = 3,
+) -> dict[str, Any]:
+    resolved_inputs = resolve_prediction_inputs(payload, route_distance_map, global_distance)
+    df = build_features(payload, maps, global_rate, route_distance_map, global_distance)
+
+    X = df
+    if meta and "features" in meta and "selected" in meta["features"]:
+        required = meta["features"]["selected"]
+        missing = [col for col in required if col not in df.columns]
+        if missing:
+            raise ValueError(f"Missing columns required by the model: {', '.join(missing)}")
+        X = coerce_feature_types(
+            df[required],
+            meta["features"].get("numeric", []),
+            meta["features"].get("categorical", []),
+        )
+
+    probability = float(pipeline.predict_proba(X)[:, 1][0])
+    prediction = delay_prediction_from_probability(probability)
+    level = risk_level(probability)
+    top_factors = build_advisor_top_factors(df, payload, global_rate, resolved_inputs)
+    suggested_flights = build_suggested_flights(payload, pipeline, meta, limit=limit)
+
+    return {
+        "dataframe": df,
+        "delay_probability": probability,
+        "delay_prediction": prediction,
+        "risk_level": level,
+        "top_factors": top_factors,
+        "suggested_flights": suggested_flights,
+        "resolved_inputs": resolved_inputs,
+    }
+
+
+def weekly_prediction_window_days() -> int:
+    try:
+        return max(1, min(int(os.getenv("ADVISOR_WEEKLY_WINDOW_DAYS", "7")), 14))
+    except ValueError:
+        return 7
+
+
+def build_weekly_route_factors(
+    ranked: pd.DataFrame,
+    payload: AdviseRequest,
+    window_days: int,
+    airline_col: str | None,
+    dep_col: str | None,
+) -> list[Factor]:
+    factors = [
+        Factor(
+            feature="schedule_window",
+            impact=f"Analyzed {len(ranked)} scheduled flight(s) in the next {window_days} day(s).",
+        )
+    ]
+
+    if "_flight_date" in ranked.columns and not has_any_date_context(payload):
+        by_day = (
+            ranked.dropna(subset=["_flight_date"])
+            .groupby("_flight_date")["delay_probability"]
+            .mean()
+            .sort_values()
+        )
+        if not by_day.empty:
+            best_day = by_day.index[0]
+            factors.append(Factor(
+                feature="lowest_risk_day",
+                impact=f"{best_day.strftime('%d/%m/%Y')} has the lowest average predicted risk in the weekly window.",
+            ))
+
+    if airline_col and not payload.airline:
+        airline_ranking = (
+            ranked.dropna(subset=[airline_col])
+            .groupby(airline_col)["delay_probability"]
+            .mean()
+            .sort_values()
+        )
+        if not airline_ranking.empty:
+            best_airline = str(airline_ranking.index[0]).strip().upper()
+            factors.append(Factor(
+                feature="lowest_risk_airline",
+                impact=f"{best_airline} has the lowest average predicted delay risk among the available airlines.",
+            ))
+
+    if dep_col and payload.scheduled_departure is None:
+        best_departure_row = ranked.dropna(subset=[dep_col]).sort_values("delay_probability").head(1)
+        if not best_departure_row.empty:
+            departure = format_scheduled_departure(best_departure_row.iloc[0][dep_col])
+            if departure:
+                factors.append(Factor(
+                    feature="lower_risk_departure",
+                    impact=f"The current weekly schedule shows lower-risk departures around {departure}.",
+                ))
+
+    return factors[:3]
+
+
+def build_weekly_route_prediction(
+    payload: AdviseRequest,
+    pipeline: Any,
+    meta: dict | None,
+    limit: int = 3,
+) -> AdviseResponse | None:
+    try:
+        flights_df, _ = load_upcoming_flights_frame()
+    except Exception:
+        return None
+    if flights_df.empty:
+        return None
+
+    filters = PredictRequest(
+        origin_airport=payload.origin_airport,
+        destination_airport=payload.destination_airport,
+        airline=payload.airline,
+        flight_date=payload.flight_date,
+        year=payload.year,
+        month=payload.month,
+        day=payload.day,
+        day_of_week=payload.day_of_week,
+        scheduled_departure=payload.scheduled_departure,
+        limit=max(limit * 40, 120),
+    )
+
+    try:
+        filtered = apply_predict_filters(flights_df, filters)
+    except ValueError:
+        return None
+    if filtered.empty:
+        return None
+
+    filtered = filtered.copy()
+    filtered, _ = _filter_future(filtered)
+    if filtered.empty:
+        return None
+
+    window_days = weekly_prediction_window_days()
+    if "_flight_date" in filtered.columns and not has_any_date_context(payload):
+        window_end = date.today() + timedelta(days=window_days - 1)
+        weekly_slice = filtered[filtered["_flight_date"] <= window_end].copy()
+        if not weekly_slice.empty:
+            filtered = weekly_slice
+    if filtered.empty:
+        return None
+
+    try:
+        ranked = predict_dataframe(filtered.copy(), pipeline, meta, threshold=0.5)
+    except Exception:
+        return None
+    if ranked.empty or "delay_probability" not in ranked.columns:
+        return None
+
+    dep_col = find_column_name(ranked, "SCHEDULED_DEPARTURE")
+    airline_col = find_column_name(ranked, "AIRLINE")
+    fn_col = find_column_name(ranked, "FLIGHT_NUMBER")
+    ranked = ranked.copy()
+    ranked["_dep_sort"] = ranked[dep_col].map(departure_sort_key) if dep_col else 9999
+    sort_cols = ["delay_probability", "_dep_sort"]
+    ascending = [True, True]
+    if "_flight_date" in ranked.columns:
+        sort_cols.insert(1, "_flight_date")
+        ascending.insert(1, True)
+    ranked = ranked.sort_values(sort_cols, ascending=ascending, na_position="last")
+
+    probability = float(ranked["delay_probability"].mean())
+    prediction = delay_prediction_from_probability(probability)
+    level = risk_level(probability)
+    top_factors = build_weekly_route_factors(ranked, payload, window_days, airline_col, dep_col)
+
+    suggestions: list[SuggestedFlight] = []
+    seen: set[tuple[str | None, str | None, str | None, str | None]] = set()
+    for _, row in ranked.iterrows():
+        flight_date_iso = None
+        if "_flight_date" in row and pd.notna(row["_flight_date"]):
+            flight_date_iso = row["_flight_date"].isoformat()
+        airline = optional_text(row[airline_col]).upper() if airline_col and pd.notna(row[airline_col]) else None
+        flight_number = format_flight_number(row[fn_col]) if fn_col and pd.notna(row[fn_col]) else None
+        departure = format_scheduled_departure(row[dep_col]) if dep_col and pd.notna(row[dep_col]) else None
+        dedupe_key = (flight_date_iso, airline, flight_number, departure)
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+
+        suggestions.append(SuggestedFlight(
+            flight_date=flight_date_iso,
+            flight_date_br=format_date_br(flight_date_iso),
+            airline=airline,
+            flight_number=flight_number,
+            flight_code=f"{airline}{flight_number}" if airline and flight_number else (flight_number or airline),
+            origin_airport=payload.origin_airport,
+            destination_airport=payload.destination_airport,
+            scheduled_departure=departure,
+            delay_probability=float(row["delay_probability"]) if pd.notna(row.get("delay_probability")) else None,
+            delay_prediction=(
+                delay_prediction_from_probability(float(row["delay_probability"]))
+                if pd.notna(row.get("delay_probability")) else None
+            ),
+            risk_level=risk_level(float(row["delay_probability"])) if pd.notna(row.get("delay_probability")) else None,
+        ))
+        if len(suggestions) >= limit:
+            break
+
+    route_label = f"{payload.origin_airport} -> {payload.destination_airport}"
+    sample_size = int(len(ranked))
+    advice_parts = [
+        f"{delay_prediction_text(prediction)} For {route_label}, the average predicted delay risk across {sample_size} scheduled flight(s) in the next {window_days} day(s) is {probability:.0%} ({level})."
+    ]
+    if suggestions:
+        best = suggestions[0]
+        when = " | ".join(part for part in [best.flight_date_br or best.flight_date, best.scheduled_departure] if part)
+        option = best.flight_code or best.airline or "the current lowest-risk option"
+        if when:
+            advice_parts.append(f"The lowest-risk option in the weekly schedule is {option} on {when}.")
+        else:
+            advice_parts.append(f"The lowest-risk option in the weekly schedule is {option}.")
+    if not payload.airline:
+        advice_parts.append("Because no airline was specified, this estimate uses all airlines available for the route.")
+    if not has_any_date_context(payload):
+        advice_parts.append("Because no exact date was specified, the estimate uses the upcoming weekly schedule.")
+
+    return AdviseResponse(
+        delay_probability=probability,
+        delay_prediction=prediction,
+        risk_level=level,
+        top_factors=top_factors,
+        advice=" ".join(advice_parts),
+        mode="weekly_route",
+        advice_source="weekly_model",
+        suggested_flights=suggestions,
+    )
+
+
 def build_advice_context(payload: AdviseRequest, probability: float, level: str,
+                         delay_prediction: int | None,
                          top_factors: List[Factor], fallback_advice: str,
                          suggested_flights: List[SuggestedFlight],
                          messages: list[ChatMessage]) -> dict[str, Any]:
@@ -1293,7 +2000,7 @@ def build_advice_context(payload: AdviseRequest, probability: float, level: str,
             "destination_country": payload.destination_country,
             "destination_airport": payload.destination_airport,
             "airline": payload.airline,
-            "scheduled_departure": int(payload.scheduled_departure),
+            "scheduled_departure": payload.scheduled_departure,
             "flight_date": payload.flight_date,
             "year": payload.year,
             "month": payload.month,
@@ -1303,6 +2010,7 @@ def build_advice_context(payload: AdviseRequest, probability: float, level: str,
         },
         "delay_assessment": {
             "delay_probability": round(probability, 4),
+            "delay_prediction": delay_prediction,
             "risk_level": level,
             "top_factors": [factor.model_dump() for factor in top_factors],
         },
@@ -1347,12 +2055,12 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             "method": "GET",
             "path": "/health",
             "summary": "Health check",
-            "description": "Verifica se a API Flask esta no ar e tenta carregar os artefatos principais do modelo.",
+            "description": "Checks whether the Flask API is up and tries to load the main model assets.",
             "parameters": [],
             "response_schema": {"type": "object"},
             "response_example": {"status": "ok"},
             "error_responses": [
-                {"status": 500, "description": "Falha ao carregar assets.", "example": {"status": "error", "detail": "Model assets not found."}},
+                {"status": 500, "description": "Failed to load assets.", "example": {"status": "error", "detail": "Model assets not found."}},
             ],
         },
         {
@@ -1360,7 +2068,7 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             "method": "GET",
             "path": "/api/routes",
             "summary": "Registered route index",
-            "description": "Lista as rotas registradas no Flask com metodos, atalhos para docs e exemplos rapidos de uso.",
+            "description": "Lists the registered Flask routes with methods, documentation shortcuts, and quick usage examples.",
             "parameters": [],
             "response_schema": {"type": "object"},
             "response_example": {
@@ -1376,7 +2084,7 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             "method": "GET",
             "path": "/openapi.json",
             "summary": "OpenAPI schema",
-            "description": "Retorna o schema OpenAPI 3.1 da API para importacao em ferramentas como Postman ou Insomnia.",
+            "description": "Returns the API OpenAPI 3.1 schema for import into tools such as Postman or Insomnia.",
             "parameters": [],
             "response_schema": {"type": "object"},
             "response_example": {"openapi": "3.1.0", "info": {"title": "Flight Advisor (Flask)", "version": "0.1.0"}},
@@ -1386,7 +2094,7 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             "method": "GET",
             "path": "/api/advisor/history",
             "summary": "Advisor chat history",
-            "description": "Recupera a sessao atual do chat do advisor, incluindo a mensagem bootstrap e as respostas anteriores.",
+            "description": "Returns the current advisor chat session, including the bootstrap message and previous replies.",
             "parameters": [],
             "response_schema": {
                 "type": "object",
@@ -1399,14 +2107,14 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
                 "session_id": "3b9d22b9a4974c31ad81863fa622f7d3",
                 "messages": [{
                     "role": "assistant",
-                    "content": "Sou o Flight Advisor. Posso conversar sobre destinos, melhor dia ou horario para voar, risco de atraso e quando vale comprar a passagem.",
+                    "content": "I am Flight Advisor. I can talk about destinations, the best day or time to fly, delay risk, and when it makes sense to buy the ticket.",
                     "created_at": "2026-03-25T11:45:00",
                     "mode": "discovery",
                     "advice_source": "system",
                     "clarification_prompts": [
-                        "Quero buscar uma viagem para um pais especifico.",
-                        "Qual o melhor dia ou horario para voar com menos risco de atraso?",
-                        "Qual o melhor momento para comprar a passagem?",
+                        "I want to search for a trip to a specific country.",
+                        "What is the best day or time to fly with lower delay risk?",
+                        "When is the best time to book the ticket?",
                     ],
                 }],
             },
@@ -1416,7 +2124,7 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             "method": "POST",
             "path": "/api/advisor/reset",
             "summary": "Reset advisor chat",
-            "description": "Limpa o historico salvo na sessao atual e recria a conversa a partir da mensagem inicial do advisor.",
+            "description": "Clears the history saved in the current session and recreates the conversation from the advisor's initial message.",
             "parameters": [],
             "response_schema": {
                 "type": "object",
@@ -1429,14 +2137,14 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
                 "session_id": "3b9d22b9a4974c31ad81863fa622f7d3",
                 "messages": [{
                     "role": "assistant",
-                    "content": "Sou o Flight Advisor. Posso conversar sobre destinos, melhor dia ou horario para voar, risco de atraso e quando vale comprar a passagem.",
+                    "content": "I am Flight Advisor. I can talk about destinations, the best day or time to fly, delay risk, and when it makes sense to buy the ticket.",
                     "created_at": "2026-03-25T11:45:00",
                     "mode": "discovery",
                     "advice_source": "system",
                     "clarification_prompts": [
-                        "Quero buscar uma viagem para um pais especifico.",
-                        "Qual o melhor dia ou horario para voar com menos risco de atraso?",
-                        "Qual o melhor momento para comprar a passagem?",
+                        "I want to search for a trip to a specific country.",
+                        "What is the best day or time to fly with lower delay risk?",
+                        "When is the best time to book the ticket?",
                     ],
                 }],
             },
@@ -1446,11 +2154,11 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             "method": "POST",
             "path": "/advise",
             "summary": "Advisor chat completion",
-            "description": "Aceita contexto opcional da rota e uma pergunta em linguagem natural. Mantem as mensagens na sessao e pode responder em modo discovery ou route.",
+            "description": "Accepts optional route context and a natural-language question. It keeps messages in the session and can answer in discovery or route mode.",
             "parameters": [],
             "request_schema": {"$ref": "#/components/schemas/AdviseRequest"},
             "request_example": {
-                "question": "Quero viajar para Lisboa. Qual o melhor dia para voar?",
+                "question": "I want to travel to Lisbon. What is the best day to fly?",
                 "origin_country": "Brazil",
                 "origin_airport": "GRU",
                 "destination_country": "Portugal",
@@ -1462,8 +2170,8 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             "response_example": {
                 "delay_probability": 0.18,
                 "risk_level": "LOW",
-                "top_factors": [{"feature": "ROUTE_DELAY_RATE", "impact": "Historico de atraso da rota abaixo da media."}],
-                "advice": "Para essa rota, o risco atual esta baixo. Se quiser flexibilidade, posso comparar outros horarios proximos.",
+                "top_factors": [{"feature": "ROUTE_DELAY_RATE", "impact": "Route delay history is below average."}],
+                "advice": "For this route, the current risk is low. If you want flexibility, I can compare other nearby departure times.",
                 "mode": "route",
                 "advice_source": "heuristic",
                 "suggested_flights": [{
@@ -1482,13 +2190,13 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
                 "session_id": "3b9d22b9a4974c31ad81863fa622f7d3",
                 "messages": [{
                     "role": "user",
-                    "content": "Quero viajar para Lisboa. Qual o melhor dia para voar?",
+                    "content": "I want to travel to Lisbon. What is the best day to fly?",
                     "created_at": "2026-03-25T11:46:00",
                 }],
             },
             "error_responses": [
-                {"status": 400, "description": "Body JSON invalido ou payload fora do schema.", "example": {"detail": "Body must be valid JSON."}},
-                {"status": 500, "description": "Falha interna ao carregar assets ou gerar resposta.", "example": {"detail": "Unexpected error."}},
+                {"status": 400, "description": "Invalid JSON body or payload outside the schema.", "example": {"detail": "Body must be valid JSON."}},
+                {"status": 500, "description": "Internal failure while loading assets or generating the response.", "example": {"detail": "Unexpected error."}},
             ],
         },
         {
@@ -1496,7 +2204,7 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             "method": "POST",
             "path": "/predict",
             "summary": "Delay prediction API",
-            "description": "Executa a predicao de atraso para uma linha, varias linhas ou um arquivo CSV/parquet. Tambem aceita filtros sobre um dataset de entrada.",
+            "description": "Runs delay prediction for one row, multiple rows, or a CSV/parquet file. It also accepts filters over an input dataset.",
             "parameters": [],
             "request_schema": {"$ref": "#/components/schemas/PredictRequest"},
             "request_example": {
@@ -1524,8 +2232,8 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
                 }],
             },
             "error_responses": [
-                {"status": 400, "description": "Filtro invalido, JSON invalido ou dataset ausente.", "example": {"detail": "flight_date must be in YYYY-MM-DD format."}},
-                {"status": 500, "description": "Falha ao carregar o pipeline ou executar a predicao.", "example": {"detail": "Model assets not found."}},
+                {"status": 400, "description": "Invalid filter, invalid JSON, or missing dataset.", "example": {"detail": "flight_date must be in YYYY-MM-DD format."}},
+                {"status": 500, "description": "Failed to load the pipeline or execute the prediction.", "example": {"detail": "Model assets not found."}},
             ],
         },
         {
@@ -1533,10 +2241,10 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             "method": "GET",
             "path": "/api/upcoming_flights",
             "summary": "Upcoming predicted flights",
-            "description": "Retorna voos futuros ou, na falta deles, a melhor janela disponivel para a tabela de predicoes.",
+            "description": "Returns future flights or, if none are available, the best available window for the prediction table.",
             "parameters": [
-                {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 500}, "description": "Numero maximo de registros retornados.", "example": 50},
-                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "CSV/parquet local ou URI S3 para a fonte de voos futuros.", "example": "data/refined/future_flights.parquet"},
+                {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 500}, "description": "Maximum number of returned records.", "example": 50},
+                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "Local CSV/parquet or S3 URI for the future-flights source.", "example": "data/refined/future_flights.parquet"},
             ],
             "response_schema": {"type": "object"},
             "response_example": {
@@ -1562,10 +2270,10 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             "method": "GET",
             "path": "/api/weekly_predictions",
             "summary": "Legacy alias for upcoming flights",
-            "description": "Alias legado de /api/upcoming_flights. Mantido por compatibilidade com o frontend antigo.",
+            "description": "Legacy alias of /api/upcoming_flights. Kept for compatibility with the older frontend.",
             "parameters": [
-                {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 500}, "description": "Numero maximo de registros retornados.", "example": 50},
-                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "CSV/parquet local ou URI S3 para a fonte de voos futuros.", "example": "data/refined/future_flights.parquet"},
+                {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 500}, "description": "Maximum number of returned records.", "example": 50},
+                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "Local CSV/parquet or S3 URI for the future-flights source.", "example": "data/refined/future_flights.parquet"},
             ],
             "response_schema": {"type": "object"},
             "response_example": {
@@ -1583,9 +2291,9 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             "method": "GET",
             "path": "/api/flight/countries",
             "summary": "Available countries",
-            "description": "Lista os paises presentes no indice de aeroportos para alimentar os dropdowns do frontend.",
+            "description": "Lists the countries present in the airport index to populate the frontend dropdowns.",
             "parameters": [
-                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "CSV local, HTTP ou S3 com o indice de aeroportos.", "example": "data/refined/world_airports.csv"},
+                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "Local CSV, HTTP URL, or S3 URI with the airport index.", "example": "data/refined/world_airports.csv"},
             ],
             "response_schema": {"type": "object"},
             "response_example": {
@@ -1603,11 +2311,11 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             "method": "GET",
             "path": "/api/flight/airports",
             "summary": "Airports by country",
-            "description": "Retorna aeroportos filtrados por pais, com cidade, nome e coordenadas para o mapa.",
+            "description": "Returns airports filtered by country, including city, name, and coordinates for the map.",
             "parameters": [
-                {"name": "country", "in": "query", "required": True, "schema": {"type": "string"}, "description": "Pais usado como filtro principal.", "example": "Brazil"},
-                {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "default": 800, "minimum": 1, "maximum": 5000}, "description": "Limite maximo de aeroportos retornados.", "example": 200},
-                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "Fonte alternativa para o indice de aeroportos.", "example": "data/refined/world_airports.csv"},
+                {"name": "country", "in": "query", "required": True, "schema": {"type": "string"}, "description": "Country used as the main filter.", "example": "Brazil"},
+                {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "default": 800, "minimum": 1, "maximum": 5000}, "description": "Maximum number of returned airports.", "example": 200},
+                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "Alternate source for the airport index.", "example": "data/refined/world_airports.csv"},
             ],
             "response_schema": {"type": "object"},
             "response_example": {
@@ -1620,7 +2328,7 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
                 ],
             },
             "error_responses": [
-                {"status": 400, "description": "Pais ausente ou limit invalido.", "example": {"detail": "Query parameter 'country' is required."}},
+                {"status": 400, "description": "Missing country or invalid limit.", "example": {"detail": "Query parameter 'country' is required."}},
             ],
         },
         {
@@ -1628,11 +2336,11 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             "method": "GET",
             "path": "/api/flight/departures",
             "summary": "Airport departures",
-            "description": "Lista partidas previstas para um aeroporto IATA especifico com fallback para amostras quando nao houver fonte futura.",
+            "description": "Lists scheduled departures for a specific IATA airport with fallback to samples when no future source is available.",
             "parameters": [
-                {"name": "airport", "in": "query", "required": True, "schema": {"type": "string"}, "description": "Codigo IATA do aeroporto de origem.", "example": "GRU"},
-                {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 500}, "description": "Quantidade maxima de partidas.", "example": 30},
-                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "Fonte alternativa para os voos futuros.", "example": "data/refined/future_flights.parquet"},
+                {"name": "airport", "in": "query", "required": True, "schema": {"type": "string"}, "description": "IATA code of the origin airport.", "example": "GRU"},
+                {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 500}, "description": "Maximum number of departures.", "example": 30},
+                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "Alternate source for future flights.", "example": "data/refined/future_flights.parquet"},
             ],
             "response_schema": {"type": "object"},
             "response_example": {
@@ -1655,7 +2363,7 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
                 }],
             },
             "error_responses": [
-                {"status": 400, "description": "Aeroporto ausente ou limit invalido.", "example": {"detail": "Query parameter 'airport' is required."}},
+                {"status": 400, "description": "Missing airport or invalid limit.", "example": {"detail": "Query parameter 'airport' is required."}},
             ],
         },
         {
@@ -1663,15 +2371,15 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             "method": "GET",
             "path": "/api/live_flights",
             "summary": "Live flights by region or bounding box",
-            "description": "Consulta aeronaves em voo via OpenSky Network. Aceita regiao pre-definida ou bounding box customizado.",
+            "description": "Queries in-flight aircraft through OpenSky Network. Accepts a predefined region or a custom bounding box.",
             "parameters": [
-                {"name": "region", "in": "query", "required": False, "schema": {"type": "string", "default": "brazil"}, "description": "Regiao pre-configurada: brazil, south_america, north_america, europe ou world.", "example": "brazil"},
-                {"name": "lamin", "in": "query", "required": False, "schema": {"type": "number"}, "description": "Latitude minima do bounding box.", "example": -23.7},
-                {"name": "lomin", "in": "query", "required": False, "schema": {"type": "number"}, "description": "Longitude minima do bounding box.", "example": -46.9},
-                {"name": "lamax", "in": "query", "required": False, "schema": {"type": "number"}, "description": "Latitude maxima do bounding box.", "example": -23.4},
-                {"name": "lomax", "in": "query", "required": False, "schema": {"type": "number"}, "description": "Longitude maxima do bounding box.", "example": -46.5},
-                {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "default": 200, "minimum": 1, "maximum": 500}, "description": "Maximo de aeronaves retornadas.", "example": 100},
-                {"name": "include_ground", "in": "query", "required": False, "schema": {"type": "boolean", "default": False}, "description": "Inclui aeronaves em solo quando true.", "example": False},
+                {"name": "region", "in": "query", "required": False, "schema": {"type": "string", "default": "brazil"}, "description": "Preconfigured region: brazil, south_america, north_america, europe, or world.", "example": "brazil"},
+                {"name": "lamin", "in": "query", "required": False, "schema": {"type": "number"}, "description": "Minimum latitude of the bounding box.", "example": -23.7},
+                {"name": "lomin", "in": "query", "required": False, "schema": {"type": "number"}, "description": "Minimum longitude of the bounding box.", "example": -46.9},
+                {"name": "lamax", "in": "query", "required": False, "schema": {"type": "number"}, "description": "Maximum latitude of the bounding box.", "example": -23.4},
+                {"name": "lomax", "in": "query", "required": False, "schema": {"type": "number"}, "description": "Maximum longitude of the bounding box.", "example": -46.5},
+                {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "default": 200, "minimum": 1, "maximum": 500}, "description": "Maximum number of returned aircraft.", "example": 100},
+                {"name": "include_ground", "in": "query", "required": False, "schema": {"type": "boolean", "default": False}, "description": "Includes aircraft on the ground when true.", "example": False},
             ],
             "response_schema": {"type": "object"},
             "response_example": {
@@ -1685,9 +2393,9 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
                 "flights": [{"icao24": "e48f7f", "callsign": "TAM8085", "latitude": -23.31, "longitude": -46.11}],
             },
             "error_responses": [
-                {"status": 400, "description": "Bounding box invalido ou limit invalido.", "example": {"detail": "lamin/lomin/lamax/lomax must be decimal numbers."}},
-                {"status": 502, "description": "Erro do provedor OpenSky.", "example": {"detail": "OpenSky returned an invalid response."}},
-                {"status": 504, "description": "Timeout na consulta ao provedor.", "example": {"detail": "OpenSky request timed out."}},
+                {"status": 400, "description": "Invalid bounding box or invalid limit.", "example": {"detail": "lamin/lomin/lamax/lomax must be decimal numbers."}},
+                {"status": 502, "description": "OpenSky provider error.", "example": {"detail": "OpenSky returned an invalid response."}},
+                {"status": 504, "description": "Timeout while querying the provider.", "example": {"detail": "OpenSky request timed out."}},
             ],
         },
         {
@@ -1695,9 +2403,9 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             "method": "GET",
             "path": "/api/live_flights/{icao24}",
             "summary": "Live aircraft detail",
-            "description": "Retorna os dados em tempo real de uma aeronave especifica pelo codigo ICAO24.",
+            "description": "Returns real-time data for a specific aircraft by ICAO24 code.",
             "parameters": [
-                {"name": "icao24", "in": "path", "required": True, "schema": {"type": "string"}, "description": "Identificador ICAO24 hexadecimal da aeronave.", "example": "e48f7f"},
+                {"name": "icao24", "in": "path", "required": True, "schema": {"type": "string"}, "description": "Hexadecimal ICAO24 aircraft identifier.", "example": "e48f7f"},
             ],
             "response_schema": {"type": "object"},
             "response_example": {
@@ -1706,9 +2414,9 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
                 "flight": {"icao24": "e48f7f", "callsign": "TAM8085", "latitude": -23.31, "longitude": -46.11},
             },
             "error_responses": [
-                {"status": 404, "description": "Aeronave nao encontrada na janela atual.", "example": {"detail": "Aircraft 'e48f7f' not found or not currently in flight."}},
-                {"status": 502, "description": "Erro do provedor OpenSky.", "example": {"detail": "OpenSky returned an invalid response."}},
-                {"status": 504, "description": "Timeout na consulta ao provedor.", "example": {"detail": "OpenSky request timed out."}},
+                {"status": 404, "description": "Aircraft not found in the current window.", "example": {"detail": "Aircraft 'e48f7f' not found or not currently in flight."}},
+                {"status": 502, "description": "OpenSky provider error.", "example": {"detail": "OpenSky returned an invalid response."}},
+                {"status": 504, "description": "Timeout while querying the provider.", "example": {"detail": "OpenSky request timed out."}},
             ],
         },
     ]
@@ -1824,7 +2532,7 @@ def build_openapi_spec(base_url: str) -> dict[str, Any]:
         "info": {
             "title": "Flight Advisor (Flask)",
             "version": "0.1.0",
-            "description": "HTTP API do Flight Advisor, incluindo previsao de atrasos, advisor conversacional, voos futuros e integracao com OpenSky.",
+            "description": "Flight Advisor HTTP API, including delay prediction, conversational advisor flows, future flights, and OpenSky integration.",
         },
         "servers": [{"url": base_url}],
         "tags": [{"name": name} for name in ["Meta", "Advisor", "Prediction", "Flights", "Live Flights"]],
@@ -1846,6 +2554,9 @@ register_advisor_views(app, {
     "reset_advisor_messages": reset_advisor_messages,
     "trim_chat_text": trim_chat_text,
     "should_run_route_prediction": should_run_route_prediction,
+    "should_run_weekly_route_prediction": should_run_weekly_route_prediction,
+    "enrich_route_payload_from_question": enrich_route_payload_from_question,
+    "route_updates_from_request": route_updates_from_request,
     "user_chat_message": user_chat_message,
     "build_discovery_response_runtime": build_discovery_response_runtime,
     "should_use_llm": should_use_llm,
@@ -1854,6 +2565,8 @@ register_advisor_views(app, {
     "assistant_chat_message": assistant_chat_message,
     "load_assets": load_assets,
     "build_features": build_features,
+    "compute_model_delay_snapshot": compute_model_delay_snapshot,
+    "build_weekly_route_prediction": build_weekly_route_prediction,
     "risk_level": risk_level,
     "compute_top_factors": compute_top_factors,
     "build_suggested_flights": build_suggested_flights,

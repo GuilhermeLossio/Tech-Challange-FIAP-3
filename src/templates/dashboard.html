@@ -373,18 +373,18 @@
     value="{{ request.url_root[:-1] if request.url_root.endswith('/') else request.url_root }}"
     placeholder="{{ request.url_root[:-1] if request.url_root.endswith('/') else request.url_root }}"
   />
-  <button class="btn-lookup" onclick="checkApiHealth()">Conectar</button>
-  <span id="api-health-chip" class="status-chip">desconectado</span>
+  <button class="btn-lookup" onclick="checkApiHealth()">Connect</button>
+  <span id="api-health-chip" class="status-chip">disconnected</span>
 </div>
 
 <div class="page-wrap">
 
-  <!-- ── Sidebar: busca + parâmetros ─────────────────── -->
+  <!-- Sidebar: search + parameters -->
   <aside class="sidebar">
 
-    <!-- Busca de voo real -->
+    <!-- Search live flight -->
     <div class="card">
-      <div class="card-title">Buscar voo real</div>
+      <div class="card-title">Search live flight</div>
       <div class="suggestions-host">
         <div class="flight-lookup">
           <input
@@ -394,7 +394,7 @@
             maxlength="8"
             onkeydown="if(event.key==='Enter')lookupFlight()"
           />
-          <button class="btn-lookup" id="btn-lookup" onclick="lookupFlight()">Buscar</button>
+          <button class="btn-lookup" id="btn-lookup" onclick="lookupFlight()">Search</button>
         </div>
         <div id="flight-suggestions" class="suggestions-list"></div>
       </div>
@@ -408,28 +408,28 @@
           <div class="iata-big" id="fc-dest">-</div>
         </div>
         <div class="flight-meta">
-          <div><div class="meta-key">Voo</div><div class="meta-val accent" id="fc-callsign">-</div></div>
+          <div><div class="meta-key">Flight</div><div class="meta-val accent" id="fc-callsign">-</div></div>
           <div><div class="meta-key">Altitude</div><div class="meta-val" id="fc-alt">-</div></div>
-          <div><div class="meta-key">Velocidade</div><div class="meta-val" id="fc-vel">-</div></div>
-          <div><div class="meta-key">País</div><div class="meta-val" id="fc-country">-</div></div>
+          <div><div class="meta-key">Speed</div><div class="meta-val" id="fc-vel">-</div></div>
+          <div><div class="meta-key">Country</div><div class="meta-val" id="fc-country">-</div></div>
         </div>
       </div>
       <div id="lookup-status" class="lookup-status"></div>
     </div>
 
-    <!-- Parâmetros de análise -->
+    <!-- Analysis parameters -->
     <div class="card">
-      <div class="card-title">Parâmetros do voo</div>
+      <div class="card-title">Flight parameters</div>
       <div class="form-grid">
-        <div class="field"><label>Origem (IATA)</label><input type="text" id="f-origin" maxlength="3" placeholder="GRU" /></div>
-        <div class="field"><label>Destino (IATA)</label><input type="text" id="f-dest" maxlength="3" placeholder="CGH" /></div>
-        <div class="field"><label>Companhia (IATA)</label><input type="text" id="f-airline" maxlength="3" placeholder="LA" /></div>
-        <div class="field"><label>Partida (HHMM)</label><input type="number" id="f-dep" min="0" max="2359" placeholder="1430" /></div>
-        <div class="field"><label>Data do voo</label><input type="date" id="f-date" /></div>
-        <div class="field"><label>Distância (mi)</label><input type="number" id="f-dist" min="0" placeholder="Automático" /></div>
+        <div class="field"><label>Origin (IATA)</label><input type="text" id="f-origin" maxlength="3" placeholder="GRU" /></div>
+        <div class="field"><label>Destination (IATA)</label><input type="text" id="f-dest" maxlength="3" placeholder="CGH" /></div>
+        <div class="field"><label>Airline (IATA)</label><input type="text" id="f-airline" maxlength="3" placeholder="LA" /></div>
+        <div class="field"><label>Departure (HHMM)</label><input type="number" id="f-dep" min="0" max="2359" placeholder="1430" /></div>
+        <div class="field"><label>Flight date</label><input type="date" id="f-date" /></div>
+        <div class="field"><label>Distance (mi)</label><input type="number" id="f-dist" min="0" placeholder="Automatic" /></div>
       </div>
       <button class="btn-analyze" id="btn-analyze" onclick="runAnalysis()">
-        ANALISAR RISCO DE ATRASO
+        ANALYZE DELAY RISK
       </button>
     </div>
 
@@ -440,72 +440,72 @@
     <div class="risk-badge" id="risk-badge">—</div>
     <div class="prob-display">
       <div class="prob-num" id="prob-num">—</div>
-      <div class="prob-pct">% chance de atraso</div>
+      <div class="prob-pct">% delay chance</div>
     </div>
-    <div class="advice-inline" id="advice-inline">Execute uma análise para ver recomendações.</div>
+    <div class="advice-inline" id="advice-inline">Run an analysis to see recommendations.</div>
   </div>
 
   <!-- ── Charts 2×2 grid ──────────────────────────────── -->
   <div class="charts-grid">
 
-    <!-- Mapa ao vivo — ocupa coluna esquerda inteira -->
+    <!-- Live map - spans the full left column -->
     <div class="chart-panel map-panel">
       <div class="chart-panel-head">
-        <span class="dot dot-map"></span>Mapa ao Vivo
+        <span class="dot dot-map"></span>Live Map
       </div>
       <div class="chart-inner" style="padding:0;">
         <div id="live-map"></div>
       </div>
     </div>
 
-    <!-- Fatores de Risco (radar) -->
+    <!-- Risk factors -->
     <div class="chart-panel">
       <div class="chart-panel-head">
-        <span class="dot dot-risk"></span>Fatores de Risco
+        <span class="dot dot-risk"></span>Risk Factors
       </div>
       <div class="chart-inner" id="radar-wrap">
         <div class="empty-state">
           <div class="empty-icon">📡</div>
-          <div class="empty-text">Aguardando análise</div>
+          <div class="empty-text">Awaiting analysis</div>
         </div>
       </div>
     </div>
 
-    <!-- Probabilidade por Horário -->
+    <!-- Probability by hour -->
     <div class="chart-panel">
       <div class="chart-panel-head">
-        <span class="dot dot-hour"></span>Probabilidade por Horário
+        <span class="dot dot-hour"></span>Probability by Hour
       </div>
       <div class="chart-inner">
         <canvas id="chart-hourly"></canvas>
       </div>
     </div>
 
-    <!-- Comparativo de Companhias -->
+    <!-- Airline comparison -->
     <div class="chart-panel" style="grid-column: 1 / -1;">
       <div class="chart-panel-head">
-        <span class="dot dot-airline"></span>Comparativo de Companhias
+        <span class="dot dot-airline"></span>Airline Comparison
       </div>
       <div class="chart-inner" id="carrier-wrap">
         <div class="empty-state">
           <div class="empty-icon">🏢</div>
-          <div class="empty-text">Insira origem e destino</div>
+          <div class="empty-text">Enter origin and destination</div>
         </div>
       </div>
     </div>
 
   </div>
 
-  <!-- ── Tabela de voos programados ───────────────────── -->
+  <!-- Scheduled flights table -->
   <div class="table-area">
     <div class="table-head">
       <span class="dot" style="background:#a78bfa"></span>
-      Voos reais programados
+      Scheduled live flights
     </div>
     <div id="weekly-predictions-wrap">
       <div class="empty-state" style="padding:32px 0;">
         <div class="empty-icon">📅</div>
-        <div class="empty-text">Carregando lista de voos...</div>
+        <div class="empty-text">Loading flight list...</div>
       </div>
       <table id="weekly-predictions-table" class="data-table hidden">
         <thead><tr></tr></thead>

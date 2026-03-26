@@ -77,101 +77,101 @@ function buildAirportLabel(airport) {
   const parts = [];
   if (airport.city) parts.push(airport.city);
   if (airport.airport_name) parts.push(airport.airport_name);
-  return `${airport.iata_code} - ${parts.join(" / ") || "Aeroporto sem descricao"}`;
+  return `${airport.iata_code} - ${parts.join(" / ") || "Airport without description"}`;
 }
 
 async function loadCountries() {
   if (!flightElements.country) return;
-  setFlightFeedback("Carregando paises...");
-  resetAirportSelect("Selecione um pais primeiro");
-  resetTable("A tabela sera exibida apos selecionar um aeroporto.");
+  setFlightFeedback("Loading countries...");
+  resetAirportSelect("Select a country first");
+  resetTable("The table will appear after you select an airport.");
 
   try {
     const response = await fetch("/api/flight/countries");
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.detail || `Falha ao carregar paises (${response.status}).`);
+      throw new Error(data.detail || `Failed to load countries (${response.status}).`);
     }
 
     const countries = Array.isArray(data.countries) ? data.countries : [];
     if (!countries.length) {
-      setSelectOptions(flightElements.country, "Nenhum pais encontrado", [], () => "", () => "");
-      setFlightFeedback("Nenhum pais com aeroporto disponivel foi encontrado.", true);
+      setSelectOptions(flightElements.country, "No country found", [], () => "", () => "");
+      setFlightFeedback("No country with available airports was found.", true);
       return;
     }
 
     setSelectOptions(
       flightElements.country,
-      "Selecione um pais",
+      "Select a country",
       countries,
       (country) => country.country,
       buildCountryLabel
     );
 
     setFlightFeedback(
-      `Base de aeroportos carregada: ${data.total_countries || countries.length} paises.`
+      `Airport base loaded: ${data.total_countries || countries.length} countries.`
     );
   } catch (error) {
-    setSelectOptions(flightElements.country, "Falha ao carregar", [], () => "", () => "");
-    setFlightFeedback(error?.message || "Erro ao buscar paises.", true);
+    setSelectOptions(flightElements.country, "Failed to load", [], () => "", () => "");
+    setFlightFeedback(error?.message || "Error fetching countries.", true);
   }
 }
 
 async function loadAirportsByCountry(country) {
   if (!country || !flightElements.airport) {
-    resetAirportSelect("Selecione um pais primeiro");
-    resetTable("A tabela sera exibida apos selecionar um aeroporto.");
+    resetAirportSelect("Select a country first");
+    resetTable("The table will appear after you select an airport.");
     return;
   }
 
-  setFlightFeedback(`Carregando aeroportos de ${country}...`);
-  resetAirportSelect("Carregando aeroportos...");
-  resetTable("Selecione um aeroporto para ver os voos locais.");
+  setFlightFeedback(`Loading airports for ${country}...`);
+  resetAirportSelect("Loading airports...");
+  resetTable("Select an airport to see local flights.");
 
   try {
     const url = `/api/flight/airports?country=${encodeURIComponent(country)}`;
     const response = await fetch(url);
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.detail || `Falha ao carregar aeroportos (${response.status}).`);
+      throw new Error(data.detail || `Failed to load airports (${response.status}).`);
     }
 
     const airports = Array.isArray(data.airports) ? data.airports : [];
     if (!airports.length) {
-      resetAirportSelect("Nenhum aeroporto encontrado para este pais");
-      setFlightFeedback(`Nenhum aeroporto encontrado para ${country}.`, true);
+      resetAirportSelect("No airport found for this country");
+      setFlightFeedback(`No airport found for ${country}.`, true);
       return;
     }
 
     flightElements.airport.disabled = false;
     setSelectOptions(
       flightElements.airport,
-      "Selecione um aeroporto",
+      "Select an airport",
       airports,
       (airport) => airport.iata_code,
       buildAirportLabel
     );
 
-    setFlightFeedback(`${airports.length} aeroportos encontrados em ${country}.`);
+    setFlightFeedback(`${airports.length} airports found in ${country}.`);
   } catch (error) {
-    resetAirportSelect("Falha ao carregar aeroportos");
-    setFlightFeedback(error?.message || "Erro ao buscar aeroportos.", true);
+    resetAirportSelect("Failed to load airports");
+    setFlightFeedback(error?.message || "Error fetching airports.", true);
   }
 }
 
 async function loadAirportDepartures(iataCode) {
   if (!iataCode) {
-    resetTable("A tabela sera exibida apos selecionar um aeroporto.");
+    resetTable("The table will appear after you select an airport.");
     if (flightElements.summary) {
-      flightElements.summary.textContent = "Selecione um aeroporto para carregar os voos.";
+      flightElements.summary.textContent = "Select an airport to load flights.";
     }
     return;
   }
 
-  resetTable("Carregando voos locais...");
+  resetTable("Loading local flights...");
   setFlightFeedback(`Consultando voos para ${iataCode}...`);
   if (flightElements.summary) {
-    flightElements.summary.textContent = `Buscando voos de saida para ${iataCode}...`;
+    flightElements.summary.textContent = `Searching departures for ${iataCode}...`;
   }
 
   try {
@@ -179,12 +179,12 @@ async function loadAirportDepartures(iataCode) {
     const response = await fetch(url);
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.detail || `Falha ao carregar voos (${response.status}).`);
+      throw new Error(data.detail || `Failed to load flights (${response.status}).`);
     }
 
     const departures = Array.isArray(data.departures) ? data.departures : [];
     if (!departures.length) {
-      resetTable("Nenhum voo local futuro encontrado para este aeroporto.");
+      resetTable("No upcoming local flight found for this airport.");
     } else {
       showTableRows(departures);
     }
@@ -192,17 +192,17 @@ async function loadAirportDepartures(iataCode) {
     if (flightElements.summary) {
       flightElements.summary.textContent = `${data.returned_rows || departures.length} de ${
         data.matched_rows || departures.length
-      } voos exibidos para ${iataCode}.`;
+      } flights shown for ${iataCode}.`;
     }
 
     setFlightFeedback(
       data.future_window
-        ? "Exibindo voos futuros a partir da data atual."
-        : "Exibindo voos disponiveis na base."
+        ? "Showing upcoming flights from the current date."
+        : "Showing flights available in the dataset."
     );
   } catch (error) {
-    resetTable("Falha ao carregar voos locais.");
-    setFlightFeedback(error?.message || "Erro ao buscar voos.", true);
+    resetTable("Failed to load local flights.");
+    setFlightFeedback(error?.message || "Error fetching flights.", true);
   }
 }
 

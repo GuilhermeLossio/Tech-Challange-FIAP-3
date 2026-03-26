@@ -488,7 +488,7 @@ def sync_prediction_partitions(
     database: str,
     table: str,
     results_location: str,
-    df: pd.DataFrame,         # <-- adicione o df para saber as partições
+    df: pd.DataFrame,         # keep the dataframe so we know which partitions to sync
     bucket: str,
     prefix: str,
 ) -> None:

@@ -49,7 +49,7 @@ function riskClass(riskLevel) {
 
 function isLlmAdviceSource(adviceSource) {
   const value = String(adviceSource || "").toLowerCase();
-  return value === "nvidia_nemotron" || value === "huggingface";
+  return value === "nvidia" || value === "nvidia_nemotron" || value === "huggingface";
 }
 
 function buildPredictionPayload(form) {

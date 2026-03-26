@@ -125,8 +125,8 @@ def register_advisor_views(app: Flask, deps: dict[str, Any]) -> None:
     has_full_route_context         = deps.get("has_full_route_context") or deps["should_run_route_prediction"]
     user_chat_message              = deps["user_chat_message"]
     build_discovery_response_runtime = deps["build_discovery_response_runtime"]
-    should_use_nemotron            = deps["should_use_nemotron"]
-    generate_nemotron_advice       = deps["generate_nemotron_advice"]
+    should_use_llm                 = deps.get("should_use_llm") or deps["should_use_nemotron"]
+    generate_llm_advice            = deps.get("generate_llm_advice") or deps["generate_nemotron_advice"]
     build_discovery_context        = deps["build_discovery_context"]
     assistant_chat_message         = deps["assistant_chat_message"]
     load_assets                    = deps["load_assets"]
@@ -302,14 +302,14 @@ def register_advisor_views(app: Flask, deps: dict[str, Any]) -> None:
         if not has_full_route_context(payload):
             discovery = build_discovery_response_runtime(payload)
 
-            if should_use_nemotron(user_text):
+            if should_use_llm(user_text):
                 discovery_ctx = build_discovery_context(payload, discovery.advice, messages)
                 discovery_ctx["flight_search"]      = flight_search_ctx
                 # Provide the LLM with what to ask next
                 discovery_ctx["probing_questions"]  = probing_questions[:2]  # at most 2 at once
 
                 try:
-                    llm_result = generate_nemotron_advice(
+                    llm_result = generate_llm_advice(
                         discovery_ctx,
                         history=llm_history,
                         system_prompt=ADVISOR_SYSTEM_PROMPT,
@@ -382,14 +382,14 @@ def register_advisor_views(app: Flask, deps: dict[str, Any]) -> None:
         advice_source = "heuristic"
         advice_model  = None
 
-        if should_use_nemotron(user_text):
+        if should_use_llm(user_text):
             advice_ctx = build_advice_context(
                 payload, prob, level, top, fallback_advice, suggested_flights, messages
             )
             advice_ctx["flight_search"]   = flight_search_ctx
 
             try:
-                llm_result = generate_nemotron_advice(
+                llm_result = generate_llm_advice(
                     advice_ctx,
                     history=llm_history,
                     system_prompt=ADVISOR_SYSTEM_PROMPT,

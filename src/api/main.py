@@ -25,9 +25,9 @@ from model import (  # noqa: E402
     download_s3_object, is_s3_uri, load_csv_any, load_env_file,
     load_model_any, parse_s3_uri,
 )
-from api.services.nemotron_service import (  # noqa: E402
-    generate_nemotron_advice,
-    should_use_nemotron,
+from api.services.llm_service import (  # noqa: E402
+    generate_llm_advice,
+    should_use_llm,
 )
 from api.views import (  # noqa: E402
     register_advisor_views,
@@ -1848,8 +1848,8 @@ register_advisor_views(app, {
     "should_run_route_prediction": should_run_route_prediction,
     "user_chat_message": user_chat_message,
     "build_discovery_response_runtime": build_discovery_response_runtime,
-    "should_use_nemotron": should_use_nemotron,
-    "generate_nemotron_advice": generate_nemotron_advice,
+    "should_use_llm": should_use_llm,
+    "generate_llm_advice": generate_llm_advice,
     "build_discovery_context": build_discovery_context,
     "assistant_chat_message": assistant_chat_message,
     "load_assets": load_assets,

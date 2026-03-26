@@ -16,15 +16,35 @@ def register_flight_views(app: Flask, deps: dict[str, Any]) -> None:
     load_upcoming_flights_frame = deps["load_upcoming_flights_frame"]
     extract_airport_departures = deps["extract_airport_departures"]
 
+    def _public_source_label(source: str | None) -> str | None:
+        if not source:
+            return None
+        text = str(source).strip()
+        if not text:
+            return None
+        if text.startswith("inline:"):
+            return text
+        if text.startswith("s3://"):
+            return "s3"
+        if text.startswith(("http://", "https://")):
+            return "remote"
+        return "file"
+
+    def _internal_error(message: str, exc: Exception):
+        app.logger.exception("%s", message)
+        return jsonify({"detail": message}), 500
+
     @app.get("/api/flight/countries")
     def flight_countries():
         source_uri = request.args.get("source_uri")
         try:
             airports_df, source = load_airports_index(source_uri)
-        except FileNotFoundError as exc:
-            return jsonify({"source": None, "total_countries": 0, "countries": [], "detail": str(exc)})
+        except ValueError as exc:
+            return jsonify({"detail": str(exc)}), 400
+        except FileNotFoundError:
+            return jsonify({"source": None, "total_countries": 0, "countries": [], "detail": "Airports dataset is unavailable."})
         except Exception as exc:
-            return jsonify({"detail": str(exc)}), 500
+            return _internal_error("Unable to load countries right now.", exc)
 
         grouped = (
             airports_df.groupby("country", dropna=True)["iata_code"]
@@ -33,7 +53,7 @@ def register_flight_views(app: Flask, deps: dict[str, Any]) -> None:
             .sort_values("country")
         )
         return jsonify({
-            "source": source,
+            "source": _public_source_label(source),
             "total_countries": len(grouped),
             "countries": [
                 {"country": str(row["country"]), "airport_count": int(row["airport_count"])}
@@ -56,16 +76,18 @@ def register_flight_views(app: Flask, deps: dict[str, Any]) -> None:
 
         try:
             airports_df, source = load_airports_index(source_uri)
-        except FileNotFoundError as exc:
+        except ValueError as exc:
+            return jsonify({"detail": str(exc)}), 400
+        except FileNotFoundError:
             return jsonify({
                 "source": None,
                 "country": country,
                 "total_airports": 0,
                 "airports": [],
-                "detail": str(exc),
+                "detail": "Airports dataset is unavailable.",
             })
         except Exception as exc:
-            return jsonify({"detail": str(exc)}), 500
+            return _internal_error("Unable to load airports right now.", exc)
 
         selected = (
             airports_df[airports_df["country"].astype(str).str.casefold() == country.casefold()]
@@ -81,7 +103,7 @@ def register_flight_views(app: Flask, deps: dict[str, Any]) -> None:
                 return None
 
         return jsonify({
-            "source": source,
+            "source": _public_source_label(source),
             "country": country,
             "total_airports": len(selected),
             "airports": [{
@@ -113,10 +135,12 @@ def register_flight_views(app: Flask, deps: dict[str, Any]) -> None:
             flights_df, source = load_upcoming_flights_frame(source_uri)
             total_rows = len(flights_df)
             departures, matched, future = extract_airport_departures(flights_df, airport, limit)
+        except ValueError as exc:
+            return jsonify({"detail": str(exc)}), 400
         except FileNotFoundError:
             pass
         except Exception as exc:
-            return jsonify({"detail": str(exc)}), 500
+            return _internal_error("Unable to load departures right now.", exc)
 
         if not departures:
             try:
@@ -154,7 +178,7 @@ def register_flight_views(app: Flask, deps: dict[str, Any]) -> None:
                 pass
 
         return jsonify({
-            "source": source,
+            "source": _public_source_label(source),
             "airport": airport,
             "total_rows": total_rows,
             "matched_rows": matched,

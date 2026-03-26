@@ -221,6 +221,20 @@ def now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
+def allow_data_source_override() -> bool:
+    raw = (os.getenv("ALLOW_DATA_SOURCE_OVERRIDE") or "0").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
+def validate_source_override(source_uri: str | None, field_name: str = "source_uri") -> str | None:
+    text = str(source_uri or "").strip()
+    if not text:
+        return None
+    if not allow_data_source_override():
+        raise ValueError(f"'{field_name}' override is disabled in this environment.")
+    return text
+
+
 def trim_chat_text(value: str | None) -> str:
     text = (value or "").strip()
     if len(text) <= ADVISOR_CHAT_MAX_CONTENT:
@@ -1018,7 +1032,7 @@ def load_assets():
 def resolve_predict_input_uri(input_uri: str | None) -> str:
     bucket = os.getenv("S3_BUCKET") or os.getenv("S3_Bucket")
     default = default_s3_uri(bucket, os.getenv("S3_PROCESSED_PREFIX","processed"), "test.parquet") or "data/processed/test.parquet"
-    source = input_uri or resolve_uri("PREDICT_SOURCE", default)
+    source = validate_source_override(input_uri, "input_uri") or resolve_uri("PREDICT_SOURCE", default)
     if not source:
         raise ValueError("Missing prediction source. Provide input_uri or set PREDICT_SOURCE/S3_BUCKET.")
     return source
@@ -1048,7 +1062,8 @@ def find_column_name(df: pd.DataFrame, expected: str) -> str | None:
 # ── Airports helpers ─────────────────────────────────────────────────────────
 
 def resolve_airports_index_sources(source_uri: str | None = None) -> list[str]:
-    candidates = [source_uri] if source_uri and source_uri.strip() else []
+    source_override = validate_source_override(source_uri)
+    candidates = [source_override] if source_override else []
     for k in ("AIRPORTS_INDEX_SOURCE", "WORLD_AIRPORTS_SOURCE"):
         v = resolve_uri(k, None)
         if v: candidates.append(v)
@@ -1431,7 +1446,8 @@ def route_updates_from_request(req: AdviseRequest) -> RouteDropdownUpdates | Non
 def resolve_upcoming_flights_sources(source_uri: str | None = None) -> list[str]:
     bucket = os.getenv("S3_BUCKET") or os.getenv("S3_Bucket")
     rp = os.getenv("S3_REFINED_PREFIX","refined")
-    candidates = [source_uri] if source_uri and source_uri.strip() else []
+    source_override = validate_source_override(source_uri)
+    candidates = [source_override] if source_override else []
     for k in ("UPCOMING_FLIGHTS_SOURCE","REAL_FLIGHTS_SOURCE","FUTURE_FLIGHTS_SOURCE","WEEKLY_PREDICTIONS_SOURCE"):
         v = resolve_uri(k, None)
         if v: candidates.append(v)
@@ -2218,7 +2234,7 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             },
             "response_schema": {"type": "object"},
             "response_example": {
-                "source": "data/refined/future_flights.parquet",
+                "source": "file",
                 "threshold": 0.5,
                 "total_rows": 1384,
                 "matched_rows": 12,
@@ -2244,11 +2260,11 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             "description": "Returns future flights or, if none are available, the best available window for the prediction table.",
             "parameters": [
                 {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 500}, "description": "Maximum number of returned records.", "example": 50},
-                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "Local CSV/parquet or S3 URI for the future-flights source.", "example": "data/refined/future_flights.parquet"},
+                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "Administrative source override for the future-flights dataset. Disabled by default unless ALLOW_DATA_SOURCE_OVERRIDE=1.", "example": "data/refined/future_flights.parquet"},
             ],
             "response_schema": {"type": "object"},
             "response_example": {
-                "source": "data/refined/future_flights.parquet",
+                "source": "file",
                 "total_rows": 1384,
                 "matched_rows": 214,
                 "returned_rows": 50,
@@ -2273,11 +2289,11 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             "description": "Legacy alias of /api/upcoming_flights. Kept for compatibility with the older frontend.",
             "parameters": [
                 {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 500}, "description": "Maximum number of returned records.", "example": 50},
-                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "Local CSV/parquet or S3 URI for the future-flights source.", "example": "data/refined/future_flights.parquet"},
+                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "Administrative source override for the future-flights dataset. Disabled by default unless ALLOW_DATA_SOURCE_OVERRIDE=1.", "example": "data/refined/future_flights.parquet"},
             ],
             "response_schema": {"type": "object"},
             "response_example": {
-                "source": "data/refined/future_flights.parquet",
+                "source": "file",
                 "total_rows": 1384,
                 "matched_rows": 214,
                 "returned_rows": 50,
@@ -2293,11 +2309,11 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             "summary": "Available countries",
             "description": "Lists the countries present in the airport index to populate the frontend dropdowns.",
             "parameters": [
-                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "Local CSV, HTTP URL, or S3 URI with the airport index.", "example": "data/refined/world_airports.csv"},
+                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "Administrative source override for the airport index. Disabled by default unless ALLOW_DATA_SOURCE_OVERRIDE=1.", "example": "data/refined/world_airports.csv"},
             ],
             "response_schema": {"type": "object"},
             "response_example": {
-                "source": "data/refined/world_airports.csv",
+                "source": "file",
                 "total_countries": 3,
                 "countries": [
                     {"country": "Brazil", "airport_count": 142},
@@ -2315,11 +2331,11 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             "parameters": [
                 {"name": "country", "in": "query", "required": True, "schema": {"type": "string"}, "description": "Country used as the main filter.", "example": "Brazil"},
                 {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "default": 800, "minimum": 1, "maximum": 5000}, "description": "Maximum number of returned airports.", "example": 200},
-                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "Alternate source for the airport index.", "example": "data/refined/world_airports.csv"},
+                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "Administrative source override for the airport index. Disabled by default unless ALLOW_DATA_SOURCE_OVERRIDE=1.", "example": "data/refined/world_airports.csv"},
             ],
             "response_schema": {"type": "object"},
             "response_example": {
-                "source": "data/refined/world_airports.csv",
+                "source": "file",
                 "country": "Brazil",
                 "total_airports": 2,
                 "airports": [
@@ -2340,11 +2356,11 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             "parameters": [
                 {"name": "airport", "in": "query", "required": True, "schema": {"type": "string"}, "description": "IATA code of the origin airport.", "example": "GRU"},
                 {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 500}, "description": "Maximum number of departures.", "example": 30},
-                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "Alternate source for future flights.", "example": "data/refined/future_flights.parquet"},
+                {"name": "source_uri", "in": "query", "required": False, "schema": {"type": "string"}, "description": "Administrative source override for the future-flights dataset. Disabled by default unless ALLOW_DATA_SOURCE_OVERRIDE=1.", "example": "data/refined/future_flights.parquet"},
             ],
             "response_schema": {"type": "object"},
             "response_example": {
-                "source": "data/refined/future_flights.parquet",
+                "source": "file",
                 "airport": "GRU",
                 "total_rows": 1384,
                 "matched_rows": 42,
@@ -2420,6 +2436,33 @@ def build_api_docs_catalog() -> list[dict[str, Any]]:
             ],
         },
     ]
+
+
+DOCS_BASE_URL_PLACEHOLDER = "$BASE_URL"
+
+
+def public_source_label(source: str | None) -> str | None:
+    if not source:
+        return None
+    text = str(source).strip()
+    if not text:
+        return None
+    if text.startswith("inline:"):
+        return text
+    if is_s3_uri(text):
+        return "s3"
+    if text.startswith(("http://", "https://")):
+        return "remote"
+    return "file"
+
+
+def internal_error_response(message: str, exc: Exception | None = None, status: int = 500):
+    if exc is not None:
+        if status >= 500:
+            app.logger.exception("%s", message)
+        else:
+            app.logger.warning("%s: %s", message, exc)
+    return jsonify({"detail": message}), status
 
 
 def build_sample_url(base_url: str, endpoint: dict[str, Any]) -> str:
@@ -2603,15 +2646,14 @@ def api_routes():
 
 @app.route("/docs", methods=["GET"], strict_slashes=False)
 def docs():
-    base_url = request.url_root.rstrip("/")
-    sections = build_docs_sections(base_url)
+    sections = build_docs_sections(DOCS_BASE_URL_PLACEHOLDER)
     endpoint_count = sum(len(section["endpoints"]) for section in sections)
     return render_template(
         "api_docs.html",
         page_title="Flight Advisor | API Docs",
         active_page="docs",
         doc_sections=sections,
-        base_url=base_url,
+        docs_base_url=DOCS_BASE_URL_PLACEHOLDER,
         openapi_url=url_for("openapi_json"),
         routes_url=url_for("api_routes"),
         endpoint_count=endpoint_count,
@@ -2625,7 +2667,7 @@ def redoc():
 
 @app.get("/openapi.json")
 def openapi_json():
-    return jsonify(build_openapi_spec(request.url_root.rstrip("/")))
+    return jsonify(build_openapi_spec("/"))
 
 @app.route("/health", methods=["GET"])
 def health():
@@ -2639,12 +2681,15 @@ def upcoming_flights():
     try: limit = max(1, min(int(limit_raw), 500))
     except ValueError: return jsonify({"detail":"Query parameter 'limit' must be an integer."}), 400
     try: df, source = load_upcoming_flights_frame(source_uri)
-    except FileNotFoundError as exc:
+    except ValueError as exc:
+        return jsonify({"detail": str(exc)}), 400
+    except FileNotFoundError:
         return jsonify({"source":None,"total_rows":0,"matched_rows":0,"returned_rows":0,
-                        "future_window":False,"predictions":[],"detail":str(exc)})
-    except Exception as exc: return jsonify({"detail":str(exc)}), 500
+                        "future_window":False,"predictions":[],"detail":"Upcoming flights dataset is unavailable."})
+    except Exception as exc:
+        return internal_error_response("Unable to load upcoming flights right now.", exc)
     flights, matched, future = extract_upcoming_flights(df, limit)
-    return jsonify({"source":source,"total_rows":len(df),"matched_rows":matched,
+    return jsonify({"source":public_source_label(source),"total_rows":len(df),"matched_rows":matched,
                     "returned_rows":len(flights),"future_window":future,"predictions":flights})
 
 @app.route("/predict", methods=["POST","OPTIONS"])
@@ -2656,25 +2701,32 @@ def predict():
         payload_data = {}
     try: payload = PredictRequest.model_validate(payload_data)
     except ValidationError as exc: return jsonify({"detail":exc.errors()}), 400
-    try: pipeline, meta, *_ = load_assets()
-    except Exception as exc: return jsonify({"detail":str(exc)}), 500
+    try:
+        pipeline, meta, *_ = load_assets()
+    except Exception as exc:
+        return internal_error_response("Prediction assets are unavailable right now.", exc)
     try: base_df, source = load_predict_frame(payload)
-    except (ValueError, FileNotFoundError) as exc: return jsonify({"detail":str(exc)}), 400
-    except Exception as exc: return jsonify({"detail":str(exc)}), 500
+    except ValueError as exc:
+        return jsonify({"detail":str(exc)}), 400
+    except FileNotFoundError:
+        return jsonify({"detail":"Prediction input dataset is unavailable."}), 400
+    except Exception as exc:
+        return internal_error_response("Unable to load prediction input right now.", exc)
     total_rows = int(len(base_df))
     if total_rows == 0:
-        return jsonify({"source":source,"threshold":payload.threshold,"total_rows":0,
+        return jsonify({"source":public_source_label(source),"threshold":payload.threshold,"total_rows":0,
                         "matched_rows":0,"returned_rows":0,"predictions":[]})
     try: filtered_df = apply_predict_filters(base_df, payload)
     except ValueError as exc: return jsonify({"detail":str(exc)}), 400
     matched = int(len(filtered_df))
     if matched == 0:
-        return jsonify({"source":source,"threshold":payload.threshold,"total_rows":total_rows,
+        return jsonify({"source":public_source_label(source),"threshold":payload.threshold,"total_rows":total_rows,
                         "matched_rows":0,"returned_rows":0,"predictions":[]})
     try: output_df = predict_dataframe(filtered_df.head(payload.limit).copy(), pipeline, meta, payload.threshold)
     except ValueError as exc: return jsonify({"detail":str(exc)}), 400
-    except Exception as exc: return jsonify({"detail":str(exc)}), 500
-    return jsonify({"source":source,"threshold":payload.threshold,"total_rows":total_rows,
+    except Exception as exc:
+        return internal_error_response("Unable to compute predictions right now.", exc)
+    return jsonify({"source":public_source_label(source),"threshold":payload.threshold,"total_rows":total_rows,
                     "matched_rows":matched,"returned_rows":len(output_df),"predictions":dataframe_json_records(output_df)})
 
 
@@ -2751,11 +2803,11 @@ def live_flights():
             include_ground=include_ground,
         )
     except TimeoutError as exc:
-        return jsonify({"detail": str(exc)}), 504
+        return internal_error_response("OpenSky request timed out.", exc, status=504)
     except RuntimeError as exc:
-        return jsonify({"detail": str(exc)}), 502
+        return internal_error_response("OpenSky provider error.", exc, status=502)
     except Exception as exc:
-        return jsonify({"detail": f"Unexpected error: {exc}"}), 500
+        return internal_error_response("Unexpected live-flight lookup error.", exc)
 
     sliced = flights[:limit]
 
@@ -2788,11 +2840,11 @@ def live_flight_detail(icao24: str):
     try:
         flights, cache_age = fetch_live_flights_cached(icao24=icao24)
     except TimeoutError as exc:
-        return jsonify({"detail": str(exc)}), 504
+        return internal_error_response("OpenSky request timed out.", exc, status=504)
     except RuntimeError as exc:
-        return jsonify({"detail": str(exc)}), 502
+        return internal_error_response("OpenSky provider error.", exc, status=502)
     except Exception as exc:
-        return jsonify({"detail": f"Unexpected error: {exc}"}), 500
+        return internal_error_response("Unexpected live-flight detail error.", exc)
 
     match = next((f for f in flights if f.get("icao24", "").lower() == icao24), None)
     if not match:

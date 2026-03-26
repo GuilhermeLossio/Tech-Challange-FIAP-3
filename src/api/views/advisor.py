@@ -159,6 +159,10 @@ def register_advisor_views(app: Flask, deps: dict[str, Any]) -> None:
     # Internal helpers
     # -----------------------------------------------------------------------
 
+    def _internal_error(message: str, exc: Exception):
+        app.logger.exception("%s", message)
+        return jsonify({"detail": message}), 500
+
     def _serialize_history(messages: list) -> list[dict]:
         """
         Converts internal Pydantic history objects to the
@@ -313,7 +317,7 @@ def register_advisor_views(app: Flask, deps: dict[str, Any]) -> None:
             try:
                 pipeline, meta, maps, global_rate, route_distance_map, global_distance = load_assets()
             except Exception as exc:
-                return jsonify({"detail": str(exc)}), 500
+                return _internal_error("Prediction assets are unavailable right now.", exc)
 
             weekly_response = build_weekly_route_prediction(payload, pipeline, meta, limit=3)
             if weekly_response is None:
@@ -449,7 +453,7 @@ def register_advisor_views(app: Flask, deps: dict[str, Any]) -> None:
         try:
             pipeline, meta, maps, global_rate, route_distance_map, global_distance = load_assets()
         except Exception as exc:
-            return jsonify({"detail": str(exc)}), 500
+            return _internal_error("Prediction assets are unavailable right now.", exc)
 
         try:
             snapshot = compute_model_delay_snapshot(

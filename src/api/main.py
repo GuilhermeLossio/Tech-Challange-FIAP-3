@@ -2627,10 +2627,9 @@ def redoc():
 def openapi_json():
     return jsonify(build_openapi_spec(request.url_root.rstrip("/")))
 
-@app.get("/health")
+@app.route("/health", methods=["GET"])
 def health():
-    try: _ = load_assets(); return jsonify({"status":"ok"})
-    except Exception as exc: return jsonify({"status":"error","detail":str(exc)}), 500
+    return jsonify({"status": "ok"}), 200
 
 @app.get("/api/upcoming_flights")
 @app.get("/api/weekly_predictions")

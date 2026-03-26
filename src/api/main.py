@@ -2678,12 +2678,30 @@ def predict():
                     "matched_rows":matched,"returned_rows":len(output_df),"predictions":dataframe_json_records(output_df)})
 
 
+def _runtime_host() -> str:
+    host = (os.getenv("API_HOST") or os.getenv("HOST") or "").strip()
+    if host:
+        return host
+    return "0.0.0.0" if os.getenv("PORT") else "127.0.0.1"
+
+
+def _runtime_port(default: int = 8000) -> int:
+    raw = (os.getenv("PORT") or os.getenv("API_PORT") or str(default)).strip()
+    try:
+        port = int(raw)
+    except ValueError:
+        print(f"Invalid port '{raw}'. Falling back to {default}.", file=sys.stderr)
+        return default
+    return max(1, min(port, 65535))
+
+
+def _runtime_debug() -> bool:
+    raw = (os.getenv("FLASK_DEBUG") or os.getenv("DEBUG") or "0").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
 def run_local_server() -> int:
-    host  = os.getenv("API_HOST","127.0.0.1")
-    debug = os.getenv("FLASK_DEBUG","0") == "1"
-    try: port = int(os.getenv("API_PORT","8000"))
-    except ValueError: print("Invalid API_PORT. Falling back to 8000.", file=sys.stderr); port = 8000
-    app.run(host=host, port=port, debug=debug)
+    app.run(host=_runtime_host(), port=_runtime_port(), debug=_runtime_debug())
     return 0
 
 

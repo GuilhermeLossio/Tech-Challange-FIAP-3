@@ -6,7 +6,7 @@ This document describes the current runtime prototype implemented in the reposit
 
 The current prototype covers:
 
-- Flask pages and JSON APIs served by `src/api/main.py`
+- deployment entrypoint in `src/app.py` plus Flask pages and JSON APIs composed in `src/api/main.py`
 - delay prediction for a specific flight
 - weekly route estimation when the user provides only partial route context
 - airport and route APIs used by the dropdown-based frontend
@@ -42,6 +42,7 @@ flowchart TB
 
 ### Main runtime components
 
+- `src/app.py`: deployment-oriented entrypoint for Railway, plain Python, or `gunicorn`.
 - `src/api/main.py`: schemas, feature preparation, model loading, weekly fallback logic, endpoint registration, and Flask bootstrap.
 - `src/api/views/advisor.py`: `/advise`, advisor history, and advisor reset flow.
 - `src/api/views/flight.py`: country, airport, and departure endpoints used by dropdowns.

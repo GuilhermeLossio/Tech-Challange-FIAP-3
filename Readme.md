@@ -40,7 +40,7 @@ Flight Advisor is a Flask application for flight-delay prediction and conversati
 
 ## Architecture snapshot
 
-- Delivery layer: Flask app in `src/api/main.py`, Jinja templates in `src/templates`, static assets in `src/static`.
+- Delivery layer: deployment entrypoint in `src/app.py`, Flask app composition in `src/api/main.py`, Jinja templates in `src/templates`, and static assets in `src/static`.
 - View registration: `src/api/views/pages.py`, `src/api/views/flight.py`, and `src/api/views/advisor.py`.
 - Prediction layer: model artifacts in `models/`, feature construction and fallback logic in `src/api/main.py`.
 - Advisor layer: session-aware orchestration, route extraction, weekly fallback, and LLM prompt assembly.
@@ -58,6 +58,7 @@ FIAP-3/
 |-- models/                    # Trained model artifacts and explainability exports
 |-- notebooks/                 # Exploration and experimentation notebooks
 |-- src/
+|   |-- app.py                 # Deployment entrypoint for Railway or gunicorn
 |   |-- api/
 |   |   |-- main.py            # Flask app, schemas, predictors, API registration
 |   |   |-- services/          # LLM, flight, and live-flight integrations
@@ -113,7 +114,7 @@ Key variables:
 ### Run the current web app and API
 
 ```bash
-python src/api/main.py
+python src/app.py
 ```
 
 Then open:
@@ -128,6 +129,18 @@ If you still use the separate Dash dashboard directly:
 
 ```bash
 python dashboard/app.py
+```
+
+### Railway or gunicorn
+
+```bash
+gunicorn -w 2 -b 0.0.0.0:$PORT src.app:app
+```
+
+If you prefer plain Python on Railway, `src/app.py` also reads `PORT` automatically:
+
+```bash
+python src/app.py
 ```
 
 ## Main API surface

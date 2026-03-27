@@ -6,6 +6,9 @@ const state = {
   liveMarker: null,
   routeLayer: null,
   availableFlights: [],
+  lastLiveFlights: [],
+  upcomingFlights: [],
+  liveFeedStatus: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -70,6 +73,9 @@ function normalizeFlightToken(value) {
 }
 function hasValidCoordinates(latitude, longitude) {
   return Number.isFinite(latitude) && Number.isFinite(longitude);
+}
+function buildScheduledCallsign(flight) {
+  return normalizeFlightToken(`${flight?.airline || ""}${flight?.flight_number || ""}`);
 }
 
 // ── Autocomplete / suggestions ───────────────────────────────
@@ -192,24 +198,36 @@ function initMap() {
 }
 
 async function fetchLivePlanes() {
-  const url = `${apiBase()}/api/live_flights?region=south_america&limit=250`;
+  const url = `${apiBase()}/api/live_flights?region=south_america&limit=250&degraded=1`;
   try {
     const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
     const data = await r.json();
     if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
-    // The local API returns a nested format: { "flights": [...] }
-    const flights = data.flights || [];
-    renderLivePlanes(flights);
+    state.lastLiveFlights = data.flights || [];
+    state.liveFeedStatus = {
+      available: data.live_available !== false,
+      detail: data.detail || "",
+      providerStatus: data.provider_status || "ok",
+    };
+    updateAvailableFlightsCatalog();
+    renderLivePlanes(state.lastLiveFlights);
+    if (data.live_available === false) {
+      console.warn("Live feed unavailable:", data.detail || "OpenSky degraded mode");
+    }
   } catch (e) {
+    state.lastLiveFlights = [];
+    state.liveFeedStatus = {
+      available: false,
+      detail: e.message || "Unable to fetch live flights.",
+      providerStatus: "network_error",
+    };
+    updateAvailableFlightsCatalog();
+    renderLivePlanes([]);
     console.warn("Failed to fetch live flights:", e.message);
   }
 }
 
 function renderLivePlanes(flights) {
-  // Update flight suggestions from the live data
-  extractAvailableFlightsFromObjects(flights);
-  refreshSuggestionPanels();
-
   state.markers.forEach((m) => m.remove());
   state.markers = [];
 
@@ -250,8 +268,8 @@ function renderLivePlanes(flights) {
   });
 }
 
-// Extracts available flights from a list of flight objects
-function extractAvailableFlightsFromObjects(flights) {
+// Extracts available flights from live data
+function collectAvailableFlightsFromObjects(flights) {
   const unique = new Map();
   for (const flight of flights || []) {
     const { callsign, origin_country, country, icao24 } = flight;
@@ -262,10 +280,46 @@ function extractAvailableFlightsFromObjects(flights) {
         callsign: token,
         country: origin_country || country || "-",
         icao24: icao24 || "-",
+        source: "live",
       });
     }
   }
-  state.availableFlights = Array.from(unique.values()).sort((a, b) => a.callsign.localeCompare(b.callsign));
+  return Array.from(unique.values());
+}
+
+function collectAvailableFlightsFromSchedule(predictions) {
+  const unique = new Map();
+  for (const flight of predictions || []) {
+    const callsign = buildScheduledCallsign(flight);
+    if (!callsign) continue;
+    if (!unique.has(callsign)) {
+      unique.set(callsign, {
+        callsign,
+        country: flight.route || "Scheduled flight",
+        icao24: "",
+        source: "schedule",
+        flight_date: flight.flight_date || "",
+        scheduled_departure: flight.scheduled_departure || "",
+        origin_airport: flight.origin_airport || "",
+        destination_airport: flight.destination_airport || "",
+        airline: flight.airline || "",
+        flight_number: flight.flight_number || "",
+      });
+    }
+  }
+  return Array.from(unique.values());
+}
+
+function updateAvailableFlightsCatalog() {
+  const merged = new Map();
+  collectAvailableFlightsFromSchedule(state.upcomingFlights).forEach((flight) => {
+    merged.set(flight.callsign, flight);
+  });
+  collectAvailableFlightsFromObjects(state.lastLiveFlights).forEach((flight) => {
+    merged.set(flight.callsign, { ...(merged.get(flight.callsign) || {}), ...flight });
+  });
+  state.availableFlights = Array.from(merged.values()).sort((a, b) => a.callsign.localeCompare(b.callsign));
+  refreshSuggestionPanels();
 }
 
 // ── Flight lookup ────────────────────────────────────────────
@@ -282,9 +336,18 @@ async function lookupFlight() {
 
   // 1. Find the ICAO24 code for the given callsign
   const flight = state.availableFlights.find(f => f.callsign === rawCallsign);
-  if (!flight || !flight.icao24) {
-    status.textContent = `Flight "${rawCallsign}" not found in live data.`;
+  if (!flight) {
+    status.textContent = `Flight "${rawCallsign}" not found in live or scheduled data.`;
     autoFillFromIcao(rawCallsign);
+    btn.disabled = false;
+    btn.textContent = "Search";
+    return;
+  }
+  if (!flight.icao24) {
+    fillScheduledFlightCard(flight, rawCallsign);
+    status.textContent = state.liveFeedStatus?.available === false
+      ? "Live tracking is unavailable. Showing scheduled flight details."
+      : "Showing scheduled flight details.";
     btn.disabled = false;
     btn.textContent = "Search";
     return;
@@ -300,13 +363,17 @@ async function lookupFlight() {
       throw new Error(data.detail || `HTTP ${r.status}`);
     }
 
-    // The response contains a single "flight" object
-    fillFlightCard(data.flight, rawCallsign);
+    // Preserve scheduled route metadata when live detail omits it.
+    fillFlightCard({ ...(flight || {}), ...(data.flight || {}) }, rawCallsign);
     status.textContent = "";
   } catch (e) {
-    status.textContent = `Error: ${e.message}`;
-    // Attempt to fill the card with whatever data is available
-    autoFillFromIcao(rawCallsign);
+    if (flight.origin_airport || flight.destination_airport) {
+      fillScheduledFlightCard(flight, rawCallsign);
+      status.textContent = "Live tracking is unavailable. Showing scheduled flight details.";
+    } else {
+      status.textContent = `Error: ${e.message}`;
+      autoFillFromIcao(rawCallsign);
+    }
   } finally {
     btn.disabled = false;
     btn.textContent = "Search";
@@ -361,6 +428,22 @@ function fillFlightCard(flight, fallbackCallsign) {
       .bindPopup(`<b style="color:#f7c94f">${realCallsign}</b><br>${origin_country || country || ""}`)
       .addTo(state.map).openPopup();
   }
+}
+
+function fillScheduledFlightCard(flight, fallbackCallsign) {
+  const realCallsign = flight?.callsign || fallbackCallsign || "-";
+  const airlineIata = icaoToIata(realCallsign.replace(/[0-9]/g, "").trim());
+
+  $("fc-callsign").textContent = realCallsign;
+  $("fc-country").textContent = flight?.flight_date ? `Scheduled ${flight.flight_date}` : "Scheduled flight";
+  $("fc-alt").textContent = "-";
+  $("fc-vel").textContent = flight?.scheduled_departure ? `STD ${flight.scheduled_departure}` : "-";
+  $("fc-origin").textContent = flight?.origin_airport || "?";
+  $("fc-dest").textContent = flight?.destination_airport || "?";
+
+  if (airlineIata) $("f-airline").value = airlineIata;
+  if (flight?.origin_airport) $("f-origin").value = flight.origin_airport;
+  if (flight?.destination_airport) $("f-dest").value = flight.destination_airport;
 }
 
 function autoFillFromIcao(callsign) {
@@ -609,6 +692,8 @@ async function loadWeeklyPredictions() {
     const response = await fetch(`${apiBase()}/api/upcoming_flights?limit=60`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
+    state.upcomingFlights = data.predictions || [];
+    updateAvailableFlightsCatalog();
 
     if (data.predictions && data.predictions.length > 0) {
       populateTable(table, data.predictions);
@@ -618,6 +703,8 @@ async function loadWeeklyPredictions() {
       if (emptyEl) emptyEl.querySelector(".empty-text").textContent = data.detail || "No upcoming flights found.";
     }
   } catch {
+    state.upcomingFlights = [];
+    updateAvailableFlightsCatalog();
     if (emptyEl) emptyEl.querySelector(".empty-text").textContent = "Failed to load flight list.";
   }
 }

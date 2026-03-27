@@ -2720,6 +2720,47 @@ def internal_error_response(message: str, exc: Exception | None = None, status: 
     return jsonify({"detail": message}), status
 
 
+def truthy_query_arg(name: str, default: bool = False) -> bool:
+    raw = request.args.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def build_live_flights_payload(
+    region: str,
+    bounding_box: tuple[float, float, float, float],
+    include_ground: bool,
+    flights: list[dict[str, Any]],
+    *,
+    total_found: int | None = None,
+    cache_age: int | None = None,
+    live_available: bool = True,
+    provider_status: str = "ok",
+    detail: str | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "source": "OpenSky Network",
+        "region": region,
+        "bounding_box": {
+            "lamin": bounding_box[0],
+            "lomin": bounding_box[1],
+            "lamax": bounding_box[2],
+            "lomax": bounding_box[3],
+        },
+        "include_ground": include_ground,
+        "cache_age_sec": cache_age,
+        "total_found": len(flights) if total_found is None else int(total_found),
+        "returned": len(flights),
+        "flights": flights,
+        "live_available": live_available,
+        "provider_status": provider_status,
+    }
+    if detail:
+        payload["detail"] = detail
+    return payload
+
+
 def build_sample_url(base_url: str, endpoint: dict[str, Any]) -> str:
     path = endpoint["path"]
     query_params: dict[str, str] = {}
@@ -3044,6 +3085,7 @@ def live_flights():
 
     region = request.args.get("region", "brazil").strip().lower()
     bounding_box = custom_bb or BOUNDING_BOXES.get(region) or BOUNDING_BOXES["brazil"]
+    degraded = truthy_query_arg("degraded")
 
     # --- limit ---
     try:
@@ -3059,25 +3101,73 @@ def live_flights():
             include_ground=include_ground,
         )
     except TimeoutError as exc:
+        if degraded:
+            app.logger.warning("OpenSky timeout; returning degraded live-flight payload.")
+            detail = (
+                "Live OpenSky data timed out. "
+                "Scheduled departures remain available via /api/flight/departures "
+                "and /api/upcoming_flights."
+            )
+            return jsonify(build_live_flights_payload(
+                region,
+                bounding_box,
+                include_ground,
+                [],
+                cache_age=None,
+                live_available=False,
+                provider_status="timeout",
+                detail=detail,
+            ))
         return internal_error_response("OpenSky request timed out.", exc, status=504)
     except RuntimeError as exc:
+        if degraded:
+            app.logger.warning("OpenSky provider error; returning degraded live-flight payload: %s", exc)
+            detail = (
+                f"Live OpenSky data is unavailable right now. {exc} "
+                "Scheduled departures remain available via /api/flight/departures "
+                "and /api/upcoming_flights."
+            )
+            return jsonify(build_live_flights_payload(
+                region,
+                bounding_box,
+                include_ground,
+                [],
+                cache_age=None,
+                live_available=False,
+                provider_status="provider_error",
+                detail=detail,
+            ))
         return internal_error_response("OpenSky provider error.", exc, status=502)
     except Exception as exc:
+        if degraded:
+            app.logger.exception("Unexpected live-flight lookup error; returning degraded payload.")
+            detail = (
+                "Live OpenSky data is temporarily unavailable. "
+                "Scheduled departures remain available via /api/flight/departures "
+                "and /api/upcoming_flights."
+            )
+            return jsonify(build_live_flights_payload(
+                region,
+                bounding_box,
+                include_ground,
+                [],
+                cache_age=None,
+                live_available=False,
+                provider_status="unexpected_error",
+                detail=detail,
+            ))
         return internal_error_response("Unexpected live-flight lookup error.", exc)
 
     sliced = flights[:limit]
 
-    return jsonify({
-        "source":        "OpenSky Network",
-        "region":        region,
-        "bounding_box":  {"lamin": bounding_box[0], "lomin": bounding_box[1],
-                          "lamax": bounding_box[2], "lomax": bounding_box[3]},
-        "include_ground": include_ground,
-        "cache_age_sec": cache_age,
-        "total_found":   len(flights),
-        "returned":      len(sliced),
-        "flights":       sliced,
-    })
+    return jsonify(build_live_flights_payload(
+        region,
+        bounding_box,
+        include_ground,
+        sliced,
+        total_found=len(flights),
+        cache_age=cache_age,
+    ))
 
 
 @app.get("/api/live_flights/<string:icao24>")

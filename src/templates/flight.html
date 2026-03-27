@@ -133,7 +133,7 @@
   const S = {
     countries: [], airports: [], depCache: {},
     airportIndex: {},
-    _deps: [], _liveFlights: null, flightMarkerLayer: null, selectedAirportLayer: null,
+    _deps: [], _liveFlights: null, _liveStatus: null, flightMarkerLayer: null, selectedAirportLayer: null,
     selCountry: null, selIata: null,
     markerLayer: null, countryLayers: {},
     activeTab: 'happening',
@@ -321,6 +321,7 @@
     S.airports = [];
     S._deps = [];
     S._liveFlights = null;
+    S._liveStatus = null;
     S.destCountries = [];
     ci.value = name;
     cdd.classList.remove('open');
@@ -395,6 +396,7 @@
     S.activeChip = 'all';
     S.activeTab  = 'happening';
     S._liveFlights = null;
+    S._liveStatus = null;
 
     const ap = getAirportByIata(code);
     focusAirportMap(ap);
@@ -570,35 +572,37 @@
     const lat = toFiniteCoord(airport?.latitude);
     const lng = toFiniteCoord(airport?.longitude);
     let flights = [];
+    let liveStatus = { available: true, detail: '', providerStatus: 'ok' };
 
     if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
       const d = 8;
       const url = `/api/live_flights` +
         `?lamin=${(lat - d).toFixed(2)}&lamax=${(lat + d).toFixed(2)}` +
         `&lomin=${(lng - d).toFixed(2)}&lomax=${(lng + d).toFixed(2)}` +
-        `&limit=120&include_ground=1`;
+        `&limit=120&include_ground=1&degraded=1`;
       try {
         const r = await fetch(url);
         const data = await r.json();
         if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
         if (!isCurrentAirportRequest(requestId, iata)) return;
+        liveStatus = {
+          available: data.live_available !== false,
+          detail: data.detail || '',
+          providerStatus: data.provider_status || 'ok',
+        };
         flights = (data.flights || []).filter(f => f.callsign || f.icao24);
       } catch (err) {
         if (!isCurrentAirportRequest(requestId, iata)) return;
-        const pane = $('pane-happening');
-        if (pane) {
-          pane.innerHTML = `<div class="fp-state">
-            <span class="fp-state-ico">&#9888;</span>
-            Failed to load live flights for ${iata}<br>
-            <span style="font-size:.6rem;opacity:.65;margin-top:.3rem;display:block">
-              ${(err && err.message) ? err.message : 'Unexpected error'}
-            </span>
-          </div>`;
-        }
+        liveStatus = {
+          available: false,
+          detail: (err && err.message) ? err.message : `Failed to load live flights for ${iata}.`,
+          providerStatus: 'network_error',
+        };
       }
     }
 
     if (!isCurrentAirportRequest(requestId, iata)) return;
+    S._liveStatus = liveStatus;
     S._liveFlights = flights;
     renderHappeningContent(flights);
     placeFlightMarkers(flights);
@@ -611,6 +615,7 @@
   function renderHappeningContent(flights) {
     const pane = $('pane-happening');
     if (!pane) return;
+    const liveStatus = S._liveStatus || { available: true, detail: '' };
 
     /* For happening, filter by origin_country matching chip
        (chip = destination country from departures data)
@@ -623,6 +628,21 @@
     if (badge) badge.textContent = filtered.length;
 
     if (!filtered.length) {
+      if (!liveStatus.available) {
+        pane.innerHTML = `<div class="fp-state">
+          <span class="fp-state-ico">&#9888;</span>
+          Live tracking is temporarily unavailable<br>
+          <span style="font-size:.6rem;opacity:.7;margin-top:.35rem;display:block">
+            ${liveStatus.detail || 'Scheduled departures remain available in Flights to Buy.'}
+          </span>
+          ${S._deps.length ? `
+            <button type="button" class="fp-pu-btn" style="margin-top:.8rem" onclick="window._fpTab('buy')">
+              VIEW SCHEDULED DEPARTURES &rarr;
+            </button>
+          ` : ''}
+        </div>`;
+        return;
+      }
       pane.innerHTML = `<div class="fp-state">
         <span class="fp-state-ico">&#128225;</span>
         No live flights found${S.activeChip !== 'all' ? ' for ' + S.activeChip : ''}<br>

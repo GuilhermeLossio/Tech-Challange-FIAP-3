@@ -152,9 +152,14 @@ async function fetchAndUpdate() {
   if (statusEl) statusEl.textContent = "Updating...";
 
   try {
-    const resp = await fetch(`${LIVE_FLIGHTS_URL}?region=brazil&limit=300`);
+    const resp = await fetch(`${LIVE_FLIGHTS_URL}?region=brazil&limit=300&degraded=1`);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
+    if (statusEl && data.live_available === false) {
+      removeStaleMarkers([]);
+      statusEl.textContent = `Live tracking unavailable. ${data.detail || "Scheduled departures remain available."}`;
+      return;
+    }
 
     const flights = data.flights || [];
     flights.forEach(updateMarker);

@@ -1,7 +1,7 @@
 const DEFAULT_DISCOVERY_PROMPTS = [
-  "I want to search for a trip to a specific country.",
-  "What is the best day or time to fly with lower delay risk?",
-  "When is the best time to book the ticket?",
+  "Quero calcular a chance de atraso entre dois aeroportos.",
+  "Quais aeroportos de origem e destino voce precisa para estimar o risco?",
+  "Posso informar companhia aerea e horario, mas nao sao obrigatorios.",
 ];
 
 const advisorState = {
@@ -18,6 +18,10 @@ function toNumberOrNull(rawValue) {
   if (value === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function toFiniteNumber(rawValue) {
+  return toNumberOrNull(rawValue);
 }
 
 function toTextOrNull(rawValue) {
@@ -57,14 +61,14 @@ function resolveDelayPrediction(rawValue, fallbackProbability = null) {
   if (rawValue === true) return 1;
   if (rawValue === false) return 0;
 
-  const numeric = Number(rawValue);
-  if (Number.isFinite(numeric)) {
+  const numeric = toFiniteNumber(rawValue);
+  if (numeric !== null) {
     if (numeric === 1) return 1;
     if (numeric === 0) return 0;
   }
 
-  const probability = Number(fallbackProbability);
-  if (Number.isFinite(probability)) {
+  const probability = toFiniteNumber(fallbackProbability);
+  if (probability !== null) {
     return probability >= 0.5 ? 1 : 0;
   }
   return null;
@@ -158,8 +162,9 @@ function renderSuggestedFlights(data) {
         ? `<span class="risk-badge ${riskClass(flight.risk_level)}">${escapeHtml(flight.risk_level)}</span>`
         : "";
       const predictionChip = renderDelayPredictionChip(flight.delay_prediction, flight.delay_probability);
-      const probability = Number.isFinite(Number(flight.delay_probability))
-        ? `<span class="advisor-flight-prob">${(Number(flight.delay_probability) * 100).toFixed(1)}% predicted risk</span>`
+      const delayProbability = toFiniteNumber(flight.delay_probability);
+      const probability = delayProbability !== null
+        ? `<span class="advisor-flight-prob">${(delayProbability * 100).toFixed(1)}% predicted risk</span>`
         : "";
 
       return `
@@ -185,14 +190,17 @@ function renderSuggestedFlights(data) {
 }
 
 function renderAssistantExtras(message) {
-  const probability = Number(message.delay_probability);
-  const probabilityMetric = Number.isFinite(probability)
+  const showPredictionMetrics = ["route", "route_model", "weekly_route"].includes(String(message.mode || ""));
+  const probability = toFiniteNumber(message.delay_probability);
+  const probabilityMetric = showPredictionMetrics && probability !== null
     ? `<span class="advisor-inline-prob">${(probability * 100).toFixed(1)}%</span>`
     : "";
-  const riskBadge = message.risk_level
+  const riskBadge = showPredictionMetrics && message.risk_level
     ? `<span class="risk-badge ${riskClass(message.risk_level)}">${escapeHtml(message.risk_level)}</span>`
     : "";
-  const predictionChip = renderDelayPredictionChip(message.delay_prediction, message.delay_probability);
+  const predictionChip = showPredictionMetrics
+    ? renderDelayPredictionChip(message.delay_prediction, message.delay_probability)
+    : "";
   const sourceChip = `
     <span class="status-chip ${isLlmAdviceSource(message.advice_source) ? "ok" : "warning"}">
       ${escapeHtml(message.advice_source || "assistant")}
@@ -267,8 +275,8 @@ function updateAdvisorSessionMeta(sessionId) {
 }
 
 function renderPredictionResponse(target, data) {
-  const delayProbability = Number(data.delay_probability);
-  const probabilityText = Number.isFinite(delayProbability) ? (delayProbability * 100).toFixed(1) : "0.0";
+  const delayProbability = toFiniteNumber(data.delay_probability);
+  const probabilityText = delayProbability !== null ? (delayProbability * 100).toFixed(1) : "--";
   const adviceSource = String(data.advice_source || "heuristic");
   const adviceClass = isLlmAdviceSource(adviceSource) ? "ok" : "warning";
   const predictionChip = renderDelayPredictionChip(data.delay_prediction, data.delay_probability);
@@ -369,19 +377,6 @@ function clearAdvisorRouteContext(showHint = true) {
 
 function hasRouteDropdownValue(value) {
   return Boolean(value && (toTextOrNull(value.country) || toTextOrNull(value.airport)));
-}
-
-function questionMentionsRouteContext(question) {
-  const text = String(question || "").trim().toLowerCase();
-  if (!text) return false;
-  return [
-    /\b[a-z0-9]{3}\s*(?:-|->|>)\s*[a-z0-9]{3}\b/i,
-    /\bsaindo\s+(?:de|do|da)\b/i,
-    /\borigem\b/i,
-    /\bdestino\b/i,
-    /\bde\s+.+\s+(?:para|pra|pro)\s+/i,
-    /\b(?:para|pra|pro)\s+[a-z]/i,
-  ].some((pattern) => pattern.test(text));
 }
 
 function findLatestRouteUpdates(messages) {
@@ -613,9 +608,6 @@ async function submitAdvisorForm(form) {
     });
     updateAdvisorSessionMeta(body.session_id);
     renderAdvisorMessages(body.messages);
-    if (questionMentionsRouteContext(payload.question)) {
-      clearAdvisorRouteContext(false);
-    }
     await applyAdvisorRouteUpdates(body.route_updates || findLatestRouteUpdates(body.messages));
     const questionField = document.getElementById("advisor-question");
     if (questionField) {

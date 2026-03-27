@@ -194,9 +194,9 @@ RATE_COLS = ["ORIGIN_DELAY_RATE", "DEST_DELAY_RATE", "CARRIER_DELAY_RATE",
              "ROUTE_DELAY_RATE", "CARRIER_DELAY_RATE_DOW"]
 OPENFLIGHTS_AIRPORTS_SOURCE = "https://raw.githubusercontent.com/jpatokal/openflights/master/data/airports.dat"
 DISCOVERY_PROMPTS = [
-    "I want to travel to a specific country.",
-    "What is the best day or time to fly with lower delay risk?",
-    "When is the best time to buy my ticket?",
+    "Quero calcular a chance de atraso entre dois aeroportos.",
+    "Quais aeroportos de origem e destino voce precisa para estimar o risco?",
+    "Posso informar companhia aerea e horario, mas nao sao obrigatorios.",
 ]
 ROUTE_CONTEXT_FIELDS = (
     "origin_country",
@@ -242,18 +242,15 @@ def trim_chat_text(value: str | None) -> str:
     return text[:ADVISOR_CHAT_MAX_CONTENT].rstrip() + "..."
 
 
-def chat_bootstrap_message() -> ChatMessage:
-    return ChatMessage(
-        role="assistant",
-        content=(
-            "I'm the Flight Advisor. I can help with destinations, the best day or time to fly, "
-            "delay risk, and when to buy your ticket. Feel free to use the route filters as optional context."
-        ),
-        created_at=now_iso(),
-        mode="discovery",
-        advice_source="system",
-        clarification_prompts=DISCOVERY_PROMPTS,
+def is_legacy_bootstrap_message(message: ChatMessage) -> bool:
+    if message.role != "assistant" or message.advice_source != "system":
+        return False
+    content = trim_chat_text(message.content).casefold()
+    legacy_prefixes = (
+        "sou o flight advisor.",
+        "i'm the flight advisor.",
     )
+    return any(content.startswith(prefix) for prefix in legacy_prefixes)
 
 
 def advisor_chat_file(session_id: str) -> Path:
@@ -275,22 +272,24 @@ def load_advisor_messages() -> tuple[str, list[ChatMessage]]:
     session_id = get_advisor_session_id()
     path = advisor_chat_file(session_id)
     if not path.exists():
-        return session_id, [chat_bootstrap_message()]
+        return session_id, []
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return session_id, [chat_bootstrap_message()]
+        return session_id, []
     if not isinstance(raw, list):
-        return session_id, [chat_bootstrap_message()]
+        return session_id, []
     messages: list[ChatMessage] = []
     for item in raw:
         if not isinstance(item, dict):
             continue
         try:
-            messages.append(ChatMessage.model_validate(item))
+            parsed = ChatMessage.model_validate(item)
         except ValidationError:
             continue
-    return session_id, messages or [chat_bootstrap_message()]
+        if not is_legacy_bootstrap_message(parsed):
+            messages.append(parsed)
+    return session_id, messages
 
 
 def persist_advisor_messages(session_id: str, messages: list[ChatMessage]) -> list[ChatMessage]:
@@ -305,7 +304,7 @@ def persist_advisor_messages(session_id: str, messages: list[ChatMessage]) -> li
 
 def reset_advisor_messages() -> tuple[str, list[ChatMessage]]:
     session_id = get_advisor_session_id()
-    messages = [chat_bootstrap_message()]
+    messages: list[ChatMessage] = []
     return session_id, persist_advisor_messages(session_id, messages)
 
 
@@ -556,6 +555,9 @@ def resolve_prediction_inputs(
 def has_any_date_context(req: AdviseRequest) -> bool:
     return bool(req.flight_date or req.year or req.month or req.day or req.day_of_week)
 
+def has_delay_assessment_context(req: AdviseRequest) -> bool:
+    return bool(req.origin_airport and req.destination_airport)
+
 def has_full_route_context(req: AdviseRequest) -> bool:
     return bool(
         req.origin_airport and req.destination_airport and req.airline
@@ -619,12 +621,11 @@ def should_auto_run_delay_prediction(question: str | None) -> bool:
 
 
 def should_run_route_prediction(req: AdviseRequest) -> bool:
-    return has_specific_flight_prediction_context(req) and should_auto_run_delay_prediction(req.question)
+    return has_specific_flight_prediction_context(req)
 
 def should_run_weekly_route_prediction(req: AdviseRequest) -> bool:
     return bool(
-        req.origin_airport and req.destination_airport
-        and should_auto_run_delay_prediction(req.question)
+        has_delay_assessment_context(req)
         and not should_run_route_prediction(req)
     )
 
@@ -650,32 +651,30 @@ def build_discovery_response(req: AdviseRequest) -> AdviseResponse:
 
     if missing:
         advice = (
-            "Before I analyze a specific flight, I still need "
+            "Antes de calcular a chance de atraso, eu ainda preciso de "
             + ", ".join(missing)
-            + ". If you prefer, tell me whether the customer wants a destination country, "
-              "a better day or time to fly, or guidance on when to buy the ticket."
+            + ". Quando eu tiver origem e destino, ja consigo estimar o risco da rota. "
+              "Companhia aerea, horario e data ajudam a refinar, mas sao opcionais."
         )
     elif topic == "country":
         advice = (
-            "Start by selecting the destination country. After that, choose the airport from the dropdown "
-            "so I can narrow the route without overloading the list."
+            "Comece escolhendo os aeroportos de origem e destino. Com isso eu consigo calcular a chance "
+            "de atraso da rota e depois refinar com companhia aerea ou horario, se voce quiser."
         )
     elif topic == "timing":
         advice = (
-            "To compare lower-risk options, start with origin and destination airports. "
-            "If airline, departure time, or date are missing, I can use the upcoming weekly schedule instead "
-            "of blocking the analysis."
+            "Para comparar risco de atraso, comece pelos aeroportos de origem e destino. "
+            "Se companhia, horario ou data estiverem faltando, eu ainda consigo usar a agenda semanal da rota."
         )
     elif topic == "price":
         advice = (
-            "I can ask about the best moment to buy, but this project still does not have historical fare data. "
-            "For now I can only give general planning guidance, not evidence-based advice from ticket prices."
+            "Eu posso orientar de forma geral sobre compra, mas este projeto ainda nao tem historico de tarifas. "
+            "A parte com calculo objetivo hoje esta focada na chance de atraso por rota."
         )
     else:
         advice = (
-            "Before recommending a flight, tell me what the customer is looking for. "
-            "You can ask for a trip to a specific country, the best day or time to fly, "
-            "or the best moment to buy a ticket."
+            "Para eu calcular a chance de atraso, me diga os aeroportos de origem e destino. "
+            "Se tiver companhia aerea, horario ou data, eu uso isso para refinar a resposta."
         )
 
     return AdviseResponse(
@@ -846,46 +845,42 @@ def build_discovery_response_runtime(req: AdviseRequest) -> AdviseResponse:
 
     if missing:
         advice = (
-            "Before I can analyze a specific flight, I still need: "
+            "Antes de calcular a chance de atraso, eu ainda preciso de: "
             + ", ".join(missing)
-            + ". Once I have origin and destination, I can estimate the route using the upcoming weekly "
-              "schedule even when airline, departure time, or exact date are missing."
+            + ". Assim que eu tiver origem e destino, consulto os dados da rota e calculo a estimativa. "
+              "Companhia aerea, horario e data ajudam a refinar, mas nao sao obrigatorios."
         )
     elif topic == "country":
         if destination_label:
             advice = (
-                f"We can start with {destination_label}. I can help in a broader, friendlier way "
-                "with the typical climate, what the region is like, and activities that fit the trip, "
-                "before we move into flight-specific details."
+                f"Eu ja tenho contexto de destino em {destination_label}, mas ainda preciso do aeroporto de origem "
+                "para calcular a chance de atraso. Se quiser, me diga a origem agora e eu sigo com a estimativa."
             )
         else:
             advice = (
-                "We can start with the destination itself. Tell me the country or city you have in mind "
-                "and I can help with the typical climate, regional highlights, and activities that fit the trip."
+                "Para calcular a chance de atraso, preciso dos aeroportos de origem e destino. "
+                "Se ainda nao souber um deles, eu posso te dizer exatamente qual informacao falta."
             )
     elif topic == "timing":
         advice = (
-            "I can help find the best day or time to fly with lower delay risk. "
-            "With origin and destination I can already use the weekly schedule; airline, departure time, "
-            "and exact date only help narrow the answer further."
+            "Com os aeroportos de origem e destino eu ja consigo calcular a chance de atraso da rota. "
+            "Companhia aerea, horario e data servem apenas para deixar a estimativa mais especifica."
         )
     elif topic == "price":
         advice = (
-            "I can give general guidance on the best time to buy, but this project does not yet "
-            "have historical fare data or a live search_flights integration for real-time prices."
+            "Eu consigo orientar de forma geral sobre compra, mas o calculo objetivo disponivel aqui "
+            "hoje e o de chance de atraso quando voce informa origem e destino."
         )
-    elif has_full_route_context(req):
-        place_text = destination_label or "the destination"
+    elif has_delay_assessment_context(req):
+        place_text = destination_label or "o destino"
         advice = (
-            f"I already have {place_text} as context. If you want, I can first help in a more exploratory way "
-            "with the typical climate, what the region is like, and activity ideas, without jumping straight "
-            "into delay data."
+            f"Ja tenho contexto suficiente para a rota ate {place_text}. Vou usar esses dados para calcular "
+            "a chance de atraso e, se houver companhia aerea ou horario, uso isso para refinar a resposta."
         )
     else:
         advice = (
-            "Tell me a bit about the trip you have in mind. I can start in a broader, friendlier way "
-            "with destination ideas, the typical climate, regional highlights, and tourist activities, "
-            "and only get into delay risk if you want that."
+            "Me informe os aeroportos de origem e destino para eu calcular a chance de atraso. "
+            "Se ainda nao tiver um deles, eu te pego a informacao faltante antes de estimar a rota."
         )
 
     return AdviseResponse(
@@ -903,8 +898,10 @@ def build_discovery_context(req: AdviseRequest, fallback_advice: str,
         "mode": "discovery",
         "question": req.question or "No explicit question was provided.",
         "route_context_status": {
-            "is_complete": has_full_route_context(req),
-            "prediction_ready": should_run_route_prediction(req),
+            "is_complete": has_delay_assessment_context(req),
+            "airports_ready": has_delay_assessment_context(req),
+            "specific_flight_ready": has_specific_flight_prediction_context(req),
+            "prediction_ready": has_delay_assessment_context(req),
             "missing_fields": missing_route_fields(req),
         },
         "partial_request": {
@@ -924,7 +921,8 @@ def build_discovery_context(req: AdviseRequest, fallback_advice: str,
         "destination_context": destination_context,
         "open_question_guidance": {
             "friendly_discovery": True,
-            "avoid_delay_data_unless_explicitly_requested": True,
+            "avoid_delay_data_until_airports_ready": True,
+            "airports_required_before_probability": True,
             "allowed_topics": [
                 "typical climate",
                 "regional profile",
@@ -1144,16 +1142,32 @@ ORIGIN_LOCATION_PATTERNS = [
         re.IGNORECASE,
     ),
     re.compile(r"\borigem\s*[:=-]?\s*(?P<value>.+?)(?=(?:\s+(?:para|pra|pro|destino|to)\b|[,.!?;]|$))", re.IGNORECASE),
+    re.compile(
+        r"\baeroporto\s+de\s+origem\s*[:=-]?\s*(?P<value>.+?)"
+        r"(?=(?:\s*\n|\s*[-*]\s+|[,.!?;]|$))",
+        re.IGNORECASE,
+    ),
 ]
 DESTINATION_LOCATION_PATTERNS = [
     re.compile(r"\b(?:destino|para|pra|pro|to)\s+(?P<value>.+?)(?=(?:[,.!?;]|$))", re.IGNORECASE),
     re.compile(r"\b(?:indo|viajando|voando)\s+(?:para|pra|pro|to)\s+(?P<value>.+?)(?=(?:[,.!?;]|$))", re.IGNORECASE),
+    re.compile(
+        r"\baeroporto\s+de\s+destino\s*[:=-]?\s*(?P<value>.+?)"
+        r"(?=(?:\s*\n|\s*[-*]\s+|[,.!?;]|$))",
+        re.IGNORECASE,
+    ),
 ]
 LOCATION_FRAGMENT_SPLIT_RE = re.compile(
     r"\s+(?:com|sem|usando|pela|por|via|em|no dia|na data|on|with|using)\b",
     re.IGNORECASE,
 )
 LOCATION_EDGE_ARTICLE_RE = re.compile(r"^(?:o|a|os|as|um|uma)\s+", re.IGNORECASE)
+LOCATION_TOKEN_STOPWORDS = {
+    "a", "an", "and", "as", "at", "da", "das", "de", "del", "do", "dos",
+    "e", "el", "em", "la", "las", "los", "na", "nas", "no", "nos",
+    "o", "os", "para", "pra", "pro", "the", "to",
+}
+PRIMARY_AIRPORT_HINTS = {"airport", "international", "internacional", "intl"}
 
 
 def normalize_location_key(value: Any) -> str:
@@ -1177,7 +1191,10 @@ def clean_location_fragment(value: str | None) -> str:
 
 def location_tokens(value: str | None) -> tuple[str, ...]:
     key = normalize_location_key(value)
-    return tuple(token for token in key.split(" ") if token)
+    return tuple(
+        token for token in key.split(" ")
+        if token and token not in LOCATION_TOKEN_STOPWORDS
+    )
 
 
 @lru_cache
@@ -1243,13 +1260,49 @@ def _dedupe_location_records(records: list[dict[str, Any]] | tuple[dict[str, Any
     return list(unique.values())
 
 
-def _build_dropdown_value(records: list[dict[str, Any]] | tuple[dict[str, Any], ...]) -> RouteDropdownValue | None:
+def _pick_primary_airport_record(
+    records: list[dict[str, Any]] | tuple[dict[str, Any], ...],
+) -> dict[str, Any] | None:
+    unique = _dedupe_location_records(records)
+    if len(unique) <= 1:
+        return unique[0] if unique else None
+
+    scored: list[tuple[int, int, dict[str, Any]]] = []
+    for record in unique:
+        airport_name_norm = str(record.get("airport_name_norm") or "")
+        airport_tokens = set(location_tokens(airport_name_norm))
+        city_norm = str(record.get("city_norm") or "")
+        score = 0
+        if airport_tokens & PRIMARY_AIRPORT_HINTS:
+            score += 4
+        if city_norm and city_norm in airport_name_norm:
+            score += 2
+        if "airport" in airport_tokens:
+            score += 1
+        scored.append((score, len(airport_name_norm), record))
+
+    scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    if not scored or scored[0][0] <= 0:
+        return None
+    if len(scored) > 1 and scored[0][0] == scored[1][0]:
+        return None
+    return scored[0][2]
+
+
+def _build_dropdown_value(
+    records: list[dict[str, Any]] | tuple[dict[str, Any], ...],
+    prefer_primary_airport: bool = False,
+) -> RouteDropdownValue | None:
     unique = _dedupe_location_records(records)
     if not unique:
         return None
     if len(unique) == 1:
         record = unique[0]
         return RouteDropdownValue(country=record.get("country"), airport=record.get("iata_code"))
+    if prefer_primary_airport:
+        preferred = _pick_primary_airport_record(unique)
+        if preferred:
+            return RouteDropdownValue(country=preferred.get("country"), airport=preferred.get("iata_code"))
     countries = {record.get("country") for record in unique if record.get("country")}
     if len(countries) == 1:
         return RouteDropdownValue(country=next(iter(countries)), airport=None)
@@ -1299,6 +1352,50 @@ def _best_partial_location_records(
     ]
 
 
+def _resolve_country_from_fragment(
+    fragment_key: str,
+    fragment_tokens: frozenset[str],
+    search_index: dict[str, Any],
+) -> str | None:
+    exact = search_index["country_index"].get(fragment_key)
+    if exact:
+        return exact
+
+    matches: list[tuple[int, int, str]] = []
+    for country_key, country in search_index["country_index"].items():
+        country_tokens = frozenset(location_tokens(country_key))
+        if not country_tokens:
+            continue
+        if country_key in fragment_key or country_tokens.issubset(fragment_tokens):
+            matches.append((len(country_tokens), len(country_key), country))
+
+    if not matches:
+        return None
+
+    matches.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    best_tokens, best_length, best_country = matches[0]
+    best_countries = {
+        country
+        for token_count, key_length, country in matches
+        if token_count == best_tokens and key_length == best_length
+    }
+    return best_country if len(best_countries) == 1 else None
+
+
+def _filter_records_by_country(
+    records: list[dict[str, Any]] | tuple[dict[str, Any], ...],
+    country: str | None,
+) -> list[dict[str, Any]]:
+    if not country:
+        return list(records)
+    country_norm = normalize_location_key(country)
+    return [
+        record
+        for record in records
+        if normalize_location_key(record.get("country")) == country_norm
+    ]
+
+
 def resolve_location_fragment(fragment: str | None, source_uri: str | None = None) -> RouteDropdownValue | None:
     cleaned = clean_location_fragment(fragment)
     if not cleaned:
@@ -1330,7 +1427,8 @@ def resolve_location_fragment(fragment: str | None, source_uri: str | None = Non
     if country:
         return RouteDropdownValue(country=country, airport=None)
 
-    fragment_tokens = frozenset(fragment_key.split())
+    fragment_tokens = frozenset(location_tokens(cleaned))
+    country_filter = _resolve_country_from_fragment(fragment_key, fragment_tokens, search_index)
     partial_airports = _best_partial_location_records(
         fragment_key,
         fragment_tokens,
@@ -1338,7 +1436,8 @@ def resolve_location_fragment(fragment: str | None, source_uri: str | None = Non
         "airport_name_norm",
         "airport_name_tokens",
     )
-    airport_partial = _build_dropdown_value(partial_airports)
+    partial_airports = _filter_records_by_country(partial_airports, country_filter)
+    airport_partial = _build_dropdown_value(partial_airports, prefer_primary_airport=bool(country_filter))
     if airport_partial:
         return airport_partial
 
@@ -1349,7 +1448,8 @@ def resolve_location_fragment(fragment: str | None, source_uri: str | None = Non
         "city_norm",
         "city_tokens",
     )
-    return _build_dropdown_value(partial_cities)
+    partial_cities = _filter_records_by_country(partial_cities, country_filter)
+    return _build_dropdown_value(partial_cities, prefer_primary_airport=bool(country_filter))
 
 
 def extract_route_updates_from_question(question: str | None, source_uri: str | None = None) -> RouteDropdownUpdates | None:
@@ -1394,21 +1494,47 @@ def extract_route_updates_from_question(question: str | None, source_uri: str | 
     return RouteDropdownUpdates(origin=origin, destination=destination)
 
 
+def infer_contextual_route_update(
+    req: AdviseRequest,
+    question: str | None,
+    source_uri: str | None = None,
+) -> RouteDropdownUpdates | None:
+    text = str(question or "").strip()
+    if not text:
+        return None
+
+    resolved = resolve_location_fragment(text, source_uri)
+    if not resolved:
+        return None
+
+    missing_origin = not req.origin_airport
+    missing_destination = not req.destination_airport
+
+    if missing_origin == missing_destination:
+        return None
+    if missing_origin:
+        return RouteDropdownUpdates(origin=resolved, destination=None)
+    return RouteDropdownUpdates(origin=None, destination=resolved)
+
+
 def enrich_route_payload_from_question(req: AdviseRequest, source_uri: str | None = None) -> AdviseRequest:
-    updates = extract_route_updates_from_question(req.question, source_uri)
+    updates = (
+        extract_route_updates_from_question(req.question, source_uri)
+        or infer_contextual_route_update(req, req.question, source_uri)
+    )
     if not updates:
         return req
 
-    # When the user mentions a new route in free text, treat it as the source
-    # of truth and discard stale route filters carried in the form/session.
-    changed_fields: dict[str, Any] = {field: None for field in ROUTE_CONTEXT_FIELDS}
+    # Free-text route extraction should only refine fields explicitly mentioned
+    # by the user. Existing route context must be preserved otherwise.
+    changed_fields: dict[str, Any] = {}
     if updates.origin:
         changed_fields["origin_country"] = updates.origin.country
         changed_fields["origin_airport"] = updates.origin.airport
     if updates.destination:
         changed_fields["destination_country"] = updates.destination.country
         changed_fields["destination_airport"] = updates.destination.airport
-    return req.model_copy(update=changed_fields)
+    return req.model_copy(update=changed_fields) if changed_fields else req
 
 
 def airport_country_from_code(airport_code: str | None, source_uri: str | None = None) -> str | None:
@@ -1439,6 +1565,59 @@ def route_updates_from_request(req: AdviseRequest) -> RouteDropdownUpdates | Non
     if not origin and not destination:
         return None
     return RouteDropdownUpdates(origin=origin, destination=destination)
+
+
+def has_route_dropdown_value(value: RouteDropdownValue | None) -> bool:
+    return bool(value and (value.country or value.airport))
+
+
+def extract_route_updates_from_messages(
+    messages: list[ChatMessage],
+    source_uri: str | None = None,
+) -> RouteDropdownUpdates | None:
+    origin: RouteDropdownValue | None = None
+    destination: RouteDropdownValue | None = None
+
+    for message in reversed(messages):
+        updates = message.route_updates
+        if not updates and message.content:
+            updates = extract_route_updates_from_question(message.content, source_uri)
+        if not updates:
+            continue
+        if origin is None and has_route_dropdown_value(updates.origin):
+            origin = updates.origin
+        if destination is None and has_route_dropdown_value(updates.destination):
+            destination = updates.destination
+        if origin and destination:
+            break
+
+    if not origin and not destination:
+        return None
+    return RouteDropdownUpdates(origin=origin, destination=destination)
+
+
+def enrich_route_payload_from_history(
+    req: AdviseRequest,
+    messages: list[ChatMessage],
+    source_uri: str | None = None,
+) -> AdviseRequest:
+    updates = extract_route_updates_from_messages(messages, source_uri)
+    if not updates:
+        return req
+
+    changed_fields: dict[str, Any] = {}
+    if not req.origin_airport and updates.origin and updates.origin.airport:
+        changed_fields["origin_airport"] = updates.origin.airport
+    if not req.origin_country and updates.origin and updates.origin.country:
+        changed_fields["origin_country"] = updates.origin.country
+    if not req.destination_airport and updates.destination and updates.destination.airport:
+        changed_fields["destination_airport"] = updates.destination.airport
+    if not req.destination_country and updates.destination and updates.destination.country:
+        changed_fields["destination_country"] = updates.destination.country
+
+    if not changed_fields:
+        return req
+    return req.model_copy(update=changed_fields)
 
 
 # ── Upcoming flights helpers ─────────────────────────────────────────────────
@@ -2006,8 +2185,10 @@ def build_advice_context(payload: AdviseRequest, probability: float, level: str,
     return {
         "question": payload.question or "No explicit question was provided.",
         "route_context_status": {
-            "is_complete": has_full_route_context(payload),
-            "prediction_ready": should_run_route_prediction(payload),
+            "is_complete": has_delay_assessment_context(payload),
+            "airports_ready": has_delay_assessment_context(payload),
+            "specific_flight_ready": has_specific_flight_prediction_context(payload),
+            "prediction_ready": has_delay_assessment_context(payload),
             "missing_fields": missing_route_fields(payload),
         },
         "requested_flight": {
@@ -2599,6 +2780,7 @@ register_advisor_views(app, {
     "should_run_route_prediction": should_run_route_prediction,
     "should_run_weekly_route_prediction": should_run_weekly_route_prediction,
     "enrich_route_payload_from_question": enrich_route_payload_from_question,
+    "enrich_route_payload_from_history": enrich_route_payload_from_history,
     "route_updates_from_request": route_updates_from_request,
     "user_chat_message": user_chat_message,
     "build_discovery_response_runtime": build_discovery_response_runtime,

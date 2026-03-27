@@ -18,9 +18,9 @@ S3_AVAILABLE_FIELDS: list[str] = [
 ]
 
 _FIELD_QUESTIONS: dict[str, str] = {
-    "origin_airport":      "Which airport are you departing from? (e.g. GRU, JFK)",
-    "destination_airport": "What is your destination airport? (e.g. MIA, LHR)",
-    "cabin_class":         "Which cabin class — economy, business, or first?",
+    "origin_airport":      "Qual e o aeroporto de origem? (ex.: GRU, JFK)",
+    "destination_airport": "Qual e o aeroporto de destino? (ex.: MIA, LHR)",
+    "cabin_class":         "Qual e a classe da cabine? (economy, business ou first)",
 }
 
 _FIELD_QUESTIONS = {key: value for key, value in _FIELD_QUESTIONS.items() if key in S3_AVAILABLE_FIELDS}
@@ -45,9 +45,13 @@ You are a friendly and practical flight advisor.
 - Treat climate or weather as general regional guidance, not live weather, unless real-time data is provided.
 
 ## Delay assessment
-- Only provide delay probability, risk level, top factors, or lower-risk alternatives when the user
-  explicitly asks about delay, punctuality, or operational risk and the context is sufficient.
-- When the question is not explicitly about delay, avoid numbers or operational delay metrics.
+- Only provide delay probability, risk level, top factors, or lower-risk alternatives when both
+  the departure airport and the destination airport are present in the context.
+- Origin and destination airports are the minimum required inputs for any delay estimate.
+- Airline, scheduled departure time, and travel date are optional refinements, not blockers.
+- If either airport is missing, ask for the missing airport naturally and do not estimate probability.
+- When structured delay-assessment data is already present in the context, explain it clearly instead
+  of asking for more route details.
 
 ## Probing strategy
 - When the user's request is missing key information for a specific analysis, ask for the missing details
@@ -135,6 +139,7 @@ def register_advisor_views(app: Flask, deps: dict[str, Any]) -> None:
     should_run_route_prediction    = deps["should_run_route_prediction"]
     should_run_weekly_route_prediction = deps["should_run_weekly_route_prediction"]
     enrich_route_payload_from_question = deps["enrich_route_payload_from_question"]
+    enrich_route_payload_from_history = deps["enrich_route_payload_from_history"]
     route_updates_from_request     = deps["route_updates_from_request"]
     user_chat_message              = deps["user_chat_message"]
     build_discovery_response_runtime = deps["build_discovery_response_runtime"]
@@ -286,11 +291,10 @@ def register_advisor_views(app: Flask, deps: dict[str, Any]) -> None:
             payload = AdviseRequest.model_validate(payload_data)
         except ValidationError as exc:
             return jsonify({"detail": exc.errors()}), 400
-        payload = enrich_route_payload_from_question(payload)
-        route_updates = route_updates_from_request(payload)
-
-        # --- Session & user message ----------------------------------------
         session_id, messages = load_advisor_messages()
+        payload = enrich_route_payload_from_question(payload)
+        payload = enrich_route_payload_from_history(payload, messages)
+        route_updates = route_updates_from_request(payload)
 
         user_text = trim_chat_text(payload.question)
         if not user_text and should_run_route_prediction(payload):

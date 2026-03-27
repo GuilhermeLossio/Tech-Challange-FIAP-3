@@ -44,17 +44,38 @@ def load_env_file(path: Path = Path(".env")) -> None:
             os.environ[key] = value
 
 
-def build_session(profile, region):
-    available = []
+def _available_profiles_without_env_profile() -> list[str]:
+    saved = {key: os.environ.pop(key, None) for key in ("AWS_PROFILE", "AWS_DEFAULT_PROFILE")}
     try:
-        available = boto3.Session().available_profiles
+        return boto3.Session().available_profiles
+    finally:
+        for key, value in saved.items():
+            if value is not None:
+                os.environ[key] = value
+
+
+def _session_without_env_profile(region: str) -> boto3.Session:
+    saved = {key: os.environ.pop(key, None) for key in ("AWS_PROFILE", "AWS_DEFAULT_PROFILE")}
+    try:
+        return boto3.Session(region_name=region)
+    finally:
+        for key, value in saved.items():
+            if value is not None:
+                os.environ[key] = value
+
+
+def build_session(profile, region):
+    requested_profile = (profile or "").strip()
+    available: list[str] = []
+    try:
+        available = _available_profiles_without_env_profile()
     except Exception:
         pass
 
-    if profile and profile in available:
-        return boto3.Session(profile_name=profile, region_name=region)
-    else:
-        return boto3.Session(region_name=region)
+    if requested_profile and requested_profile in available:
+        return boto3.Session(profile_name=requested_profile, region_name=region)
+
+    return _session_without_env_profile(region)
 
 def check_credentials(session: boto3.Session) -> None:
     creds = session.get_credentials()

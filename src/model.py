@@ -203,6 +203,30 @@ def parse_s3_uri(uri: str) -> Tuple[str, str]:
     return bucket, key
 
 
+def _available_boto3_profiles():
+    import boto3
+
+    saved = {key: os.environ.pop(key, None) for key in ("AWS_PROFILE", "AWS_DEFAULT_PROFILE")}
+    try:
+        return boto3.Session().available_profiles
+    finally:
+        for key, value in saved.items():
+            if value is not None:
+                os.environ[key] = value
+
+
+def _session_without_env_profile(region: str):
+    import boto3
+
+    saved = {key: os.environ.pop(key, None) for key in ("AWS_PROFILE", "AWS_DEFAULT_PROFILE")}
+    try:
+        return boto3.Session(region_name=region)
+    finally:
+        for key, value in saved.items():
+            if value is not None:
+                os.environ[key] = value
+
+
 def build_s3_client(region: str, profile: str | None):
     try:
         import boto3
@@ -221,17 +245,25 @@ def build_s3_client(region: str, profile: str | None):
         )
         raise SystemExit(2)
 
-    try:
-        session = boto3.Session(profile_name=profile, region_name=region)
-    except ProfileNotFound:
-        available = boto3.Session().available_profiles
-        hint = (
-            f"Available profiles: {available}"
-            if available
-            else "No profiles found in ~/.aws/credentials."
-        )
-        print(f"AWS profile '{profile}' not found. {hint}", file=sys.stderr)
-        raise SystemExit(2)
+    requested_profile = (profile or "").strip()
+    if requested_profile:
+        try:
+            session = boto3.Session(profile_name=requested_profile, region_name=region)
+        except ProfileNotFound:
+            available = _available_boto3_profiles()
+            hint = (
+                f"Available profiles: {available}"
+                if available
+                else "No profiles found in ~/.aws/credentials."
+            )
+            print(
+                f"AWS profile '{requested_profile}' not found. "
+                f"Falling back to environment or IAM role credentials. {hint}",
+                file=sys.stderr,
+            )
+            session = _session_without_env_profile(region)
+    else:
+        session = _session_without_env_profile(region)
 
     try:
         creds = session.get_credentials()

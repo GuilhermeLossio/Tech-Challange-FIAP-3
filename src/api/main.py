@@ -2775,7 +2775,7 @@ def live_flights():
     GET /api/live_flights?region=brazil&limit=100
     GET /api/live_flights?lamin=-23.7&lomin=-46.9&lamax=-23.4&lomax=-46.5
     """
-    from services.OpenSky import fetch_live_flights_cached, BOUNDING_BOXES
+    from src.api.services.OpenSky import fetch_live_flights_cached, BOUNDING_BOXES
 
     # --- bounding box ---
     try:
@@ -2833,7 +2833,7 @@ def live_flight_detail(icao24: str):
     -------
     GET /api/live_flights/a0b1c2
     """
-    from services.OpenSky import fetch_live_flights_cached
+    from src.api.services.OpenSky import fetch_live_flights_cached
 
     icao24 = icao24.strip().lower()
 

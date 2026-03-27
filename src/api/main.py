@@ -412,23 +412,36 @@ def apply_rate_maps(df: pd.DataFrame, maps: Dict[str, Dict[str, float]], gr: flo
     df["ROTA_DELAY_RATE"]       = df["ROUTE_DELAY_RATE"]
     return df
 
-def build_features(req, maps, global_rate, route_distance_map, global_distance) -> pd.DataFrame:
+def build_features(
+    req,
+    maps,
+    global_rate,
+    route_distance_map,
+    global_distance,
+    scheduled_departures: list[int] | None = None,
+) -> pd.DataFrame:
     flight_date = infer_date(req)
     dow = req.day_of_week or (flight_date.weekday() + 1)
     resolved = resolve_prediction_inputs(req, route_distance_map, global_distance)
     route = resolved["route"]
+    departures = (
+        [clamp_scheduled_departure(value) for value in scheduled_departures]
+        if scheduled_departures else
+        [resolved["scheduled_departure"] if resolved["scheduled_departure"] is not None else default_scheduled_departure()]
+    )
     df = pd.DataFrame([{
         "YEAR": flight_date.year, "MONTH": req.month or flight_date.month,
         "DAY": flight_date.day, "DAY_OF_WEEK": dow,
-        "SCHEDULED_DEPARTURE": resolved["scheduled_departure"],
+        "SCHEDULED_DEPARTURE": departure,
         "DISTANCE": resolved["distance"], "ORIGIN_AIRPORT": req.origin_airport,
         "DESTINATION_AIRPORT": req.destination_airport, "AIRLINE": resolved["airline"],
-    }])
+    } for departure in departures])
     hours = (df["SCHEDULED_DEPARTURE"].fillna(0).astype(int) // 100).clip(0, 23)
+    flight_day = pd.Timestamp(flight_date).normalize()
+    is_holiday = int(flight_day in build_holiday_set([flight_day]))
     df["TIME_OF_DAY"] = hours.map(time_of_day)
     df["SEASON"]      = df["MONTH"].astype(int).map(season_from_month)
-    df["IS_HOLIDAY"]  = pd.to_datetime([flight_date]).normalize().isin(
-        build_holiday_set([pd.Timestamp(flight_date)])).astype(int)
+    df["IS_HOLIDAY"]  = is_holiday
     df["ROUTE"]       = route
     df["AIRLINE_DOW"] = df["AIRLINE"].astype(str) + "_" + df["DAY_OF_WEEK"].astype(str)
     df["PERIODO_DIA"] = df["TIME_OF_DAY"]
@@ -453,6 +466,11 @@ def build_advisor_top_factors(
     resolved_inputs: dict[str, Any],
 ) -> List[Factor]:
     factors: list[Factor] = []
+    if resolved_inputs.get("scheduled_departure_source") == "24h_average":
+        factors.append(Factor(
+            feature="departure_window_average",
+            impact="No departure time was provided, so the estimate averages model predictions across all 24 hours of the day.",
+        ))
     if not payload.airline:
         factors.append(Factor(
             feature="carrier_fallback",
@@ -517,6 +535,10 @@ def default_scheduled_departure() -> int:
     return clamp_scheduled_departure(os.getenv("ADVISOR_DEFAULT_SCHEDULED_DEPARTURE", "1200"))
 
 
+def hourly_departure_slots() -> list[int]:
+    return [hour * 100 for hour in range(24)]
+
+
 def default_airline_code() -> str:
     code = (os.getenv("ADVISOR_DEFAULT_AIRLINE") or "UNKNOWN").strip().upper()
     return code or "UNKNOWN"
@@ -547,9 +569,9 @@ def resolve_prediction_inputs(
         "scheduled_departure": (
             clamp_scheduled_departure(req.scheduled_departure)
             if req.scheduled_departure is not None else
-            default_scheduled_departure()
+            None
         ),
-        "scheduled_departure_source": "request" if req.scheduled_departure is not None else "fallback",
+        "scheduled_departure_source": "request" if req.scheduled_departure is not None else "24h_average",
     }
 
 def has_any_date_context(req: AdviseRequest) -> bool:
@@ -1949,7 +1971,15 @@ def compute_model_delay_snapshot(
     limit: int = 3,
 ) -> dict[str, Any]:
     resolved_inputs = resolve_prediction_inputs(payload, route_distance_map, global_distance)
-    df = build_features(payload, maps, global_rate, route_distance_map, global_distance)
+    departure_grid = hourly_departure_slots() if payload.scheduled_departure is None else None
+    df = build_features(
+        payload,
+        maps,
+        global_rate,
+        route_distance_map,
+        global_distance,
+        scheduled_departures=departure_grid,
+    )
 
     X = df
     if meta and "features" in meta and "selected" in meta["features"]:
@@ -1963,7 +1993,8 @@ def compute_model_delay_snapshot(
             meta["features"].get("categorical", []),
         )
 
-    probability = float(pipeline.predict_proba(X)[:, 1][0])
+    probabilities = [float(value) for value in pipeline.predict_proba(X)[:, 1]]
+    probability = float(sum(probabilities) / len(probabilities))
     prediction = delay_prediction_from_probability(probability)
     level = risk_level(probability)
     top_factors = build_advisor_top_factors(df, payload, global_rate, resolved_inputs)
@@ -2046,6 +2077,10 @@ def build_weekly_route_prediction(
     payload: AdviseRequest,
     pipeline: Any,
     meta: dict | None,
+    maps: Dict[str, Dict[str, float]],
+    global_rate: float,
+    route_distance_map: Dict[str, float],
+    global_distance: float,
     limit: int = 3,
 ) -> AdviseResponse | None:
     try:
@@ -2111,7 +2146,33 @@ def build_weekly_route_prediction(
     probability = float(ranked["delay_probability"].mean())
     prediction = delay_prediction_from_probability(probability)
     level = risk_level(probability)
-    top_factors = build_weekly_route_factors(ranked, payload, window_days, airline_col, dep_col)
+    schedule_factors = build_weekly_route_factors(ranked, payload, window_days, airline_col, dep_col)
+    top_factors = schedule_factors
+
+    if payload.scheduled_departure is None:
+        try:
+            snapshot = compute_model_delay_snapshot(
+                payload,
+                pipeline,
+                meta,
+                maps,
+                global_rate,
+                route_distance_map,
+                global_distance,
+                limit=limit,
+            )
+        except Exception:
+            snapshot = None
+        if snapshot is not None:
+            probability = snapshot["delay_probability"]
+            prediction = snapshot["delay_prediction"]
+            level = snapshot["risk_level"]
+            top_factors = list(snapshot["top_factors"])
+            for factor in schedule_factors:
+                if any(existing.feature == factor.feature for existing in top_factors):
+                    continue
+                top_factors.append(factor)
+            top_factors = top_factors[:3]
 
     suggestions: list[SuggestedFlight] = []
     seen: set[tuple[str | None, str | None, str | None, str | None]] = set()
@@ -2148,9 +2209,17 @@ def build_weekly_route_prediction(
 
     route_label = f"{payload.origin_airport} -> {payload.destination_airport}"
     sample_size = int(len(ranked))
-    advice_parts = [
-        f"{delay_prediction_text(prediction)} For {route_label}, the average predicted delay risk across {sample_size} scheduled flight(s) in the next {window_days} day(s) is {probability:.0%} ({level})."
-    ]
+    if payload.scheduled_departure is None:
+        advice_parts = [
+            f"{delay_prediction_text(prediction)} For {route_label}, the estimated delay risk is {probability:.0%} ({level}) based on the model average across the 24 hours of the day."
+        ]
+        advice_parts.append(
+            f"I also checked {sample_size} scheduled flight(s) in the next {window_days} day(s) to look for lower-risk options."
+        )
+    else:
+        advice_parts = [
+            f"{delay_prediction_text(prediction)} For {route_label}, the average predicted delay risk across {sample_size} scheduled flight(s) in the next {window_days} day(s) is {probability:.0%} ({level})."
+        ]
     if suggestions:
         best = suggestions[0]
         when = " | ".join(part for part in [best.flight_date_br or best.flight_date, best.scheduled_departure] if part)
@@ -2160,7 +2229,12 @@ def build_weekly_route_prediction(
         else:
             advice_parts.append(f"The lowest-risk option in the weekly schedule is {option}.")
     if not payload.airline:
-        advice_parts.append("Because no airline was specified, this estimate uses all airlines available for the route.")
+        if payload.scheduled_departure is None:
+            advice_parts.append(
+                "Because no airline was specified, the 24-hour estimate falls back to route and global historical behavior instead of a carrier-specific profile."
+            )
+        else:
+            advice_parts.append("Because no airline was specified, this estimate uses all airlines available for the route.")
     if not has_any_date_context(payload):
         advice_parts.append("Because no exact date was specified, the estimate uses the upcoming weekly schedule.")
 

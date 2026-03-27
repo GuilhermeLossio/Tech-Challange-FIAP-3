@@ -323,7 +323,16 @@ def register_advisor_views(app: Flask, deps: dict[str, Any]) -> None:
             except Exception as exc:
                 return _internal_error("Prediction assets are unavailable right now.", exc)
 
-            weekly_response = build_weekly_route_prediction(payload, pipeline, meta, limit=3)
+            weekly_response = build_weekly_route_prediction(
+                payload,
+                pipeline,
+                meta,
+                maps,
+                global_rate,
+                route_distance_map,
+                global_distance,
+                limit=3,
+            )
             if weekly_response is None:
                 try:
                     snapshot = compute_model_delay_snapshot(

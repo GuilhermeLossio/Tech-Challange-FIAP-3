@@ -13,12 +13,13 @@ from typing import Iterable, List
 import numpy as np
 import pandas as pd
 
-# Ensure src/ is on the import path when running from src/jobs
-SRC_DIR = Path(__file__).resolve().parents[1]
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
+# Ensure the project root is importable when running as a script.
+ROOT_DIR = Path(__file__).resolve().parents[2]
+root_dir_str = str(ROOT_DIR)
+if root_dir_str not in sys.path:
+    sys.path.insert(0, root_dir_str)
 
-from model import (  # noqa: E402
+from src.model import (  # noqa: E402
     TARGET_COL,
     build_s3_client,
     default_s3_uri,

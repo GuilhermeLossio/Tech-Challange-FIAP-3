@@ -21,10 +21,11 @@ import numpy as np
 import pandas as pd
 from botocore.exceptions import ClientError
 
-# Ensure src/ is on the import path when running from src/jobs
-SRC_DIR = Path(__file__).resolve().parents[1]
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
+# Ensure the project root is importable when running as a script.
+ROOT_DIR = Path(__file__).resolve().parents[2]
+root_dir_str = str(ROOT_DIR)
+if root_dir_str not in sys.path:
+    sys.path.insert(0, root_dir_str)
 
 try:
     import joblib
@@ -36,7 +37,7 @@ except ModuleNotFoundError:
     )
     raise SystemExit(2)
 
-from model import (
+from src.model import (
     FEATURE_SPECS,
     TARGET_COL,
     build_s3_client,
@@ -516,7 +517,7 @@ def sync_prediction_partitions(
 
 
 def publish_predictions_to_athena(df: pd.DataFrame, args, session) -> str:
-    from aws import athena_client as athena
+    from src.aws import athena_client as athena
 
     publish_df = build_predictions_partition_frame(df)
     athena_prefix = args.predictions_athena_prefix.strip("/")

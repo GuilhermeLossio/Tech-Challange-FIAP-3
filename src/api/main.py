@@ -17,20 +17,20 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 
 SRC_DIR = Path(__file__).resolve().parents[1]
 ROOT_DIR = SRC_DIR.parent
-for _p in (SRC_DIR, ROOT_DIR):
-    if str(_p) not in sys.path:
-        sys.path.insert(0, str(_p))
+root_dir_str = str(ROOT_DIR)
+if root_dir_str not in sys.path:
+    sys.path.insert(0, root_dir_str)
 
-from model import (  # noqa: E402
+from src.model import (  # noqa: E402
     TARGET_COL, build_s3_client, coerce_feature_types, default_s3_uri,
     download_s3_object, is_s3_uri, load_csv_any, load_env_file,
     load_model_any, parse_s3_uri,
 )
-from api.services.llm_service import (  # noqa: E402
+from src.api.services.llm_service import (  # noqa: E402
     generate_llm_advice,
     should_use_llm,
 )
-from api.views import (  # noqa: E402
+from src.api.views import (  # noqa: E402
     register_advisor_views,
     register_flight_views,
     register_page_views,

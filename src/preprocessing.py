@@ -32,6 +32,11 @@ from botocore.exceptions import (
 )
 from pandas.tseries.holiday import USFederalHolidayCalendar
 
+ROOT_DIR = Path(__file__).resolve().parent.parent
+root_dir_str = str(ROOT_DIR)
+if root_dir_str not in sys.path:
+    sys.path.insert(0, root_dir_str)
+
 
 # ---------------------------------------------------------------------------
 # Environment helpers
@@ -288,7 +293,7 @@ def read_tabular(path: Path) -> pd.DataFrame:
 def coerce_df_to_athena_schema(df: pd.DataFrame, table_name: str) -> pd.DataFrame:
     """Coerce dataframe column types to match Athena table definitions."""
     try:
-        from aws import athena_client as athena
+        from src.aws import athena_client as athena
     except ModuleNotFoundError:
         return df
 
@@ -421,10 +426,10 @@ def register_athena_tables(
     file_format: str = "parquet",
 ) -> None:
     try:
-        from aws import athena_client as athena
+        from src.aws import athena_client as athena
     except ModuleNotFoundError:
         print(
-            "Athena registration skipped: could not import aws.athena_client.",
+            "Athena registration skipped: could not import src.aws.athena_client.",
             file=sys.stderr,
         )
         return
@@ -478,10 +483,10 @@ def sync_athena_partitions(
     table: str,
 ) -> None:
     try:
-        from aws import athena_client as athena
+        from src.aws import athena_client as athena
     except ModuleNotFoundError:
         print(
-            "Athena partition sync skipped: could not import aws.athena_client.",
+            "Athena partition sync skipped: could not import src.aws.athena_client.",
             file=sys.stderr,
         )
         return

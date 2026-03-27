@@ -39,12 +39,12 @@ from flask_caching import Cache
 # Path setup
 # ---------------------------------------------------------------------------
 ROOT_DIR = Path(__file__).resolve().parents[1]
-SRC_DIR = ROOT_DIR / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
+root_dir_str = str(ROOT_DIR)
+if root_dir_str not in sys.path:
+    sys.path.insert(0, root_dir_str)
 
-from aws.athena_query import run_query  # noqa: E402
-from model import (  # noqa: E402
+from src.aws.athena_query import run_query  # noqa: E402
+from src.model import (  # noqa: E402
     build_s3_client,
     default_s3_uri,
     is_s3_uri,

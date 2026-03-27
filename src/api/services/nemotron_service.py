@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from api.services.llm_service import (
+from src.api.services.llm_service import (
     LLMAdvice,
     LLMProviderConfig,
     NemotronAdvice,

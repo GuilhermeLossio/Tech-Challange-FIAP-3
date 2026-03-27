@@ -5,8 +5,15 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
+from pathlib import Path
 
-from model import load_env_file, train_command
+ROOT_DIR = Path(__file__).resolve().parent.parent
+root_dir_str = str(ROOT_DIR)
+if root_dir_str not in sys.path:
+    sys.path.insert(0, root_dir_str)
+
+from src.model import load_env_file, train_command  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:

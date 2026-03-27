@@ -10,6 +10,11 @@ import sys
 from pathlib import Path, PurePosixPath
 from typing import List, Tuple
 
+ROOT_DIR = Path(__file__).resolve().parent.parent
+root_dir_str = str(ROOT_DIR)
+if root_dir_str not in sys.path:
+    sys.path.insert(0, root_dir_str)
+
 import numpy as np
 import pandas as pd
 
@@ -31,7 +36,7 @@ try:
 except ModuleNotFoundError:
     plt = None
 
-from model import (
+from src.model import (  # noqa: E402
     TARGET_COL,
     build_s3_client,
     coerce_feature_types,

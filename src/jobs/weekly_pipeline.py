@@ -9,15 +9,15 @@ import sys
 from datetime import date
 from pathlib import Path
 
-# Ensure src/ is on the import path when running from src/jobs
-SRC_DIR = Path(__file__).resolve().parents[1]
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
+# Ensure the project root is importable when running as a script.
+ROOT_DIR = Path(__file__).resolve().parents[2]
+root_dir_str = str(ROOT_DIR)
+if root_dir_str not in sys.path:
+    sys.path.insert(0, root_dir_str)
 
-from model import default_s3_uri, load_env_file
+from src.model import default_s3_uri, load_env_file
 
-import generate_future_flights
-import weekly_predict
+from src.jobs import generate_future_flights, weekly_predict
 
 
 def parse_args() -> argparse.Namespace:

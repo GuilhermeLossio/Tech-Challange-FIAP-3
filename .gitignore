@@ -180,3 +180,6 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 /data
+
+# Standalone Hugging Face Space repo
+/chatbot/

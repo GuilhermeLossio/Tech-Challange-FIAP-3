@@ -103,7 +103,7 @@ Key variables:
 | `ADVISOR_LLM_ENABLED` | Enable or disable LLM calls for the advisor. |
 | `ADVISOR_LLM_PROVIDER` or `LLM_PROVIDER` | LLM backend selection. Supports `nvidia` and `huggingface`. |
 | `ADVISOR_LLM_MODEL` or `LLM_MODEL` | Shared model identifier. |
-| `NVIDIA_API_KEY` or `NEMOTRON_API_KEY` | API key for NVIDIA-compatible calls. |
+| `NVIDIA_API_KEY` | API key for NVIDIA-compatible calls. |
 | `HF_TOKEN` or `HUGGINGFACE_API_KEY` | API key for Hugging Face router calls. |
 | `ADVISOR_LLM_COMPACT_MODE` | Force compact responses for lightweight runs. |
 | `QWEN_MAX_TOKENS` | Compact token ceiling used for Qwen-like models. |

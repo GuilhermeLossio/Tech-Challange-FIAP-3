@@ -13,7 +13,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_URL = "https://integrate.api.nvidia.com/v1"
-DEFAULT_MODEL = "nvidia/llama-3.1-nemotron-70b-instruct"
+DEFAULT_MODEL = "meta/llama-3.1-70b-instruct"
 DEFAULT_HUGGINGFACE_BASE_URL = "https://router.huggingface.co/v1"
 DEFAULT_PROVIDER = "nvidia"
 DEFAULT_MAX_TOKENS = 1024
@@ -115,10 +115,6 @@ class LLMAdvice:
     provider: str
     model: str
 
-
-NemotronAdvice = LLMAdvice
-
-
 @dataclass(frozen=True)
 class LLMProviderConfig:
     provider: str
@@ -174,7 +170,7 @@ def _base_url(provider: str | None = None) -> str:
     if provider == "huggingface":
         raw = os.getenv("HUGGINGFACE_API_BASE_URL") or os.getenv("HF_API_BASE_URL") or DEFAULT_HUGGINGFACE_BASE_URL
     else:
-        raw = os.getenv("NEMOTRON_API_BASE_URL") or os.getenv("NVIDIA_API_BASE_URL") or DEFAULT_BASE_URL
+        raw = os.getenv("NVIDIA_API_BASE_URL") or DEFAULT_BASE_URL
     return raw.strip().rstrip("/")
 
 
@@ -212,7 +208,7 @@ def _model_name(provider: str | None = None) -> str:
     if provider == "huggingface":
         raw = os.getenv("HUGGINGFACE_MODEL") or os.getenv("HF_MODEL") or ""
         return _normalize_model_name(provider, raw)
-    raw = os.getenv("NEMOTRON_MODEL") or os.getenv("NVIDIA_NEMOTRON_MODEL") or DEFAULT_MODEL
+    raw = os.getenv("NVIDIA_MODEL") or DEFAULT_MODEL
     normalized = _normalize_model_name(provider, raw)
     return normalized or DEFAULT_MODEL
 
@@ -226,7 +222,7 @@ def _api_key(provider: str, base_url: str) -> str | None:
             or ""
         ).strip()
     else:
-        raw = (os.getenv("NEMOTRON_API_KEY") or os.getenv("NVIDIA_API_KEY") or "").strip()
+        raw = (os.getenv("NVIDIA_API_KEY") or "").strip()
     if raw:
         return raw
     parsed = urlparse(base_url)
@@ -281,11 +277,6 @@ def should_use_llm(question: str | None) -> bool:
     if _env_flag("ADVISOR_LLM_ALWAYS_ON", "0"):
         return True
     return bool((question or "").strip())
-
-
-nemotron_enabled = llm_enabled
-should_use_nemotron = should_use_llm
-
 
 # ---------------------------------------------------------------------------
 # Message processing
@@ -439,7 +430,7 @@ def _resolve_max_tokens(config: LLMProviderConfig, context: dict[str, Any] | Non
         return max(512, _as_int("ADVISOR_LLM_GUIDE_MAX_TOKENS", DEFAULT_GUIDE_MAX_TOKENS))
     if _compact_mode_enabled(config, context):
         return max(96, _as_int("QWEN_MAX_TOKENS", DEFAULT_COMPACT_MAX_TOKENS))
-    return max(128, _as_int("NEMOTRON_MAX_TOKENS", DEFAULT_MAX_TOKENS))
+    return max(128, _as_int("ADVISOR_LLM_MAX_TOKENS", DEFAULT_MAX_TOKENS))
 
 
 # ---------------------------------------------------------------------------
@@ -474,15 +465,15 @@ def generate_llm_advice_stream(
 ) -> Generator[str, None, None]:
     config = _provider_config()
     endpoint = f"{config.base_url}/chat/completions"
-    timeout_sec = max(5, _as_int("NEMOTRON_TIMEOUT_SEC", 30))
+    timeout_sec = max(5, _as_int("ADVISOR_LLM_TIMEOUT_SEC", 30))
     max_tokens = _resolve_max_tokens(config, context)
 
     payload: dict[str, Any] = {
         "model": config.model,
         "messages": _build_messages(config, context, history, system_prompt),
         "max_tokens": max_tokens,
-        "temperature": _as_float("NEMOTRON_TEMPERATURE", DEFAULT_TEMPERATURE),
-        "top_p": _as_float("NEMOTRON_TOP_P", 0.95),
+        "temperature": _as_float("ADVISOR_LLM_TEMPERATURE", DEFAULT_TEMPERATURE),
+        "top_p": _as_float("ADVISOR_LLM_TOP_P", 0.95),
         "stream": True,
     }
 
@@ -508,16 +499,16 @@ def generate_llm_advice(
 ) -> LLMAdvice:
     config = _provider_config()
     endpoint = f"{config.base_url}/chat/completions"
-    timeout_sec = max(5, _as_int("NEMOTRON_TIMEOUT_SEC", 20))
+    timeout_sec = max(5, _as_int("ADVISOR_LLM_TIMEOUT_SEC", 20))
     max_tokens = _resolve_max_tokens(config, context)
-    attempts = max(1, _as_int("NEMOTRON_RETRY_ATTEMPTS", RETRY_ATTEMPTS))
+    attempts = max(1, _as_int("ADVISOR_LLM_RETRY_ATTEMPTS", RETRY_ATTEMPTS))
 
     payload: dict[str, Any] = {
         "model": config.model,
         "messages": _build_messages(config, context, history, system_prompt),
         "max_tokens": max_tokens,
-        "temperature": _as_float("NEMOTRON_TEMPERATURE", DEFAULT_TEMPERATURE),
-        "top_p": _as_float("NEMOTRON_TOP_P", 0.95),
+        "temperature": _as_float("ADVISOR_LLM_TEMPERATURE", DEFAULT_TEMPERATURE),
+        "top_p": _as_float("ADVISOR_LLM_TOP_P", 0.95),
     }
 
     headers = {
@@ -594,10 +585,6 @@ def generate_llm_advice(
 
     raise RuntimeError(f"{config.label} failed after {attempts} attempts.") from last_exc
 
-
-generate_nemotron_advice_stream = generate_llm_advice_stream
-generate_nemotron_advice = generate_llm_advice
-
 __all__ = [
     "LLMAdvice",
     "LLMProviderConfig",
@@ -605,9 +592,4 @@ __all__ = [
     "should_use_llm",
     "generate_llm_advice",
     "generate_llm_advice_stream",
-    "NemotronAdvice",
-    "nemotron_enabled",
-    "should_use_nemotron",
-    "generate_nemotron_advice",
-    "generate_nemotron_advice_stream",
 ]

@@ -84,7 +84,7 @@ function renderDelayPredictionChip(rawValue, fallbackProbability = null) {
 
 function isLlmAdviceSource(adviceSource) {
   const value = String(adviceSource || "").toLowerCase();
-  return value === "nvidia" || value === "nvidia_nemotron" || value === "huggingface";
+  return value === "nvidia" || value === "huggingface";
 }
 
 function buildPredictionPayload(form) {

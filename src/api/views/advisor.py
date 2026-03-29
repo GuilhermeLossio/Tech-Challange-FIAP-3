@@ -143,8 +143,8 @@ def register_advisor_views(app: Flask, deps: dict[str, Any]) -> None:
     route_updates_from_request     = deps["route_updates_from_request"]
     user_chat_message              = deps["user_chat_message"]
     build_discovery_response_runtime = deps["build_discovery_response_runtime"]
-    should_use_llm                 = deps.get("should_use_llm") or deps["should_use_nemotron"]
-    generate_llm_advice            = deps.get("generate_llm_advice") or deps["generate_nemotron_advice"]
+    should_use_llm                 = deps["should_use_llm"]
+    generate_llm_advice            = deps["generate_llm_advice"]
     build_discovery_context        = deps["build_discovery_context"]
     assistant_chat_message         = deps["assistant_chat_message"]
     load_assets                    = deps["load_assets"]
@@ -508,7 +508,7 @@ def register_advisor_views(app: Flask, deps: dict[str, Any]) -> None:
                     system_prompt=ADVISOR_SYSTEM_PROMPT,
                 )
                 advice        = llm_result.content
-                advice_source = llm_result.provider   # e.g. "nemotron", "openai", ...
+                advice_source = llm_result.provider
                 advice_model  = llm_result.model
             except RuntimeError as exc:
                 app.logger.warning("LLM unavailable, falling back to heuristic advice: %s", exc)

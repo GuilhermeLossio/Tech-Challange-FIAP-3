@@ -15,6 +15,30 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+
+def _read_int_env(name: str, default: int, minimum: int = 0) -> int:
+    """Read an integer env var with clamping and safe fallback."""
+    raw = (os.getenv(name) or "").strip()
+    if not raw:
+        return default
+    try:
+        return max(minimum, int(raw))
+    except ValueError:
+        logger.warning("Ignoring invalid %s=%r; using %s.", name, raw, default)
+        return default
+
+
+def _read_bool_env(name: str, default: bool) -> bool:
+    """Read a boolean env var using common truthy tokens."""
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    value = raw.strip().lower()
+    if not value:
+        return default
+    return value in {"1", "true", "yes", "on"}
+
+
 OPENSKY_BASE_URL = "https://opensky-network.org/api"
 OPENSKY_TOKEN_URL = (
     "https://auth.opensky-network.org/auth/realms/opensky-network/"
@@ -22,7 +46,10 @@ OPENSKY_TOKEN_URL = (
 )
 
 _TOKEN_REFRESH_MARGIN_SEC = 30
-_CACHE_TTL = 15
+_CACHE_TTL = _read_int_env("OPENSKY_CACHE_TTL_SEC", 15, minimum=1)
+_AUTH_TIMEOUT_SEC = _read_int_env("OPENSKY_AUTH_TIMEOUT_SEC", 5, minimum=1)
+_TOKEN_RETRY_COOLDOWN_SEC = _read_int_env("OPENSKY_TOKEN_RETRY_COOLDOWN_SEC", 300, minimum=0)
+_ALLOW_ANON_FALLBACK = _read_bool_env("OPENSKY_ALLOW_ANON_FALLBACK", True)
 
 # Fields returned by OpenSky for each state vector.
 _STATE_FIELDS = [
@@ -46,8 +73,46 @@ _STATE_FIELDS = [
 ]
 
 _cache: dict[str, Any] = {}
-_token_cache: dict[str, Any] = {"access_token": None, "expires_at": 0.0}
+_token_cache: dict[str, Any] = {
+    "access_token": None,
+    "expires_at": 0.0,
+    "retry_after": 0.0,
+    "last_error": None,
+}
 _warned_legacy_basic_auth = False
+
+
+def _clear_token_backoff() -> None:
+    """Clear temporary backoff after a successful authenticated request."""
+    _token_cache["retry_after"] = 0.0
+    _token_cache["last_error"] = None
+
+
+def _token_backoff_active(now: float | None = None) -> bool:
+    """Return True while auth retries are being temporarily suppressed."""
+    current = time.time() if now is None else now
+    retry_after = float(_token_cache.get("retry_after") or 0.0)
+    return retry_after > current
+
+
+def _mark_token_backoff(message: str) -> None:
+    """Pause OAuth retries for a short window and use anonymous access instead."""
+    if _TOKEN_RETRY_COOLDOWN_SEC <= 0:
+        return
+
+    retry_after = time.time() + _TOKEN_RETRY_COOLDOWN_SEC
+    previous_retry_after = float(_token_cache.get("retry_after") or 0.0)
+    _token_cache["access_token"] = None
+    _token_cache["expires_at"] = 0.0
+    _token_cache["retry_after"] = retry_after
+    _token_cache["last_error"] = message
+
+    if retry_after > previous_retry_after:
+        logger.warning(
+            "OpenSky auth unavailable (%s). Falling back to anonymous access for %ss.",
+            message,
+            _TOKEN_RETRY_COOLDOWN_SEC,
+        )
 
 
 def _get_client_credentials() -> tuple[str, str] | None:
@@ -125,6 +190,7 @@ def _get_access_token(timeout: int = 10) -> str:
     expires_in = int(payload.get("expires_in", 1800))
     _token_cache["access_token"] = access_token
     _token_cache["expires_at"] = now + max(0, expires_in - _TOKEN_REFRESH_MARGIN_SEC)
+    _clear_token_backoff()
     return str(access_token)
 
 
@@ -140,7 +206,23 @@ def _build_headers(timeout: int = 10) -> dict[str, str]:
         _warn_legacy_basic_auth_ignored()
         return {}
 
-    return {"Authorization": f"Bearer {_get_access_token(timeout=timeout)}"}
+    if _ALLOW_ANON_FALLBACK and _token_backoff_active():
+        return {}
+
+    auth_timeout = min(timeout, _AUTH_TIMEOUT_SEC)
+    try:
+        return {"Authorization": f"Bearer {_get_access_token(timeout=auth_timeout)}"}
+    except TimeoutError as exc:
+        if not _ALLOW_ANON_FALLBACK:
+            raise
+        _mark_token_backoff(str(exc))
+        return {}
+    except RuntimeError as exc:
+        message = str(exc)
+        if not _ALLOW_ANON_FALLBACK or not message.startswith("OpenSky authentication error:"):
+            raise
+        _mark_token_backoff(message)
+        return {}
 
 
 def _parse_state(raw: list[Any]) -> dict[str, Any]:

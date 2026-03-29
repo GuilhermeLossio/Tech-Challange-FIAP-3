@@ -2737,6 +2737,7 @@ def build_live_flights_payload(
     cache_age: int | None = None,
     live_available: bool = True,
     provider_status: str = "ok",
+    stale_cache: bool = False,
     detail: str | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
@@ -2755,6 +2756,7 @@ def build_live_flights_payload(
         "flights": flights,
         "live_available": live_available,
         "provider_status": provider_status,
+        "stale_cache": stale_cache,
     }
     if detail:
         payload["detail"] = detail
@@ -3096,7 +3098,7 @@ def live_flights():
     include_ground = request.args.get("include_ground", "").strip().lower() in {"1", "true", "yes", "on"}
 
     try:
-        flights, cache_age = fetch_live_flights_cached(
+        flights, cache_age, stale_cache = fetch_live_flights_cached(
             bounding_box=bounding_box,
             include_ground=include_ground,
         )
@@ -3159,6 +3161,12 @@ def live_flights():
         return internal_error_response("Unexpected live-flight lookup error.", exc)
 
     sliced = flights[:limit]
+    provider_status = "stale_cache" if stale_cache else "ok"
+    detail = None
+    if stale_cache:
+        detail = (
+            f"Showing cached OpenSky data from {cache_age}s ago because the live refresh failed."
+        )
 
     return jsonify(build_live_flights_payload(
         region,
@@ -3167,6 +3175,9 @@ def live_flights():
         sliced,
         total_found=len(flights),
         cache_age=cache_age,
+        provider_status=provider_status,
+        stale_cache=stale_cache,
+        detail=detail,
     ))
 
 
@@ -3184,7 +3195,7 @@ def live_flight_detail(icao24: str):
     icao24 = icao24.strip().lower()
 
     try:
-        flights, cache_age = fetch_live_flights_cached(icao24=icao24)
+        flights, cache_age, stale_cache = fetch_live_flights_cached(icao24=icao24)
     except TimeoutError as exc:
         return internal_error_response("OpenSky request timed out.", exc, status=504)
     except RuntimeError as exc:
@@ -3196,7 +3207,18 @@ def live_flight_detail(icao24: str):
     if not match:
         return jsonify({"detail": f"Aircraft '{icao24}' not found or not currently in flight."}), 404
 
-    return jsonify({"source": "OpenSky Network", "cache_age_sec": cache_age, "flight": match})
+    payload = {
+        "source": "OpenSky Network",
+        "cache_age_sec": cache_age,
+        "flight": match,
+        "provider_status": "stale_cache" if stale_cache else "ok",
+        "stale_cache": stale_cache,
+    }
+    if stale_cache:
+        payload["detail"] = (
+            f"Showing cached OpenSky detail from {cache_age}s ago because the live refresh failed."
+        )
+    return jsonify(payload)
 
 
 if __name__ == "__main__":

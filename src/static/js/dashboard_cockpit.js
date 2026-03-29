@@ -33,6 +33,9 @@ function normalizeApiBase(rawValue) {
 
 const apiBase = () => normalizeApiBase(apiBaseInput()?.value);
 const MAX_SUGGESTIONS = 8;
+const LIVE_FEED_REGION = "brazil";
+const LIVE_FEED_REFRESH_MS = 60_000;
+const LIVE_FEED_FETCH_TIMEOUT_MS = 15_000;
 
 // ── Chart.js defaults aligned to the dark theme ──────────────
 if (window.Chart?.defaults) {
@@ -194,13 +197,13 @@ function initMap() {
   state.map = L.map("live-map", { zoomControl: true, attributionControl: false }).setView([-15, -50], 4);
   L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 18 }).addTo(state.map);
   fetchLivePlanes();
-  setInterval(fetchLivePlanes, 15000);
+  setInterval(fetchLivePlanes, LIVE_FEED_REFRESH_MS);
 }
 
 async function fetchLivePlanes() {
-  const url = `${apiBase()}/api/live_flights?region=south_america&limit=250&degraded=1`;
+  const url = `${apiBase()}/api/live_flights?region=${LIVE_FEED_REGION}&limit=180&degraded=1`;
   try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const r = await fetch(url, { signal: AbortSignal.timeout(LIVE_FEED_FETCH_TIMEOUT_MS) });
     const data = await r.json();
     if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
     state.lastLiveFlights = data.flights || [];
@@ -208,21 +211,23 @@ async function fetchLivePlanes() {
       available: data.live_available !== false,
       detail: data.detail || "",
       providerStatus: data.provider_status || "ok",
+      staleCache: data.stale_cache === true,
+      cacheAgeSec: Number.isFinite(data.cache_age_sec) ? data.cache_age_sec : null,
     };
     updateAvailableFlightsCatalog();
     renderLivePlanes(state.lastLiveFlights);
-    if (data.live_available === false) {
+    if (data.live_available === false || data.stale_cache === true) {
       console.warn("Live feed unavailable:", data.detail || "OpenSky degraded mode");
     }
   } catch (e) {
-    state.lastLiveFlights = [];
     state.liveFeedStatus = {
       available: false,
       detail: e.message || "Unable to fetch live flights.",
       providerStatus: "network_error",
+      staleCache: false,
+      cacheAgeSec: null,
     };
     updateAvailableFlightsCatalog();
-    renderLivePlanes([]);
     console.warn("Failed to fetch live flights:", e.message);
   }
 }
@@ -356,7 +361,7 @@ async function lookupFlight() {
   // 2. Use the ICAO24 code to fetch detailed flight data
   try {
     const url = `${apiBase()}/api/live_flights/${flight.icao24}`;
-    const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const r = await fetch(url, { signal: AbortSignal.timeout(LIVE_FEED_FETCH_TIMEOUT_MS) });
     const data = await r.json();
 
     if (!r.ok) {

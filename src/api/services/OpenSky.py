@@ -47,6 +47,7 @@ OPENSKY_TOKEN_URL = (
 
 _TOKEN_REFRESH_MARGIN_SEC = 30
 _CACHE_TTL = _read_int_env("OPENSKY_CACHE_TTL_SEC", 15, minimum=1)
+_STALE_IF_ERROR_SEC = _read_int_env("OPENSKY_STALE_IF_ERROR_SEC", 300, minimum=0)
 _AUTH_TIMEOUT_SEC = _read_int_env("OPENSKY_AUTH_TIMEOUT_SEC", 5, minimum=1)
 _TOKEN_RETRY_COOLDOWN_SEC = _read_int_env("OPENSKY_TOKEN_RETRY_COOLDOWN_SEC", 300, minimum=0)
 _ALLOW_ANON_FALLBACK = _read_bool_env("OPENSKY_ALLOW_ANON_FALLBACK", True)
@@ -361,30 +362,43 @@ def fetch_live_flights_cached(
     icao24: str | None = None,
     include_ground: bool = False,
     ttl: int = _CACHE_TTL,
-) -> tuple[list[dict[str, Any]], int]:
+) -> tuple[list[dict[str, Any]], int, bool]:
     """
     In-memory cached wrapper.
 
     Returns
     -------
-    tuple[list[dict], int]
-        (flights, cache_age_seconds)
+    tuple[list[dict], int, bool]
+        (flights, cache_age_seconds, served_from_stale_cache)
     """
     key = f"{bounding_box}|{airport_icao}|{icao24}|{include_ground}"
     cached = _cache.get(key)
     if cached:
         age = int(time.time()) - cached["ts"]
         if age < ttl:
-            return cached["data"], age
+            return cached["data"], age, False
 
-    flights = fetch_live_flights(
-        bounding_box=bounding_box,
-        airport_icao=airport_icao,
-        icao24=icao24,
-        include_ground=include_ground,
-    )
+    try:
+        flights = fetch_live_flights(
+            bounding_box=bounding_box,
+            airport_icao=airport_icao,
+            icao24=icao24,
+            include_ground=include_ground,
+        )
+    except Exception:
+        if cached and _STALE_IF_ERROR_SEC > 0:
+            age = int(time.time()) - cached["ts"]
+            if age < _STALE_IF_ERROR_SEC:
+                logger.warning(
+                    "Serving stale OpenSky cache aged %ss for key %s after live refresh failure.",
+                    age,
+                    key,
+                )
+                return cached["data"], age, True
+        raise
+
     _cache[key] = {"data": flights, "ts": int(time.time())}
-    return flights, 0
+    return flights, 0, False
 
 
 BOUNDING_BOXES = {

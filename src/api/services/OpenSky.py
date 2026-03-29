@@ -44,6 +44,7 @@ OPENSKY_TOKEN_URL = (
     "https://auth.opensky-network.org/auth/realms/opensky-network/"
     "protocol/openid-connect/token"
 )
+_OPENSKY_USER_AGENT = os.getenv("OPENSKY_USER_AGENT", "FlightAdvisor/1.0")
 
 _TOKEN_REFRESH_MARGIN_SEC = 30
 _CACHE_TTL = _read_int_env("OPENSKY_CACHE_TTL_SEC", 15, minimum=1)
@@ -87,6 +88,34 @@ def _clear_token_backoff() -> None:
     """Clear temporary backoff after a successful authenticated request."""
     _token_cache["retry_after"] = 0.0
     _token_cache["last_error"] = None
+
+
+def _base_headers() -> dict[str, str]:
+    """Headers that should be sent to OpenSky on every request."""
+    return {
+        "Accept": "application/json",
+        "User-Agent": _OPENSKY_USER_AGENT,
+    }
+
+
+def _auth_mode(headers: dict[str, str]) -> str:
+    """Human-readable auth mode for logging."""
+    return "authenticated" if "Authorization" in headers else "anonymous"
+
+
+def _rate_limit_suffix(response: requests.Response | None) -> str:
+    """Summarize rate-limit headers when OpenSky provides them."""
+    if response is None:
+        return ""
+
+    remaining = response.headers.get("X-Rate-Limit-Remaining")
+    retry_after = response.headers.get("X-Rate-Limit-Retry-After-Seconds")
+    parts: list[str] = []
+    if remaining:
+        parts.append(f"remaining={remaining}")
+    if retry_after:
+        parts.append(f"retry_after={retry_after}s")
+    return f" ({', '.join(parts)})" if parts else ""
 
 
 def _token_backoff_active(now: float | None = None) -> bool:
@@ -176,6 +205,11 @@ def _get_access_token(timeout: int = 10) -> str:
         raise TimeoutError("OpenSky authentication timed out. Try again.") from None
     except requests.exceptions.HTTPError as exc:
         status = exc.response.status_code if exc.response is not None else "?"
+        logger.warning(
+            "OpenSky OAuth2 token request failed with HTTP %s%s",
+            status,
+            _rate_limit_suffix(exc.response),
+        )
         raise RuntimeError(
             f"OpenSky authentication failed with HTTP {status}. "
             "Check OPENSKY_CLIENT_ID and OPENSKY_CLIENT_SECRET."
@@ -203,27 +237,29 @@ def _build_headers(timeout: int = 10) -> dict[str, str]:
     Otherwise requests fall back to the anonymous tier.
     """
     creds = _get_client_credentials()
+    headers = _base_headers()
     if not creds:
         _warn_legacy_basic_auth_ignored()
-        return {}
+        return headers
 
     if _ALLOW_ANON_FALLBACK and _token_backoff_active():
-        return {}
+        return headers
 
     auth_timeout = min(timeout, _AUTH_TIMEOUT_SEC)
     try:
-        return {"Authorization": f"Bearer {_get_access_token(timeout=auth_timeout)}"}
+        headers["Authorization"] = f"Bearer {_get_access_token(timeout=auth_timeout)}"
+        return headers
     except TimeoutError as exc:
         if not _ALLOW_ANON_FALLBACK:
             raise
         _mark_token_backoff(str(exc))
-        return {}
+        return headers
     except RuntimeError as exc:
         message = str(exc)
         if not _ALLOW_ANON_FALLBACK or not message.startswith("OpenSky authentication error:"):
             raise
         _mark_token_backoff(message)
-        return {}
+        return headers
 
 
 def _parse_state(raw: list[Any]) -> dict[str, Any]:
@@ -281,15 +317,22 @@ def fetch_live_flights(
         params["icao24"] = icao24.strip().lower()
 
     headers = _build_headers(timeout=timeout)
+    auth_mode = _auth_mode(headers)
 
     try:
-        resp = requests.get(url, params=params, headers=headers or None, timeout=timeout)
+        resp = requests.get(url, params=params, headers=headers, timeout=timeout)
         resp.raise_for_status()
     except requests.exceptions.Timeout:
-        logger.warning("OpenSky timeout after %ss", timeout)
+        logger.warning("OpenSky timeout after %ss using %s access", timeout, auth_mode)
         raise TimeoutError("OpenSky Network did not respond in time. Try again.") from None
     except requests.exceptions.HTTPError as exc:
         status = exc.response.status_code if exc.response is not None else "?"
+        logger.warning(
+            "OpenSky states request failed with HTTP %s using %s access%s",
+            status,
+            auth_mode,
+            _rate_limit_suffix(exc.response),
+        )
         if status == 401:
             raise RuntimeError(
                 "OpenSky rejected the request with HTTP 401. "
@@ -301,6 +344,7 @@ def fetch_live_flights(
             raise RuntimeError("OpenSky request limit reached. Wait a few minutes and try again.") from exc
         raise RuntimeError(f"OpenSky returned HTTP {status}: {exc}") from exc
     except requests.exceptions.RequestException as exc:
+        logger.warning("OpenSky connection error using %s access: %s", auth_mode, exc)
         raise RuntimeError(f"OpenSky connection error: {exc}") from exc
 
     payload = resp.json()

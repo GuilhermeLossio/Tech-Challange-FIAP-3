@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parent.parent
 root_dir_str = str(ROOT_DIR)
 if root_dir_str not in sys.path:
-    sys.path.insert(0, root_dir_str)
+    sys.path.insert(0, root_dir_str)    
 
 from src.api.main import app as flask_app, run_local_server  # noqa: E402
 

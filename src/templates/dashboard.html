@@ -364,18 +364,12 @@
 {% endblock %}
 
 {% block content %}
-<!-- API connectivity strip -->
-<div class="api-strip">
-  <label>Backend URL</label>
-  <input
-    type="text"
-    id="api-base"
-    value="{{ request.url_root[:-1] if request.url_root.endswith('/') else request.url_root }}"
-    placeholder="{{ request.url_root[:-1] if request.url_root.endswith('/') else request.url_root }}"
-  />
-  <button class="btn-lookup" onclick="checkApiHealth()">Connect</button>
-  <span id="api-health-chip" class="status-chip">disconnected</span>
-</div>
+<input
+  type="hidden"
+  id="api-base"
+  value="{{ request.url_root[:-1] if request.url_root.endswith('/') else request.url_root }}"
+/>
+<span id="api-health-chip" class="status-chip" hidden aria-hidden="true">disconnected</span>
 
 <div class="page-wrap">
 

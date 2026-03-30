@@ -1,240 +1,336 @@
-# Flight Advisor - Current Prototype
+# Flight Advisor — Technical Prototype Reference
 
-This document describes the current runtime prototype implemented in the repository. It replaces earlier design notes and focuses only on the active code path.
+> **Status:** Active prototype — this document describes the current runtime implementation only. Earlier design notes have been superseded.
+
+---
 
 ## 1. Scope
 
-The current prototype covers:
+This document covers everything that is live and running in the repository today:
 
-- deployment entrypoint in `src/app.py` plus Flask pages and JSON APIs composed in `src/api/main.py`
-- delay prediction for a specific flight
-- weekly route estimation when the user provides only partial route context
-- airport and route APIs used by the dropdown-based frontend
-- session-aware advisor conversations with history and reset
-- configurable LLM generation for travel guidance and advisor answers
-- live-flight lookup through OpenSky
+- Flask deployment entrypoint and API composition
+- ML-based delay prediction for specific flights
+- Weekly route estimation for partial route context
+- Session-aware conversational advisor with history and reset
+- Airport and route APIs powering the frontend dropdowns
+- Configurable LLM generation for travel guidance
+- Live flight lookup via OpenSky
 
-## 2. Current architecture
+---
+
+## 2. Runtime Architecture
+
+### Component map
 
 ```mermaid
 flowchart TB
-    U[User] --> P[Flask pages<br/>src/templates + src/static]
-    P --> A[Flask API<br/>src/api/main.py]
+    U[User] --> P[Flask Pages\nsrc/templates + src/static]
+    P --> A[Flask API\nsrc/api/main.py]
 
-    A --> V[View registration<br/>pages.py, flight.py, advisor.py]
-    A --> M[Prediction pipeline<br/>delay_model.pkl + metadata]
-    A --> W[Weekly route estimator<br/>upcoming schedule data]
-    A --> S[Session store<br/>data/runtime/advisor_sessions]
-    A --> X[Airports and route sources]
-    A --> O[OpenSky service]
-    A --> L[LLM service<br/>NVIDIA or Hugging Face provider]
+    A --> V[View Registration\npages.py · flight.py · advisor.py]
+    A --> M[Prediction Pipeline\ndelay_model.pkl + metadata]
+    A --> W[Weekly Route Estimator\nupcoming schedule data]
+    A --> S[Session Store\ndata/runtime/advisor_sessions]
+    A --> X[Airports & Route Sources]
+    A --> O[OpenSky Service]
+    A --> L[LLM Service\nNVIDIA · Hugging Face]
 
-    M --> R[Advisor response]
-    W --> R
-    S --> R
-    X --> R
-    O --> R
-    L --> R
-
-    R --> P
-    P --> U
+    M & W & S & X & O & L --> R[Advisor Response]
+    R --> P --> U
 ```
 
-### Main runtime components
+### Key source files
 
-- `src/app.py`: deployment-oriented entrypoint for Railway, plain Python, or `gunicorn`.
-- `src/api/main.py`: schemas, feature preparation, model loading, weekly fallback logic, endpoint registration, and Flask bootstrap.
-- `src/api/views/advisor.py`: `/advise`, advisor history, and advisor reset flow.
-- `src/api/views/flight.py`: country, airport, and departure endpoints used by dropdowns.
-- `src/api/views/pages.py`: page routes for the Flask frontend.
-- `src/api/services/llm_service.py`: configurable LLM transport and prompt rules.
-- `src/api/services/OpenSky.py`: live-flight integration.
-- `dashboard/app.py`: optional Dash app, mounted under `/dashboard` when enabled.
+| File | Role |
+|---|---|
+| `src/app.py` | Deployment entrypoint — Railway, plain Python, or gunicorn |
+| `src/api/main.py` | Schemas, feature prep, model loading, weekly fallback, endpoint registration |
+| `src/api/views/advisor.py` | `/advise`, session history, and session reset |
+| `src/api/views/flight.py` | Country, airport, and departure endpoints for dropdowns |
+| `src/api/views/pages.py` | Page routes for the Jinja2 frontend |
+| `src/api/services/llm_service.py` | Configurable LLM transport, provider selection, prompt rules |
+| `src/api/services/OpenSky.py` | Live flight integration |
+| `dashboard/app.py` | Optional Dash app, mounted at `/dashboard` when `ENABLE_DASH=1` |
 
-## 3. User-facing pages
+---
+
+## 3. User-Facing Pages
 
 | Route | Purpose | Main interactions |
 |---|---|---|
-| `/` or `/front` | Landing and dashboard page | Overview visuals and navigation |
-| `/flight` or `/flights` | Flight exploration | Country and airport dropdowns, departure lookup |
-| `/predictions` | Prediction page | Structured delay prediction workflow |
+| `/` or `/front` | Landing and dashboard | Overview visuals and navigation |
+| `/flight` or `/flights` | Flight exploration | Country/airport dropdowns, departure lookup |
+| `/predictions` | Prediction workflow | Structured delay prediction form |
 | `/advisor` | Conversational advisor | Route context, delay advice, travel guidance, session history |
-| `/dashboard` | Optional Dash mount | Supplemental analytics when Dash is enabled |
+| `/dashboard` | Optional Dash mount | Supplemental analytics when `ENABLE_DASH=1` |
 
-## 4. Advisor runtime flow
+---
+
+## 4. Advisor Runtime Flow
 
 ```mermaid
 sequenceDiagram
     actor U as User
-    participant UI as Advisor page
+    participant UI as Advisor Page
     participant A as POST /advise
-    participant R as Route extraction
-    participant S as Session store
-    participant M as Delay model
-    participant W as Weekly estimator
-    participant L as LLM service
+    participant R as Route Extraction
+    participant S as Session Store
+    participant M as Delay Model
+    participant W as Weekly Estimator
+    participant L as LLM Service
 
     U->>UI: Enter route and question
-    UI->>A: Send structured payload
-    A->>R: Parse question for route updates
-    A->>S: Load current session
+    UI->>A: POST structured payload
+    A->>R: Parse question for route mentions
+    A->>S: Load current session history
 
-    alt Specific-flight context available
-        A->>M: Predict one flight
-        M-->>A: probability, binary prediction, factors
-    else Route exists but flight details are incomplete
+    alt Full flight context available
+        A->>M: Predict specific flight
+        M-->>A: probability · binary prediction · top factors
+    else Route known, details incomplete
         A->>W: Build weekly route estimate
-        W-->>A: aggregate probability and best options
-    else Discovery request
-        A->>A: Build discovery response
+        W-->>A: aggregate probability · suggested flights
+    else Discovery or open question
+        A->>A: Build discovery/clarification response
     end
 
-    opt LLM is enabled and the request should use it
+    opt LLM enabled and applicable
         A->>L: Send structured advisor context
-        L-->>A: Generated advice
+        L-->>A: Generated advice text
     end
 
-    A->>S: Persist messages
-    A-->>UI: advice, metrics, route_updates, messages
-    UI-->>U: Sync dropdowns and render response
+    A->>S: Persist updated message history
+    A-->>UI: advice · metrics · route_updates · messages
+    UI-->>U: Sync dropdowns · render response
 ```
 
-## 5. Prediction strategy
+---
+
+## 5. Prediction Strategy
 
 ### 5.1 Specific-flight prediction
 
-The specific-flight path is used when the request has enough structured context to build the model features directly. Typical inputs are:
+Used when the request contains enough structured context to build model features directly.
 
-- `origin_airport`
-- `destination_airport`
+**Minimum useful inputs:**
+- `origin_airport` + `destination_airport`
 - `airline`
-- `scheduled_departure`
-- calendar fields such as `flight_date` or `year`, `month`, `day`, `day_of_week`
-- optional `distance`
+- `scheduled_departure` (HHMM)
+- Date context — `flight_date` or `year`/`month`/`day`/`day_of_week`
 
-Outputs include:
-
-- `delay_probability`
-- `delay_prediction`
-- `risk_level`
-- `top_factors`
+**Outputs:**
+- `delay_probability` — model probability score
+- `delay_prediction` — binary label (`0` = on time, `1` = delayed)
+- `risk_level` — human-readable label (`LOW`, `MEDIUM`, `HIGH`)
+- `top_factors` — SHAP-backed explanation factors
 
 ### 5.2 Weekly route fallback
 
-If the route is known but airline, departure time, or exact date are missing, the advisor no longer blocks the user. Instead, it can estimate the route through the generated weekly schedule.
+Triggered when origin and destination are known but airline, departure time, or exact date are missing. The advisor does not block the user — it estimates delay risk from the generated weekly schedule.
 
-Current behavior:
+**Behavior:**
+- `ADVISOR_WEEKLY_WINDOW_DAYS` controls the prediction window (clamped 1–14)
+- Response `mode` is set to `weekly_route`
+- Response can include lower-risk suggested flights from the weekly slice
 
-- origin and destination are enough to trigger route-level estimation when the question asks for delay-related guidance
-- the weekly window is controlled by `ADVISOR_WEEKLY_WINDOW_DAYS`
-- the response mode becomes `weekly_route`
-- the response can include lower-risk suggested flights from the weekly slice
+### 5.3 Missing-feature resolution
 
-### 5.3 Missing-feature fallback
+The predictor applies a deterministic fallback chain for missing fields instead of refusing the request:
 
-When some flight-level fields are unavailable, the predictor can still work from other signals:
+```
+distance provided?  →  use it directly
+    ↓ no
+route historical average available?  →  use it
+    ↓ no
+use global average distance
+```
 
-- if `distance` is present in the request, use it directly
-- otherwise use the historical average distance for the route
-- if the route average is unavailable, use the global average distance
-- if airline or country-level detail is missing, rely on the remaining route, calendar, and distance features instead of refusing the prediction
+The same logic applies to missing airline or country-level detail — the model runs on remaining route, calendar, and distance features rather than failing.
 
-This fallback path is the reason the advisor can keep producing a prediction even when the user message is incomplete.
+---
 
-## 6. Request and response contract
+## 6. Request & Response Contract
 
-### 6.1 `/advise` request
-
-| Field | Type | Notes |
-|---|---|---|
-| `origin_country` | string or null | Optional country selected or inferred |
-| `origin_airport` | string or null | Origin IATA code |
-| `destination_country` | string or null | Optional destination country |
-| `destination_airport` | string or null | Destination IATA code |
-| `airline` | string or null | Airline IATA code |
-| `scheduled_departure` | integer or null | HHMM |
-| `flight_date` | string or null | `YYYY-MM-DD` |
-| `year`, `month`, `day`, `day_of_week` | integer or null | Alternate date inputs |
-| `distance` | number or null | Miles |
-| `question` | string or null | Free-form advisor request |
-
-### 6.2 `/advise` response
+### 6.1 `POST /advise` — Request
 
 | Field | Type | Notes |
 |---|---|---|
-| `advice` | string | Final advisor text |
-| `delay_probability` | number or null | Delay probability when prediction is available |
-| `delay_prediction` | integer or null | Binary output, typically `0` or `1` |
-| `risk_level` | string or null | Risk label |
-| `top_factors` | list | Human-readable explanation factors |
-| `suggested_flights` | list | Weekly or route alternatives |
-| `clarification_prompts` | list | Follow-up prompts when discovery needs more detail |
-| `mode` | string | Examples: `route`, `weekly_route`, `discovery` |
-| `advice_source` | string | Heuristic, weekly model, or LLM-backed advice path |
-| `advice_model` | string or null | LLM model identifier when available |
-| `session_id` | string or null | Advisor session key |
-| `messages` | list | Serialized chat history |
-| `route_updates` | object or null | Sync payload for route dropdowns |
+| `origin_country` | `string \| null` | Optional — auto-inferred from airport when possible |
+| `origin_airport` | `string \| null` | IATA code |
+| `destination_country` | `string \| null` | Optional — auto-inferred from airport |
+| `destination_airport` | `string \| null` | IATA code |
+| `airline` | `string \| null` | IATA airline code |
+| `scheduled_departure` | `integer \| null` | HHMM format |
+| `flight_date` | `string \| null` | `YYYY-MM-DD` |
+| `year`, `month`, `day`, `day_of_week` | `integer \| null` | Alternative to `flight_date` |
+| `distance` | `number \| null` | Miles |
+| `question` | `string \| null` | Free-form advisor question |
 
-## 7. Route-context rules
+### 6.2 `POST /advise` — Response
 
-The advisor now treats route context as first-class state instead of a side effect.
+| Field | Type | Notes |
+|---|---|---|
+| `advice` | `string` | Final advisor text |
+| `delay_probability` | `number \| null` | Delay probability (0–1) |
+| `delay_prediction` | `integer \| null` | `0` = on time, `1` = delayed |
+| `risk_level` | `string \| null` | `LOW` / `MEDIUM` / `HIGH` |
+| `top_factors` | `list` | Human-readable explanation factors |
+| `suggested_flights` | `list` | Weekly or route alternatives |
+| `clarification_prompts` | `list` | Follow-up prompts for discovery mode |
+| `mode` | `string` | `route` / `weekly_route` / `discovery` |
+| `advice_source` | `string` | `heuristic` / `weekly_model` / `llm` |
+| `advice_model` | `string \| null` | LLM model identifier, if used |
+| `session_id` | `string \| null` | Session key |
+| `messages` | `list` | Serialized chat history |
+| `route_updates` | `object \| null` | Dropdown sync payload for the frontend |
 
-Current rules:
+### 6.3 Example
 
-- route mentions in the free-form question are parsed from countries, cities, airport names, and IATA codes
-- if an airport is detected, the backend attempts to auto-select the corresponding country
-- if the user explicitly mentions a new route, that explicit route overrides the previous route context
-- `route_updates` is returned so the frontend can update both country and airport dropdowns after the response
-- the advisor page resets route context when a new advisor screen is opened
-- chat history can be cleared through `POST /api/advisor/reset`
+```bash
+curl -X POST http://localhost:8000/advise \
+  -H "Content-Type: application/json" \
+  -d '{
+    "origin_airport": "GRU",
+    "destination_airport": "JFK",
+    "question": "Use the weekly schedule and tell me if this route is likely to be delayed."
+  }'
+```
 
-These rules keep the dropdown state aligned with the conversation instead of forcing the user to re-enter the route manually.
+```json
+{
+  "delay_probability": 0.38,
+  "delay_prediction": 0,
+  "risk_level": "LOW",
+  "mode": "weekly_route",
+  "advice_source": "weekly_model",
+  "advice": "On-time predicted. Estimate uses the weekly schedule — no exact date was provided.",
+  "top_factors": [
+    { "feature": "distance", "impact": "Estimated from historical route average." }
+  ],
+  "route_updates": {
+    "origin":      { "country": "Brazil",        "airport": "GRU" },
+    "destination": { "country": "United States", "airport": "JFK" }
+  }
+}
+```
 
-## 8. LLM orchestration
+---
 
-The current advisor is not tied to a single hosted model.
+## 7. Route-Context Rules
 
-### Provider model
+Route context is treated as first-class session state, not a side effect.
 
-- provider is selected by `ADVISOR_LLM_PROVIDER` or `LLM_PROVIDER`
-- supported provider labels are `nvidia` and `huggingface`
-- model selection is driven by `ADVISOR_LLM_MODEL` or `LLM_MODEL`
+| Rule | Behavior |
+|---|---|
+| **NLP parsing** | Country names, city names, airport names, and IATA codes are all parsed from the free-form question |
+| **Country inference** | If an airport code is detected, the backend attempts to fill its country automatically |
+| **Override** | An explicit new route in the message replaces the previous session route context |
+| **Frontend sync** | `route_updates` is always returned so both country and airport dropdowns stay aligned |
+| **Session reset** | `POST /api/advisor/reset` clears chat history and route context |
+| **Page reset** | Navigating to a new advisor screen resets route context automatically |
+
+---
+
+## 8. LLM Orchestration
+
+### Provider configuration
+
+| Variable | Purpose |
+|---|---|
+| `ADVISOR_LLM_PROVIDER` or `LLM_PROVIDER` | Provider label: `nvidia` or `huggingface` |
+| `ADVISOR_LLM_MODEL` or `LLM_MODEL` | Model identifier |
+| `NVIDIA_API_KEY` | Key for NVIDIA-compatible calls |
+| `HF_TOKEN` or `HUGGINGFACE_API_KEY` | Key for Hugging Face router calls |
 
 ### Runtime behavior
 
-- compact mode can be enabled for lighter requests
-- Qwen-like models use smaller history and token budgets automatically
-- complete travel-guide requests use a larger token budget and more history
-- if the LLM is disabled or errors, the advisor still returns deterministic fallback advice
-- prompts operate on structured runtime context and should not invent flights, prices, or purchase confirmations
+| Scenario | Behavior |
+|---|---|
+| LLM enabled, request warrants it | LLM receives structured runtime context and generates advice |
+| Compact mode (`ADVISOR_LLM_COMPACT_MODE=1`) | Smaller token budget and shorter history |
+| Qwen-like models | Automatically use reduced history and `QWEN_MAX_TOKENS` ceiling |
+| Travel guide requests | Use larger budget from `ADVISOR_LLM_GUIDE_MAX_TOKENS` |
+| LLM disabled or errors | Deterministic heuristic fallback — advisor still returns an answer |
 
-## 9. Data sources and generated assets
+**Prompt constraints:** The LLM is instructed not to invent flights, prices, or purchase confirmations. All advice is grounded in the structured context passed from the prediction pipeline.
 
-### Persistent artifacts
+---
 
-- `models/delay_model.pkl`
-- `models/delay_model_meta.json`
-- `models/explain/`
+## 9. Data Sources & Artifacts
 
-### Runtime and reference data
+### Model artifacts
 
-- airports index used by `/api/flight/countries` and `/api/flight/airports`
-- upcoming schedule data used by weekly route prediction
-- advisor session files under `data/runtime/advisor_sessions`
-- OpenSky live-flight payloads for `/api/live_flights`
+| Path | Description |
+|---|---|
+| `models/delay_model.pkl` | Serialized trained delay model |
+| `models/delay_model_meta.json` | Feature names, thresholds, pipeline metadata |
+| `models/explain/` | SHAP exports for explainability |
+
+### Runtime data
+
+| Source | Used by |
+|---|---|
+| Airports index (`AIRPORTS_INDEX_SOURCE`) | `/api/flight/countries`, `/api/flight/airports` |
+| Weekly schedule data | Weekly route estimator |
+| `data/runtime/advisor_sessions/` | Session store for advisor chat history |
+| OpenSky API | `/api/live_flights`, `/api/live_flights/<icao24>` |
 
 ### Jobs
 
-- `src/jobs/generate_future_flights.py`
-- `src/jobs/weekly_pipeline.py`
-- `src/jobs/weekly_predict.py`
-- `src/jobs/csv_to_parquet_converter.py`
+| Script | Purpose |
+|---|---|
+| `src/jobs/generate_future_flights.py` | Future schedule generation |
+| `src/jobs/weekly_pipeline.py` | Weekly processing pipeline |
+| `src/jobs/weekly_predict.py` | Weekly prediction output generation |
+| `src/jobs/csv_to_parquet_converter.py` | Data format conversion helper |
 
-## 10. Current constraints
+---
 
-- booking and payment are not implemented in this backend
-- real-time fare shopping is still optional or absent, depending on external integration
-- live-flight data quality depends on OpenSky availability
-- the Flask pages and the Dash app still overlap in some analytics responsibilities
-- route extraction is heuristic and should be treated as a practical parser, not a full NLU system
+## 10. Full API Surface
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | Liveness check |
+| `GET` | `/docs` | Swagger UI |
+| `GET` | `/redoc` | ReDoc |
+| `GET` | `/openapi.json` | OpenAPI schema |
+| `POST` | `/predict` | Structured single-flight delay prediction |
+| `POST` | `/advise` | Full advisor workflow |
+| `GET` | `/api/advisor/history` | Current session chat history |
+| `POST` | `/api/advisor/reset` | Clear session history and route context |
+| `GET` | `/api/flight/countries` | Countries from airports index |
+| `GET` | `/api/flight/airports?country=` | Airports for a selected country |
+| `GET` | `/api/flight/departures?airport=` | Upcoming departures or schedule placeholders |
+| `GET` | `/api/upcoming_flights` | Upcoming schedule view |
+| `GET` | `/api/weekly_predictions` | Weekly prediction listing |
+| `GET` | `/api/live_flights` | Live flights from OpenSky |
+| `GET` | `/api/live_flights/<icao24>` | Live details for one aircraft |
+| `GET` | `/api/routes` | Route and endpoint discovery payload |
+
+---
+
+## 11. Current Constraints
+
+| Area | Status |
+|---|---|
+| **Booking & payment** | Not implemented — no real-time purchase flow |
+| **Fare shopping** | Optional or absent — depends on external integration |
+| **Live flight quality** | Tied to OpenSky availability and update cadence |
+| **Route extraction** | Heuristic NLP parser — not a full NLU system; may miss edge cases |
+| **Dashboard overlap** | Dash app and Flask pages share some analytics responsibilities; consolidation planned |
+| **RAG module** | `src/rag/` is not active in the current advisor flow — to be formalized or removed |
+
+---
+
+## 12. Deployment
+
+```bash
+# Development
+python src/app.py
+
+# Production (Railway or any server)
+gunicorn -w 2 -b 0.0.0.0:$PORT src.app:app
+
+# Plain Python on Railway
+python src/app.py   # reads PORT automatically
+```

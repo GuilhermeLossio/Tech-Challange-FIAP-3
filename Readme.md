@@ -1,223 +1,154 @@
-# Flight Advisor
+<img width="1895" height="907" alt="image" src="https://github.com/user-attachments/assets/c8560f62-0149-4741-8949-3508d342c472" /># ✈️ Flight Advisor
 
-Flight Advisor is a Flask application for flight-delay prediction and conversational travel assistance. The current codebase combines trained delay models, weekly route estimation, airport and route APIs, live-flight lookups, and a session-aware advisor UI.
+> **AI-powered flight delay prediction and conversational travel assistant**
+<img width="1902" height="915" alt="image" src="https://github.com/user-attachments/assets/8ffc28f4-4ffa-4614-9d28-449eac47c97e" />
 
-## What the app currently includes
+A full-stack Flask application that combines machine learning delay models, natural language understanding, live flight data, and a configurable LLM backend into a session-aware travel advisor.
 
-### Web pages
-- `/` or `/front`: dashboard landing page
-- `/flight` or `/flights`: flight lookup and route selection
-- `/predictions`: prediction-focused page
-- `/advisor`: conversational advisor
-- `/dashboard`: optional mounted Dash app when `ENABLE_DASH=1` and Dash dependencies are available
+---
 
-### API and docs
-- `/docs`, `/redoc`, `/openapi.json`
-- `/health`
-- `/predict`
-- `/advise`
-- `/api/advisor/history`
-- `/api/advisor/reset`
-- `/api/flight/countries`
-- `/api/flight/airports`
-- `/api/flight/departures`
-- `/api/upcoming_flights`
-- `/api/weekly_predictions`
-- `/api/live_flights`
-- `/api/live_flights/<icao24>`
-- `/api/routes`
+## 🚀 Live Features
 
-## Core capabilities
+| Capability | Description |
+|---|---|
+| 🔮 **Delay Prediction** | Predict delay probability and risk level for a specific flight using a trained ML model |
+| 📅 **Weekly Route Estimation** | Estimate delay risk by route when exact flight details are unavailable |
+| 💬 **Conversational Advisor** | Session-aware chat that extracts route context from natural language |
+| 🌐 **Live Flights** | Real-time aircraft tracking via OpenSky |
+| 🤖 **LLM Integration** | Pluggable Hugging Face backend for travel guidance |
+| 🗺️ **Route Sync** | Automatic frontend dropdown sync when the user mentions a new route |
 
-- Predict delay probability and a binary delay decision for a specific flight.
-- Fall back to weekly route estimation when origin and destination are known but airline, date, or departure time are missing.
-- Extract route context from natural-language questions and return `route_updates` so the frontend can sync the country and airport dropdowns automatically.
-- Infer distance from the request, the historical route average, or the global average when explicit airline or country data is missing.
-- Keep advisor chat history per session and expose history and reset endpoints.
-- Use a configurable LLM provider for discovery, destination guidance, and complete travel-guide responses.
-- Return model-based fallback advice even when the LLM is disabled or unavailable.
-- Serve live-flight snapshots through OpenSky and upcoming schedule suggestions from the generated weekly dataset.
+---
 
-## Architecture snapshot
+## 🏗️ Architecture
 
-- Delivery layer: deployment entrypoint in `src/app.py`, Flask app composition in `src/api/main.py`, Jinja templates in `src/templates`, and static assets in `src/static`.
-- View registration: `src/api/views/pages.py`, `src/api/views/flight.py`, and `src/api/views/advisor.py`.
-- Prediction layer: model artifacts in `models/`, feature construction and fallback logic in `src/api/main.py`.
-- Advisor layer: session-aware orchestration, route extraction, weekly fallback, and LLM prompt assembly.
-- LLM layer: `src/api/services/llm_service.py` with provider selection for NVIDIA or Hugging Face compatible backends.
-- Batch and jobs layer: future schedule generation and weekly prediction helpers in `src/jobs/`.
-- Optional analytics layer: legacy or supplemental Dash app in `dashboard/app.py`.
+```mermaid
+flowchart TB
+    U[User] --> P[Flask Pages\nsrc/templates + src/static]
+    P --> A[Flask API\nsrc/api/main.py]
 
-## Repository structure
+    A --> V[View Layer\npages · flight · advisor]
+    A --> M[Delay Model\ndelay_model.pkl]
+    A --> W[Weekly Estimator\nupcoming schedule]
+    A --> S[Session Store\ndata/runtime/advisor_sessions]
+    A --> O[OpenSky Service\nlive flight data]
+    A --> L[LLM Service\nNVIDIA · Hugging Face]
+
+    M & W & S & O & L --> R[Advisor Response]
+    R --> P --> U
+```
+
+---
+
+## 🗂️ Project Structure
 
 ```text
 FIAP-3/
-|-- dashboard/                 # Optional Dash app and dashboard utilities
-|-- data/                      # Raw, processed, and runtime data
-|-- docs/                      # Mermaid and SVG architecture assets
-|-- models/                    # Trained model artifacts and explainability exports
-|-- notebooks/                 # Exploration and experimentation notebooks
-|-- src/
-|   |-- app.py                 # Deployment entrypoint for Railway or gunicorn
-|   |-- api/
-|   |   |-- main.py            # Flask app, schemas, predictors, API registration
-|   |   |-- services/          # LLM, flight, and live-flight integrations
-|   |   `-- views/             # Page, advisor, and flight endpoints
-|   |-- jobs/                  # Weekly schedule and prediction jobs
-|   |-- static/                # Browser JavaScript and CSS
-|   |-- templates/             # Jinja templates
-|   `-- rag/                   # Reserved or legacy area for retrieval artifacts
-|-- PROTOTYPE.md               # Current technical prototype reference
-|-- Readme.md                  # Project overview and setup
-`-- requirements.txt
+├── dashboard/              # Optional Dash analytics app
+├── data/                   # Raw, processed, and runtime data
+├── docs/                   # Architecture diagrams and SVG assets
+├── models/                 # Trained model artifacts and SHAP exports
+├── notebooks/              # Exploration and experimentation
+├── src/
+│   ├── app.py              # Deployment entrypoint (Railway / gunicorn)
+│   ├── api/
+│   │   ├── main.py         # Flask composition, schemas, predictor, API registration
+│   │   ├── services/       # LLM, flight, and OpenSky integrations
+│   │   └── views/          # pages.py · flight.py · advisor.py
+│   ├── jobs/               # Schedule generation and weekly prediction jobs
+│   ├── static/             # JavaScript and CSS
+│   └── templates/          # Jinja2 HTML templates
+└── requirements.txt
 ```
 
-## Getting started
+---
+
+## ⚙️ Getting Started
 
 ### Prerequisites
 
 - Python 3.11
-- A valid model artifact under `models/`
-- Optional LLM credentials if you want advisor generation beyond heuristic fallback
+- A trained model artifact at `models/delay_model.pkl`
+- Optional: LLM API credentials for advisor generation beyond heuristic fallback
 
-### Install dependencies
+### Install
 
 ```bash
 python -m venv .venv
-.venv\Scripts\activate
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Create or update `.env`
+### Configure `.env`
 
-The project loads environment variables automatically from `.env`. There is no `.env.example` in the repository at the moment, so create the file manually if needed.
+Create a `.env` file in the project root. Key variables:
 
-Key variables:
+```env
+# Server
+API_PORT=8000
+FLASK_DEBUG=1
+FLASK_SECRET_KEY=your-secret-key
 
-| Variable | Purpose |
-|---|---|
-| `API_PORT` | Local Flask port. Defaults to `8000`. |
-| `FLASK_DEBUG` | Set to `1` for debug mode. |
-| `FLASK_SECRET_KEY` | Flask session secret. |
-| `ENABLE_DASH` | Mount the Dash app under `/dashboard` when available. |
-| `ADVISOR_LLM_ENABLED` | Enable or disable LLM calls for the advisor. |
-| `ADVISOR_LLM_PROVIDER` or `LLM_PROVIDER` | LLM backend selection. Supports `nvidia` and `huggingface`. |
-| `ADVISOR_LLM_MODEL` or `LLM_MODEL` | Shared model identifier. |
-| `NVIDIA_API_KEY` | API key for NVIDIA-compatible calls. |
-| `HF_TOKEN` or `HUGGINGFACE_API_KEY` | API key for Hugging Face router calls. |
-| `ADVISOR_LLM_COMPACT_MODE` | Force compact responses for lightweight runs. |
-| `QWEN_MAX_TOKENS` | Compact token ceiling used for Qwen-like models. |
-| `ADVISOR_LLM_GUIDE_MAX_TOKENS` | Larger response budget for complete travel guides. |
-| `ADVISOR_WEEKLY_WINDOW_DAYS` | Weekly prediction window size, clamped to `1..14`. |
-| `AIRPORTS_INDEX_SOURCE` or `WORLD_AIRPORTS_SOURCE` | Airports source used by the flight dropdown APIs. |
+# LLM Advisor
+ADVISOR_LLM_ENABLED=true
+ADVISOR_LLM_PROVIDER=nvidia          # nvidia | huggingface
+ADVISOR_LLM_MODEL=your-model-id
+NVIDIA_API_KEY=your-key
+HF_TOKEN=your-hf-token
 
-### Run the current web app and API
+# Advisor behavior
+ADVISOR_WEEKLY_WINDOW_DAYS=7
+ADVISOR_LLM_COMPACT_MODE=false
+ADVISOR_LLM_GUIDE_MAX_TOKENS=2048
+
+# Optional
+ENABLE_DASH=0
+```
+
+### Run
 
 ```bash
 python src/app.py
 ```
 
-Then open:
+Open:
 
-- `http://localhost:8000/`
-- `http://localhost:8000/advisor`
-- `http://localhost:8000/docs`
+- `http://localhost:8000/` — Landing page
+- `http://localhost:8000/advisor` — Conversational advisor
+- `http://localhost:8000/docs` — Swagger UI
 
-### Run the Dash app standalone
+---
 
-If you still use the separate Dash dashboard directly:
+## 🌐 API Overview
 
-```bash
-python dashboard/app.py
-```
-
-### Railway or gunicorn
-
-```bash
-gunicorn -w 2 -b 0.0.0.0:$PORT src.app:app
-```
-
-If you prefer plain Python on Railway, `src/app.py` also reads `PORT` automatically:
-
-```bash
-python src/app.py
-```
-
-## Main API surface
-
-| Method | Path | Purpose |
+| Method | Path | Description |
 |---|---|---|
 | `GET` | `/health` | Liveness check |
-| `GET` | `/docs` | Swagger UI |
-| `GET` | `/redoc` | ReDoc |
 | `POST` | `/predict` | Structured delay prediction |
-| `POST` | `/advise` | Advisor workflow with prediction, weekly fallback, and LLM guidance |
-| `GET` | `/api/advisor/history` | Load the current advisor chat session |
-| `POST` | `/api/advisor/reset` | Clear chat history and route context |
-| `GET` | `/api/flight/countries` | Countries available in the airports index |
-| `GET` | `/api/flight/airports?country=...` | Airports for a selected country |
-| `GET` | `/api/flight/departures?airport=...` | Upcoming departures or generated placeholders |
-| `GET` | `/api/upcoming_flights` | Upcoming schedule view |
-| `GET` | `/api/weekly_predictions` | Weekly prediction listing alias |
+| `POST` | `/advise` | Full advisor workflow |
+| `GET` | `/api/advisor/history` | Current session chat history |
+| `POST` | `/api/advisor/reset` | Clear session and route context |
+| `GET` | `/api/flight/countries` | Available countries |
+| `GET` | `/api/flight/airports?country=` | Airports for a country |
 | `GET` | `/api/live_flights` | Live flights from OpenSky |
-| `GET` | `/api/live_flights/<icao24>` | Live details for one aircraft |
-| `GET` | `/api/routes` | Route and endpoint discovery payload |
+| `GET` | `/api/weekly_predictions` | Weekly prediction listing |
+| `GET` | `/docs` | Swagger UI |
 
-## Advisor behavior
+Full schema available at `/openapi.json`.
 
-### Request model
+---
 
-`/advise` accepts structured fields plus a free-form question. The current request schema includes:
-
-- `origin_country`
-- `origin_airport`
-- `destination_country`
-- `destination_airport`
-- `airline`
-- `scheduled_departure`
-- `flight_date`
-- `year`, `month`, `day`, `day_of_week`
-- `distance`
-- `question`
-
-### Response highlights
-
-The advisor can return:
-
-- `delay_probability`
-- `delay_prediction`
-- `risk_level`
-- `top_factors`
-- `suggested_flights`
-- `clarification_prompts`
-- `route_updates`
-- `messages`
-- `mode`
-- `advice_source`
-- `advice_model`
-
-### Current routing and fallback rules
-
-- If the user mentions a new origin or destination in natural language, the backend extracts it and sends `route_updates` so the frontend can sync the dropdowns.
-- If a specific airport is detected, the corresponding country is filled automatically when possible.
-- If origin and destination are known but airline, departure time, or exact date are missing, the advisor can use the upcoming weekly schedule instead of blocking on missing fields.
-- If `distance` is missing, the predictor falls back to the historical route average or the global average.
-- If the LLM is turned off or unavailable, the backend still returns deterministic model-based advice text.
-- Session history is stored under `data/runtime/advisor_sessions`.
-
-### Example request
+## 💬 Advisor Example
 
 ```bash
-curl -X POST "http://localhost:8000/advise" \
+curl -X POST http://localhost:8000/advise \
   -H "Content-Type: application/json" \
   -d '{
     "origin_airport": "GRU",
     "destination_airport": "JFK",
-    "question": "Use the weekly schedule and tell me if this route is likely to be delayed."
+    "question": "Is this route likely to be delayed next week?"
   }'
 ```
-
-### Example response shape
 
 ```json
 {
@@ -225,53 +156,61 @@ curl -X POST "http://localhost:8000/advise" \
   "delay_prediction": 0,
   "risk_level": "LOW",
   "mode": "weekly_route",
-  "advice_source": "weekly_model",
-  "top_factors": [
-    {
-      "feature": "distance",
-      "impact": "Estimated distance from the historical average for this route."
-    }
-  ],
+  "advice": "On-time predicted. Estimate uses the weekly schedule as no exact date was specified.",
   "route_updates": {
     "origin": { "country": "Brazil", "airport": "GRU" },
     "destination": { "country": "United States", "airport": "JFK" }
-  },
-  "advice": "On-time predicted. The estimate uses the upcoming weekly schedule because no exact date was specified."
+  }
 }
 ```
 
-## Data and jobs
+---
 
-### Main artifacts
+## 🤖 Prediction Strategy
 
-- `models/delay_model.pkl`: serialized delay model
-- `models/delay_model_meta.json`: metadata for the prediction pipeline
-- `models/explain/`: SHAP exports used by the explainability flow
+The advisor uses a **three-tier fallback** to always return useful information:
 
-### Supporting jobs
+```
+1. Specific-flight prediction  →  full model features available
+2. Weekly route estimation     →  route known, but date/airline missing
+3. Heuristic fallback          →  LLM disabled or unavailable
+```
 
-- `src/jobs/generate_future_flights.py`: future schedule generation
-- `src/jobs/weekly_predict.py`: weekly prediction outputs
-- `src/jobs/weekly_pipeline.py`: weekly processing flow
-- `src/jobs/csv_to_parquet_converter.py`: CSV to Parquet helper
+Missing features (like `distance`) are filled from historical route averages, then global averages, so the model never hard-fails on incomplete input.
 
-### Data dependencies
+<img width="1902" height="911" alt="image" src="https://github.com/user-attachments/assets/821acb3b-9510-41b9-b20d-7ec20afd93a5" />
+<img width="1901" height="908" alt="image" src="https://github.com/user-attachments/assets/edf95d14-0c68-4338-b786-74713181f98e" />
+<img width="1895" height="907" alt="image" src="https://github.com/user-attachments/assets/e669c29c-e3e8-4d86-b398-1c79a27bde4a" />
 
-The app expects:
+---
 
-- a training or processed flight dataset for the model pipeline
-- an airports index for country and airport dropdowns
-- future or weekly schedule data for weekly route estimation
-- OpenSky access for live-flight endpoints
+## 🚢 Deployment
 
-## Limitations and next steps
+**Railway / gunicorn:**
 
-- Real-time booking and purchase execution are not implemented in this backend.
-- Live availability and fare shopping depend on external integrations that are still optional or disabled.
-- The `dashboard/` app and the Flask pages overlap in some analytical capabilities and should be consolidated further.
-- `src/rag/` is not the active runtime path for the current advisor flow and may be cleaned up or formalized later.
+```bash
+gunicorn -w 2 -b 0.0.0.0:$PORT src.app:app
+```
 
-## Related docs
+**Plain Python on Railway:**
 
-- `PROTOTYPE.md`: technical current-state reference
-- `docs/`: diagrams and SVG assets used during design and presentation
+```bash
+python src/app.py   # reads PORT env var automatically
+```
+
+---
+
+## 📋 Related Docs
+
+- [`PROTOTYPE.md`](./PROTOTYPE.md) — Technical current-state reference
+- [`docs/`](./docs/) — Architecture diagrams
+- `/docs` endpoint — Live Swagger UI
+
+---
+
+## ⚠️ Current Limitations
+
+- Real-time booking and fare purchase are not implemented
+- Live flight quality depends on OpenSky availability
+- Route extraction uses heuristic NLP, not a full NLU system
+- The Dash app and Flask pages overlap in some analytics views (consolidation planned)

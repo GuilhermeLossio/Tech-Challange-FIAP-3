@@ -367,7 +367,7 @@
 <input
   type="hidden"
   id="api-base"
-  value="{{ request.url_root[:-1] if request.url_root.endswith('/') else request.url_root }}"
+  value="{{ request.script_root or '' }}"
 />
 <span id="api-health-chip" class="status-chip" hidden aria-hidden="true">disconnected</span>
 

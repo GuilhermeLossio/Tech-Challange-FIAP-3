@@ -14,6 +14,7 @@ from uuid import uuid4
 import pandas as pd
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 from pydantic import BaseModel, Field, ValidationError, field_validator
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 SRC_DIR = Path(__file__).resolve().parents[1]
 ROOT_DIR = SRC_DIR.parent
@@ -39,6 +40,7 @@ from src.api.views import (  # noqa: E402
 load_env_file()
 app = Flask(__name__, template_folder=str(SRC_DIR / "templates"),
             static_folder=str(SRC_DIR / "static"), static_url_path="/static")
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 app.secret_key = os.getenv("FLASK_SECRET_KEY") or os.getenv("SECRET_KEY") or "dev-flight-advisor-secret"
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
@@ -2967,6 +2969,10 @@ def redoc():
 @app.get("/openapi.json")
 def openapi_json():
     return jsonify(build_openapi_spec("/"))
+
+@app.get("/favicon.ico")
+def favicon():
+    return redirect(url_for("static", filename="favicon.svg"), code=302)
 
 @app.route("/health", methods=["GET"])
 def health():

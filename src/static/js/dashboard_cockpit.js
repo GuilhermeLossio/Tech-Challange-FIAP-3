@@ -26,7 +26,7 @@ function normalizeApiBase(rawValue) {
 
   try {
     const resolved = new URL(candidate, window.location.origin);
-    if (resolved.origin === window.location.origin) {
+    if (resolved.host === window.location.host) {
       return resolved.pathname === "/" ? "" : resolved.pathname.replace(/\/$/, "");
     }
     return resolved.toString().replace(/\/$/, "");

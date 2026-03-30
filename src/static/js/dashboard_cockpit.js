@@ -16,18 +16,22 @@ const apiBaseInput = () => $("api-base");
 
 function normalizeApiBase(rawValue) {
   const raw = String(rawValue || "").trim();
-  if (!raw || raw === "/") return window.location.origin;
+  if (!raw || raw === "/") return "";
 
   const candidate = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw)
     ? raw
-    : /^[\w.-]+:\d+(?:\/.*)?$/i.test(raw)
-      ? `http://${raw}`
-      : raw;
+    : raw.startsWith("/")
+      ? raw
+      : `/${raw.replace(/^\/+/, "")}`;
 
   try {
-    return new URL(candidate, window.location.origin).toString().replace(/\/$/, "");
+    const resolved = new URL(candidate, window.location.origin);
+    if (resolved.origin === window.location.origin) {
+      return resolved.pathname === "/" ? "" : resolved.pathname.replace(/\/$/, "");
+    }
+    return resolved.toString().replace(/\/$/, "");
   } catch {
-    return window.location.origin;
+    return "";
   }
 }
 
